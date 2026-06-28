@@ -989,6 +989,36 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
 </nav>
 
+<script>
+// Hidden rules tab: tap right side twice then left side twice on the nav bar
+(function(){
+  var taps = [];
+  var navEl = document.querySelector('nav');
+  if(!navEl) return;
+  navEl.addEventListener('click', function(ev){
+    var x = ev.clientX;
+    var w = window.innerWidth;
+    var side = x > w * 0.6 ? 'R' : x < w * 0.4 ? 'L' : null;
+    if(!side) { taps = []; return; }
+    taps.push(side);
+    if(taps.length > 4) taps = taps.slice(-4);
+    if(taps.join('') === 'RRLL') {
+      taps = [];
+      var btn = document.createElement('button');
+      btn.className = 'nav-btn';
+      btn.textContent = '📋 Rules';
+      btn.onclick = function(){ showTab('rules', btn); };
+      // Check if already added
+      if(!document.getElementById('rules-nav-btn')) {
+        btn.id = 'rules-nav-btn';
+        document.querySelector('.nav-tabs').appendChild(btn);
+      }
+      showTab('rules', document.getElementById('rules-nav-btn'));
+    }
+  });
+})();
+</script>
+
 <!-- RUN SHEETS -->
 <div id="tab-runsheets" class="main">
   <div class="report-header">
@@ -1080,6 +1110,110 @@ document.addEventListener("DOMContentLoaded",function(){
 </div>
 
 <!-- UPDATE SCHEDULE -->
+
+<div id="tab-rules" class="main" style="display:none">
+  <div class="report-header">
+    <div class="report-title">SCHEDULING RULES</div>
+    <div class="report-sub">Official rules enforced by the schedule checker</div>
+  </div>
+
+  <div style="display:grid;gap:14px;margin-bottom:24px;">
+
+    <div class="card">
+      <div class="card-header">🍕 Pizza Cook Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        <b>All days:</b> Must have opener (by 9AM) · Must have closer (C)<br>
+        <b>Mon–Thu:</b> Minimum 2 cooks · At least 2 working between 4–8PM<br>
+        <b>Fri–Sat:</b> Minimum 6 cooks<br>
+        <b>AM shifts</b> must have an end time<br>
+        <b>PM shifts</b> with no end time default to 8PM
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🔪 Kitchen Cook Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        <b>All days:</b> Must have opener (by 9AM) · Must have closer (C)<br>
+        <b>Sun–Thu:</b> Minimum 2 cooks · At least 2 working between 4–8PM<br>
+        <b>Fri–Sat:</b> Minimum 3 cooks · At least 2 working between 4–8PM<br>
+        <b>AM shifts</b> must have an end time<br>
+        <b>PM shifts</b> with no end time default to 8PM
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🧹 Prep Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Must have opener (by 9AM)<br>
+        AM shifts must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🍽️ Bus / Dish Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Dish must have a closer (C)<br>
+        AM shifts must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🍸 Bartender Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Must have opener at or before 10:30AM<br>
+        Must have closer (C)<br>
+        AM shifts must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">💵 Cashier Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Must have opener between 10AM–11AM<br>
+        <b>Mon–Thu:</b> Minimum 1 cashier scheduled<br>
+        <b>Fri–Sat:</b> Minimum 3 cashiers working between 4–8PM<br>
+        AM shifts must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🪑 Host Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Must have 1 host on: Mon, Tue, Wed, Fri, Sat, Sun<br>
+        (Thursday is off — no host required)<br>
+        If an AM host shift exists, it must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🍽️ Server Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Must have closer (C) any day servers are scheduled<br>
+        <b>Fri &amp; Sat:</b> Minimum 5 servers starting 3:30PM or later<br>
+        <b>Sunday:</b> Minimum 4 servers starting 3:30PM or later<br>
+        AM shifts must have an end time
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">🚗 Driver Rules</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        Exactly 2 AM drivers starting before 11AM — every day<br>
+        Exactly 1 closer (C) — every day
+      </div>
+    </div>
+
+    <div class="card" style="background:#fff8f8;border:1px solid #f5c0c8;">
+      <div class="card-header" style="color:#c8102e;">⚠️ Override Policy</div>
+      <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
+        If a rule cannot be followed, tap <b>⚠️ OVERRIDE RULE</b> on the error.<br>
+        You will be required to enter your PIN and acknowledge the rule being broken.<br>
+        Overrides suppress the error for that week only.
+      </div>
+    </div>
+
+  </div>
+</div>
 <div id="tab-update" class="main" style="display:none">
   <div id="update-content">
     <div class="report-header">
@@ -1529,7 +1663,7 @@ let currentDay = 0;
 
 function showTab(tab, btn) {
   currentTab = tab;
-  ['runsheets','schedule','private','hitlist','update'].forEach(t => {
+  ['runsheets','schedule','private','hitlist','update','rules'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
   });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -2252,10 +2386,10 @@ function acceptError(di, dept, msg) {
   handle.style.cssText = 'width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px;';
   var lbl = document.createElement('div');
   lbl.style.cssText = "font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;color:#222;margin-bottom:4px;";
-  lbl.textContent = 'Schedule Is Correct';
+  lbl.textContent = 'Override Scheduling Rule';
   var sublbl = document.createElement('div');
   sublbl.style.cssText = 'font-size:12px;color:#888;margin-bottom:16px;line-height:1.4;';
-  sublbl.textContent = 'Enter PIN to confirm this error is intentional and suppress it for this week.';
+  sublbl.textContent = 'I acknowledge that this rule is being broken and I am overriding it for this week. Enter PIN to confirm.';
   var errlbl = document.createElement('div');
   errlbl.style.cssText = 'font-size:12px;font-weight:700;color:#c8102e;background:#fff8f8;border:1px solid #f5c0c8;border-radius:8px;padding:8px 10px;margin-bottom:14px;';
   errlbl.textContent = dept + ' — ' + msg;
@@ -4137,7 +4271,7 @@ function checkScheduleErrors() {
     });
     if(!anyBOHToday) continue;
 
-    // AM shifts missing end time
+    // AM shifts missing end time (BOH)
     [
       {d:PIZZA,lbl:'Pizza'},{d:KITCHEN,lbl:'Kitchen'},
       {d:PREP,lbl:'Prep'},{d:BUS,lbl:'Bus'},{d:DISH,lbl:'Dish'},{d:MANAGERS,lbl:'Managers'}
@@ -4164,15 +4298,55 @@ function checkScheduleErrors() {
       errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'No Pizza closer (nobody with C)'});
     if(!Object.entries(DISH).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish closer (nobody with C)'});
+
+    // Pizza staffing minimums
+    var pizzaCount = Object.values(PIZZA).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var pizzaPMCount = Object.values(PIZZA).filter(function(d){
+      var p=parseBOHRaw(d[di],di); return p && p.st>=16 && p.st<=20;
+    }).length;
+    if(di<=3) { // Mon-Thu
+      if(pizzaCount < 2)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'Only '+pizzaCount+' pizza cook(s) — need at least 2 Mon-Thu'});
+      if(pizzaPMCount < 2)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'Only '+pizzaPMCount+' pizza cook(s) between 4-8PM — need at least 2'});
+    }
+    if(di===4||di===5) { // Fri-Sat
+      if(pizzaCount < 6)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'Only '+pizzaCount+' pizza cook(s) — need at least 6 Fri-Sat'});
+    }
+
+    // Kitchen staffing minimums
+    var kitchenCount = Object.values(KITCHEN).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var kitchenPMCount = Object.values(KITCHEN).filter(function(d){
+      var p=parseBOHRaw(d[di],di); return p && p.st>=16 && p.st<=20;
+    }).length;
+    if(di===0||di===1||di===2||di===3||di===6) { // Sun-Thu
+      if(kitchenCount < 2)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'Only '+kitchenCount+' kitchen cook(s) — need at least 2 Sun-Thu'});
+      if(kitchenPMCount < 2)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'Only '+kitchenPMCount+' kitchen cook(s) between 4-8PM — need at least 2'});
+    }
+    if(di===4||di===5) { // Fri-Sat
+      if(kitchenCount < 3)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'Only '+kitchenCount+' kitchen cook(s) — need at least 3 Fri-Sat'});
+      if(kitchenPMCount < 2)
+        errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'Only '+kitchenPMCount+' kitchen cook(s) between 4-8PM — need at least 2'});
+    }
   }
 
   // ── FOH CHECKS ──
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
 
-    // AM shifts missing end time
-    [{d:SERVERS,lbl:'Servers'},{d:BARTENDERS,lbl:'Bartenders'},
-     {d:CASHIERS,lbl:'Cashiers'},{d:HOSTS,lbl:'Hosts'}].forEach(function(sec){
+    // Helper: is this FOH entry actually a scheduled shift (not null/empty)
+    function fohHasShift(entry) {
+      if(!entry) return false;
+      if(Array.isArray(entry)) return entry[0] !== null && entry[0] !== undefined && String(entry[0]).trim() !== '';
+      return String(entry).trim() !== '' && String(entry).trim().toLowerCase() !== 'null';
+    }
+
+    // AM shifts missing end time — Servers, Bartenders, Hosts only (Cashiers handled separately)
+    [{d:SERVERS,lbl:'Servers'},{d:BARTENDERS,lbl:'Bartenders'},{d:HOSTS,lbl:'Hosts'}].forEach(function(sec){
       Object.entries(sec.d).forEach(function(e){
         var p = parseFOHRaw(e[1][di]);
         if(!p) return;
@@ -4182,11 +4356,59 @@ function checkScheduleErrors() {
       });
     });
 
-    // Helper: is this FOH entry actually a scheduled shift (not null/empty)
-    function fohHasShift(entry) {
-      if(!entry) return false;
-      if(Array.isArray(entry)) return entry[0] !== null && entry[0] !== undefined && String(entry[0]).trim() !== '';
-      return String(entry).trim() !== '' && String(entry).trim().toLowerCase() !== 'null';
+    // Cashiers — AM shifts missing end time
+    Object.entries(CASHIERS).forEach(function(e){
+      var p = parseFOHRaw(e[1][di]);
+      if(!p) return;
+      var stH = hitlistHour(p.st, di);
+      if(stH !== null && stH < 12 && !p.hasEnd && !p.hasClose)
+        errors.FOH.push({di:di, day:day, name:e[0], dept:'Cashiers', msg:'AM shift — missing end time'});
+    });
+
+    // Bartender opener: at or before 10:30AM
+    if(Object.values(BARTENDERS).some(function(d){ return fohHasShift(d[di]); })) {
+      if(!Object.values(BARTENDERS).some(function(d){
+        var p=parseFOHRaw(d[di]); if(!p) return false;
+        var stH=hitlistHour(p.st,di); return stH!==null && stH<=10.5;
+      }))
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Bartenders', msg:'No bartender opener at or before 10:30AM'});
+    }
+
+    // Bartender closer
+    if(Object.values(BARTENDERS).some(function(d){ return fohHasShift(d[di]); })) {
+      if(!Object.values(BARTENDERS).some(function(d){ return fohEntryIsCloser(d[di]); }))
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Bartenders', msg:'No bartender closer (nobody with C)'});
+    }
+
+    // Cashier opener: between 10AM and 11AM
+    if(Object.values(CASHIERS).some(function(d){ return fohHasShift(d[di]); })) {
+      if(!Object.values(CASHIERS).some(function(d){
+        var p=parseFOHRaw(d[di]); if(!p) return false;
+        var stH=hitlistHour(p.st,di); return stH!==null && stH>=10 && stH<=11;
+      }))
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashier opener between 10AM–11AM'});
+    }
+
+    // Cashier minimums
+    var cashierPMCount = Object.values(CASHIERS).filter(function(d){
+      var p=parseFOHRaw(d[di]); if(!p) return false;
+      var stH=hitlistHour(p.st,di); return stH!==null && stH>=16 && stH<=20;
+    }).length;
+    var cashierCount = Object.values(CASHIERS).filter(function(d){ return fohHasShift(d[di]); }).length;
+    if(di<=3) { // Mon-Thu
+      if(cashierCount < 1)
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashiers scheduled — need at least 1 Mon-Thu'});
+    }
+    if(di===4||di===5) { // Fri-Sat
+      if(cashierPMCount < 3)
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'Only '+cashierPMCount+' cashier(s) between 4-8PM — need at least 3 Fri-Sat'});
+    }
+
+    // Host minimums: must have 1 on Mon/Tue/Wed/Fri/Sat/Sun (not Thu=3)
+    if(di !== 3) {
+      var hostCount = Object.values(HOSTS).filter(function(d){ return fohHasShift(d[di]); }).length;
+      if(hostCount < 1)
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Hosts', msg:'No host scheduled — need at least 1'});
     }
 
     // Server closer
@@ -4194,6 +4416,7 @@ function checkScheduleErrors() {
       if(!Object.values(SERVERS).some(function(d){ return fohEntryIsCloser(d[di]); }))
         errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'No server closer (nobody with C)'});
     }
+
     // PM server minimums: Fri(4)/Sat(5) need 5, Sun(6) needs 4, starting 3:30PM or later
     if(di === 4 || di === 5 || di === 6) {
       var pmServerCount = 0;
@@ -4207,12 +4430,6 @@ function checkScheduleErrors() {
       if(pmServerCount < minPM)
         errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'Only '+pmServerCount+' PM server(s) starting 3:30PM+ — need at least '+minPM});
     }
-
-    // Bartender closer
-    if(Object.values(BARTENDERS).some(function(d){ return fohHasShift(d[di]); })) {
-      if(!Object.values(BARTENDERS).some(function(d){ return fohEntryIsCloser(d[di]); }))
-        errors.FOH.push({di:di, day:day, name:'—', dept:'Bartenders', msg:'No bartender closer (nobody with C)'});
-    }
   }
 
   // ── DRIVER CHECKS ──
@@ -4223,12 +4440,12 @@ function checkScheduleErrors() {
       var p = parseBOHRaw(days[di], di);
       if(!p) return;
       if(p.hasClose) closerCount++;
-      else if(p.st < 12) amCount++;
+      else if(p.st < 11) amCount++;
     });
     if(amCount < 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) — need at least 2'});
+      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) before 11AM — need exactly 2'});
     if(amCount > 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:amCount+' AM drivers before 12PM — maximum is 2'});
+      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:amCount+' AM drivers before 11AM — maximum is 2'});
     if(closerCount === 0)
       errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
     if(closerCount > 1)
@@ -4283,7 +4500,7 @@ function checkScheduleErrors() {
            + 'style="flex:1;padding:9px 6px;background:#222;color:#fff;border:none;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:0.05em;cursor:pointer;">✏️ FIX SCHEDULE</button>';
       }
       h += '<button onclick="event.stopPropagation();acceptErrorByIdx('+errIdx+');" '
-         + 'style="flex:1;padding:9px 6px;background:#f0efed;color:#555;border:none;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:0.05em;cursor:pointer;">✓ SCHEDULE IS CORRECT</button>';
+         + 'style="flex:1;padding:9px 6px;background:#f0efed;color:#555;border:none;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:13px;letter-spacing:0.05em;cursor:pointer;">⚠️ OVERRIDE RULE</button>';
       h += '</div>';
       h += '</div>';
     });
@@ -4304,24 +4521,42 @@ function checkScheduleErrors() {
 }
 
 function printScheduleErrors() {
-  if(!window._schedErrors) return;
-  var e = window._schedErrors;
+  if(!window._currentErrors) return;
+  var allErrors = window._currentErrors;
+  var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  // Merge all errors into one array
+  var combined = (allErrors.BOH||[]).concat(allErrors.FOH||[]).concat(allErrors.Drivers||[]);
+  // Group by day index
+  var byDay = {};
+  combined.forEach(function(e){
+    if(!byDay[e.di]) byDay[e.di] = [];
+    byDay[e.di].push(e);
+  });
+  var total = combined.length;
+  var bodyHtml = '';
+  [0,1,2,3,4,5,6].forEach(function(di){
+    if(!byDay[di] || !byDay[di].length) return;
+    bodyHtml += '<div style="margin-bottom:20px;">';
+    bodyHtml += '<div style="font-size:14px;font-weight:700;background:#222;color:#fff;padding:6px 10px;border-radius:4px;margin-bottom:8px;">'+DAYS_FULL[di]+'</div>';
+    byDay[di].forEach(function(e){
+      var overrideNote = (window._bypassedErrors && window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg]) ? ' <span style="color:#888;font-size:10px;">[OVERRIDDEN]</span>' : '';
+      bodyHtml += '<div style="border:1px solid #f5c0c8;border-radius:6px;padding:8px 10px;margin-bottom:6px;background:#fff8f8;">';
+      bodyHtml += '<span style="color:#c8102e;font-weight:700;font-size:12px;">'+e.dept+'</span>';
+      bodyHtml += '<span style="color:#666;font-size:11px;"> — '+e.msg+'</span>'+overrideNote;
+      if(e.name && e.name !== '—') bodyHtml += '<div style="font-size:10px;color:#aaa;">'+e.name+'</div>';
+      bodyHtml += '</div>';
+    });
+    bodyHtml += '</div>';
+  });
   var printHtml = '<!DOCTYPE html><html><head><title>Schedule Error Report</title>'
     + '<style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;}h1{font-size:18px;color:#c8102e;margin-bottom:4px;}'
-    + 'h2{font-size:13px;color:#444;font-weight:600;letter-spacing:0.05em;margin:14px 0 6px;}'
-    + 'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'
-    + 'th{text-align:left;padding:5px 8px;background:#222;color:#fff;font-size:11px;}'
-    + 'td{padding:5px 8px;border-bottom:1px solid #eee;}'
-    + '.issue{color:#c8102e;font-weight:600;}'
     + '@media print{button{display:none;}}'
     + '</style></head><body>'
-    + '<h1>⚠️ Schedule Error Report — Zazzo\'s</h1>'
-    + '<p style="color:#666;font-size:11px;margin-bottom:16px;">'
-    + e.total + ' issue(s) detected in: ' + e.depts.join(', ') + '</p>'
-    + e.html
-    + '<p style="margin-top:20px;font-size:10px;color:#aaa;">Printed from Zazzo\'s scheduling app</p>'
+    + '<h1>⚠️ Schedule Error Report — Zazzo's</h1>'
+    + '<p style="color:#666;font-size:11px;margin-bottom:16px;">'+total+' issue(s) — organized by day</p>'
+    + bodyHtml
+    + '<p style="margin-top:20px;font-size:10px;color:#aaa;">Printed from Zazzo's scheduling app</p>'
     + '</body></html>';
-
   var w = window.open('', '_blank', 'width=700,height=600');
   w.document.write(printHtml);
   w.document.close();
