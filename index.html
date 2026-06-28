@@ -4507,7 +4507,7 @@ function printScheduleErrors() {
   [0,1,2,3,4,5,6].forEach(function(di){
     if(!byDay[di] || !byDay[di].length) return;
     bodyHtml += '<div style="margin-bottom:20px;">';
-    bodyHtml += '<div style="font-size:14px;font-weight:700;background:#222;color:#fff;padding:6px 10px;border-radius:4px;margin-bottom:8px;">'+DAYS_FULL[di]+'</div>';
+    bodyHtml += '<div style="font-size:14px;font-weight:700;background:#222;color:#fff;padding:6px 10px;border-radius:4px;margin-bottom:8px;">'+DAYS_FULL[di]+(FULL_DATES[di]?' — '+FULL_DATES[di]:'')+'</div>';
     byDay[di].forEach(function(e){
       var overrideNote = (window._bypassedErrors && window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg]) ? ' <span style="color:#888;font-size:10px;">[OVERRIDDEN]</span>' : '';
       bodyHtml += '<div style="border:1px solid #f5c0c8;border-radius:6px;padding:8px 10px;margin-bottom:6px;background:#fff8f8;">';
