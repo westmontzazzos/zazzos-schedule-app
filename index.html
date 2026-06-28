@@ -960,23 +960,19 @@ document.addEventListener("DOMContentLoaded",function(){
 </head>
 <body>
 
-<!-- FULL-APP LOCK GATE — Face ID or PIN -->
+<!-- FULL-APP LOCK GATE — requires PIN on every load -->
 <div id="app-lock" style="position:fixed;inset:0;z-index:99999;background:#f2f1ee;display:flex;align-items:center;justify-content:center;padding:24px;">
   <div class="lock-card">
     <div class="lock-icon">🔒</div>
     <div class="lock-title">Zazzo's Labor</div>
-    <div id="app-lock-sub" class="lock-sub">Checking authentication...</div>
-    <button id="faceid-btn" class="unlock-btn" onclick="tryFaceID()" style="display:none;background:linear-gradient(135deg,#1a1a2e,#16213e);margin-bottom:10px;">
-      <span style="font-size:20px;">🆔</span> Use Face ID
-    </button>
+    <div class="lock-sub">Enter PIN to access the app.</div>
     <input type="text" class="pin-input" id="app-lock-input" placeholder="• • • •" maxlength="6"
            inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false"
-           style="-webkit-text-security:disc;text-security:disc;display:none;"
+           style="-webkit-text-security:disc;text-security:disc;"
            onkeydown="if(event.key==='Enter')checkAppLock()">
-    <button id="pin-unlock-btn" class="unlock-btn" onclick="checkAppLock()" style="display:none;">UNLOCK WITH PIN</button>
-    <button id="show-pin-btn" style="display:none;background:none;border:none;color:#888;font-size:13px;margin-top:8px;cursor:pointer;text-decoration:underline;" onclick="showPinFallback()">Use PIN instead</button>
-    <div class="pin-error" id="app-lock-error" style="display:none;">Incorrect PIN. Try again.</div>
+    <button class="unlock-btn" onclick="checkAppLock()">UNLOCK</button>
+    <div class="pin-error" id="app-lock-error">Incorrect PIN. Try again.</div>
   </div>
 </div>
 
@@ -2697,108 +2693,14 @@ function renderSchedule() {
 }
 
 // ── PIN / PRIVATE ──
-function unlockApp() {
-  var lock = document.getElementById('app-lock');
-  if(lock) lock.style.display='none';
-}
-
 function checkAppLock() {
   var pin = document.getElementById('app-lock-input').value;
   if(pin==='2026') {
-    // Try to register Face ID if not yet done
-    if(window.PublicKeyCredential) {
-      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(available){
-        if(available && !localStorage.getItem('zp_faceid_registered')) {
-          registerFaceID().then(function(ok){
-            if(ok) localStorage.setItem('zp_faceid_registered','1');
-            unlockApp();
-          }).catch(function(e){ console.log('FaceID reg error:',e); unlockApp(); });
-        } else {
-          unlockApp();
-        }
-      }).catch(function(){ unlockApp(); });
-    } else {
-      unlockApp();
-    }
+    var lock = document.getElementById('app-lock');
+    if(lock) lock.style.display='none';
   } else {
     document.getElementById('app-lock-error').style.display='block';
     document.getElementById('app-lock-input').value='';
-  }
-}
-
-function showPinFallback() {
-  document.getElementById('faceid-btn').style.display='none';
-  document.getElementById('show-pin-btn').style.display='none';
-  document.getElementById('app-lock-input').style.display='block';
-  document.getElementById('pin-unlock-btn').style.display='block';
-  document.getElementById('app-lock-sub').textContent='Enter PIN to access the app.';
-  setTimeout(function(){ document.getElementById('app-lock-input').focus(); }, 100);
-}
-
-function b64url(buf) {
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
-    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-function b64urlDecode(s) {
-  s = s.replace(/-/g,'+').replace(/_/g,'/');
-  while(s.length%4) s+='=';
-  return Uint8Array.from(atob(s), function(c){ return c.charCodeAt(0); });
-}
-
-async function registerFaceID() {
-  try {
-    var challenge = new Uint8Array(32);
-    crypto.getRandomValues(challenge);
-    var userId = new Uint8Array(16);
-    crypto.getRandomValues(userId);
-    var cred = await navigator.credentials.create({publicKey:{
-      challenge: challenge,
-      rp: {name: "Zazzo's Labor App"},
-      user: {id: userId, name: 'zazzos-user', displayName: "Zazzo's User"},
-      pubKeyCredParams: [{type:'public-key', alg:-7}],
-      authenticatorSelection: {authenticatorAttachment:'platform', userVerification:'required'},
-      timeout: 30000
-    }});
-    localStorage.setItem('zp_faceid_id', b64url(cred.rawId));
-    return true;
-  } catch(e) {
-    console.log('FaceID register failed:', e.message);
-    return false;
-  }
-}
-
-async function tryFaceID() {
-  var storedId = localStorage.getItem('zp_faceid_id');
-  if(!storedId) { showPinFallback(); return; }
-  try {
-    var challenge = new Uint8Array(32);
-    crypto.getRandomValues(challenge);
-    await navigator.credentials.get({publicKey:{
-      challenge: challenge,
-      allowCredentials: [{type:'public-key', id: b64urlDecode(storedId)}],
-      userVerification: 'required',
-      timeout: 30000
-    }});
-    unlockApp();
-  } catch(e) {
-    document.getElementById('app-lock-sub').textContent = 'Face ID failed. Use PIN.';
-    showPinFallback();
-  }
-}
-
-async function initAppLock() {
-  var hasFaceID = window.PublicKeyCredential && localStorage.getItem('zp_faceid_registered') === '1' && localStorage.getItem('zp_faceid_id');
-  if(hasFaceID) {
-    document.getElementById('app-lock-sub').textContent = 'Use Face ID to unlock.';
-    document.getElementById('faceid-btn').style.display = 'block';
-    document.getElementById('show-pin-btn').style.display = 'block';
-    // Auto-trigger Face ID
-    setTimeout(tryFaceID, 300);
-  } else {
-    document.getElementById('app-lock-sub').textContent = 'Enter PIN to access the app.';
-    document.getElementById('app-lock-input').style.display = 'block';
-    document.getElementById('pin-unlock-btn').style.display = 'block';
-    setTimeout(function(){ document.getElementById('app-lock-input').focus(); }, 200);
   }
 }
 
@@ -5079,8 +4981,8 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
 </script>
 <script>
   // ── STARTUP ──
-  // Initialize app lock (Face ID or PIN)
-  initAppLock();
+  // Focus the app-lock PIN input so the numeric keypad appears immediately
+  setTimeout(function(){ var ali=document.getElementById('app-lock-input'); if(ali) ali.focus(); }, 200);
   initDayTabs();
   loadAllWeeks();
   var _initWeekKey = (document.getElementById('week-label')||{}).textContent||'';
