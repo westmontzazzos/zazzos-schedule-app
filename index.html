@@ -989,36 +989,6 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
 </nav>
 
-<script>
-// Hidden rules tab: tap right side twice then left side twice on the nav bar
-(function(){
-  var taps = [];
-  var navEl = document.querySelector('nav');
-  if(!navEl) return;
-  navEl.addEventListener('click', function(ev){
-    var x = ev.clientX;
-    var w = window.innerWidth;
-    var side = x > w * 0.6 ? 'R' : x < w * 0.4 ? 'L' : null;
-    if(!side) { taps = []; return; }
-    taps.push(side);
-    if(taps.length > 4) taps = taps.slice(-4);
-    if(taps.join('') === 'RRLL') {
-      taps = [];
-      var btn = document.createElement('button');
-      btn.className = 'nav-btn';
-      btn.textContent = '📋 Rules';
-      btn.onclick = function(){ showTab('rules', btn); };
-      // Check if already added
-      if(!document.getElementById('rules-nav-btn')) {
-        btn.id = 'rules-nav-btn';
-        document.querySelector('.nav-tabs').appendChild(btn);
-      }
-      showTab('rules', document.getElementById('rules-nav-btn'));
-    }
-  });
-})();
-</script>
-
 <!-- RUN SHEETS -->
 <div id="tab-runsheets" class="main">
   <div class="report-header">
@@ -4556,7 +4526,35 @@ function printScheduleErrors() {
     + '<p style="color:#666;font-size:11px;margin-bottom:16px;">'+total+' issue(s) — organized by day</p>'
     + bodyHtml
     + '<p style="margin-top:20px;font-size:10px;color:#aaa;">Printed from Zazzo's scheduling app</p>'
-    + '</body></html>';
+    + '
+// Hidden rules tab: tap right side twice then left side twice on the nav bar
+(function(){
+  var taps = [];
+  document.addEventListener('click', function(ev){
+    var nav = ev.target.closest('nav');
+    if(!nav) return;
+    var x = ev.clientX;
+    var w = window.innerWidth;
+    var side = x > w * 0.6 ? 'R' : x < w * 0.4 ? 'L' : null;
+    if(!side) { taps = []; return; }
+    taps.push(side);
+    if(taps.length > 4) taps = taps.slice(-4);
+    if(taps.join('') === 'RRLL') {
+      taps = [];
+      if(!document.getElementById('rules-nav-btn')) {
+        var btn = document.createElement('button');
+        btn.className = 'nav-btn';
+        btn.id = 'rules-nav-btn';
+        btn.textContent = '📋 Rules';
+        btn.onclick = function(){ showTab('rules', btn); };
+        document.querySelector('.nav-tabs').appendChild(btn);
+      }
+      showTab('rules', document.getElementById('rules-nav-btn'));
+    }
+  });
+})();
+
+</body></html>';
   var w = window.open('', '_blank', 'width=700,height=600');
   w.document.write(printHtml);
   w.document.close();
