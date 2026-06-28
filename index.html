@@ -2705,11 +2705,17 @@ function unlockApp() {
 function checkAppLock() {
   var pin = document.getElementById('app-lock-input').value;
   if(pin==='2026') {
-    // Check if Face ID is available and not yet registered — offer to register
-    if(window.PublicKeyCredential && !localStorage.getItem('zp_faceid_registered')) {
-      registerFaceID().then(function(ok){
-        if(ok) localStorage.setItem('zp_faceid_registered','1');
-        unlockApp();
+    // Try to register Face ID if not yet done
+    if(window.PublicKeyCredential) {
+      PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(available){
+        if(available && !localStorage.getItem('zp_faceid_registered')) {
+          registerFaceID().then(function(ok){
+            if(ok) localStorage.setItem('zp_faceid_registered','1');
+            unlockApp();
+          }).catch(function(e){ console.log('FaceID reg error:',e); unlockApp(); });
+        } else {
+          unlockApp();
+        }
       }).catch(function(){ unlockApp(); });
     } else {
       unlockApp();
@@ -2781,7 +2787,7 @@ async function tryFaceID() {
 }
 
 async function initAppLock() {
-  var hasFaceID = window.PublicKeyCredential && localStorage.getItem('zp_faceid_registered') === '1';
+  var hasFaceID = window.PublicKeyCredential && localStorage.getItem('zp_faceid_registered') === '1' && localStorage.getItem('zp_faceid_id');
   if(hasFaceID) {
     document.getElementById('app-lock-sub').textContent = 'Use Face ID to unlock.';
     document.getElementById('faceid-btn').style.display = 'block';
