@@ -1139,7 +1139,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="card">
       <div class="card-header">💵 Cashier Rules</div>
       <div style="font-size:13px;color:#444;line-height:1.7;padding-top:4px;">
-        Must have opener between 10AM–11AM<br>
+        Must have opener before 11AM<br>
         <b>Mon–Thu:</b> Minimum 1 cashier scheduled<br>
         <b>Fri–Sat:</b> Minimum 3 cashiers working between 4–8PM<br>
         AM shifts must have an end time
@@ -4350,13 +4350,13 @@ function checkScheduleErrors() {
         errors.FOH.push({di:di, day:day, name:'—', dept:'Bartenders', msg:'No bartender closer (nobody with C)'});
     }
 
-    // Cashier opener: between 10AM and 11AM
+    // Cashier opener: must have someone in before 11AM
     if(Object.values(CASHIERS).some(function(d){ return fohHasShift(d[di]); })) {
       if(!Object.values(CASHIERS).some(function(d){
         var p=parseFOHRaw(d[di]); if(!p) return false;
-        var stH=hitlistHour(p.st,di); return stH!==null && stH>=10 && stH<=11;
+        var stH=hitlistHour(p.st,di); return stH!==null && stH<11;
       }))
-        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashier opener between 10AM–11AM'});
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashier in before 11AM'});
     }
 
     // Cashier minimums
