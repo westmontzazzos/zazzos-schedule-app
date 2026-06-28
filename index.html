@@ -960,19 +960,23 @@ document.addEventListener("DOMContentLoaded",function(){
 </head>
 <body>
 
-<!-- FULL-APP LOCK GATE — requires PIN on every load -->
+<!-- FULL-APP LOCK GATE — Face ID or PIN -->
 <div id="app-lock" style="position:fixed;inset:0;z-index:99999;background:#f2f1ee;display:flex;align-items:center;justify-content:center;padding:24px;">
   <div class="lock-card">
     <div class="lock-icon">🔒</div>
     <div class="lock-title">Zazzo's Labor</div>
-    <div class="lock-sub">Enter PIN to access the app.</div>
+    <div id="app-lock-sub" class="lock-sub">Checking authentication...</div>
+    <button id="faceid-btn" class="unlock-btn" onclick="tryFaceID()" style="display:none;background:linear-gradient(135deg,#1a1a2e,#16213e);margin-bottom:10px;">
+      <span style="font-size:20px;">🆔</span> Use Face ID
+    </button>
     <input type="text" class="pin-input" id="app-lock-input" placeholder="• • • •" maxlength="6"
            inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off"
            autocapitalize="off" spellcheck="false"
-           style="-webkit-text-security:disc;text-security:disc;"
+           style="-webkit-text-security:disc;text-security:disc;display:none;"
            onkeydown="if(event.key==='Enter')checkAppLock()">
-    <button class="unlock-btn" onclick="checkAppLock()">UNLOCK</button>
-    <div class="pin-error" id="app-lock-error">Incorrect PIN. Try again.</div>
+    <button id="pin-unlock-btn" class="unlock-btn" onclick="checkAppLock()" style="display:none;">UNLOCK WITH PIN</button>
+    <button id="show-pin-btn" style="display:none;background:none;border:none;color:#888;font-size:13px;margin-top:8px;cursor:pointer;text-decoration:underline;" onclick="showPinFallback()">Use PIN instead</button>
+    <div class="pin-error" id="app-lock-error" style="display:none;">Incorrect PIN. Try again.</div>
   </div>
 </div>
 
@@ -2693,14 +2697,102 @@ function renderSchedule() {
 }
 
 // ── PIN / PRIVATE ──
+function unlockApp() {
+  var lock = document.getElementById('app-lock');
+  if(lock) lock.style.display='none';
+}
+
 function checkAppLock() {
   var pin = document.getElementById('app-lock-input').value;
   if(pin==='2026') {
-    var lock = document.getElementById('app-lock');
-    if(lock) lock.style.display='none';
+    // Check if Face ID is available and not yet registered — offer to register
+    if(window.PublicKeyCredential && !localStorage.getItem('zp_faceid_registered')) {
+      registerFaceID().then(function(ok){
+        if(ok) localStorage.setItem('zp_faceid_registered','1');
+        unlockApp();
+      }).catch(function(){ unlockApp(); });
+    } else {
+      unlockApp();
+    }
   } else {
     document.getElementById('app-lock-error').style.display='block';
     document.getElementById('app-lock-input').value='';
+  }
+}
+
+function showPinFallback() {
+  document.getElementById('faceid-btn').style.display='none';
+  document.getElementById('show-pin-btn').style.display='none';
+  document.getElementById('app-lock-input').style.display='block';
+  document.getElementById('pin-unlock-btn').style.display='block';
+  document.getElementById('app-lock-sub').textContent='Enter PIN to access the app.';
+  setTimeout(function(){ document.getElementById('app-lock-input').focus(); }, 100);
+}
+
+function b64url(buf) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buf)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function b64urlDecode(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4) s+='=';
+  return Uint8Array.from(atob(s), function(c){ return c.charCodeAt(0); });
+}
+
+async function registerFaceID() {
+  try {
+    var challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+    var userId = new Uint8Array(16);
+    crypto.getRandomValues(userId);
+    var cred = await navigator.credentials.create({publicKey:{
+      challenge: challenge,
+      rp: {name: "Zazzo's Labor App"},
+      user: {id: userId, name: 'zazzos-user', displayName: "Zazzo's User"},
+      pubKeyCredParams: [{type:'public-key', alg:-7}],
+      authenticatorSelection: {authenticatorAttachment:'platform', userVerification:'required'},
+      timeout: 30000
+    }});
+    localStorage.setItem('zp_faceid_id', b64url(cred.rawId));
+    return true;
+  } catch(e) {
+    console.log('FaceID register failed:', e.message);
+    return false;
+  }
+}
+
+async function tryFaceID() {
+  var storedId = localStorage.getItem('zp_faceid_id');
+  if(!storedId) { showPinFallback(); return; }
+  try {
+    var challenge = new Uint8Array(32);
+    crypto.getRandomValues(challenge);
+    await navigator.credentials.get({publicKey:{
+      challenge: challenge,
+      allowCredentials: [{type:'public-key', id: b64urlDecode(storedId)}],
+      userVerification: 'required',
+      timeout: 30000
+    }});
+    unlockApp();
+  } catch(e) {
+    document.getElementById('app-lock-sub').textContent = 'Face ID failed. Use PIN.';
+    showPinFallback();
+  }
+}
+
+async function initAppLock() {
+  var hasFaceID = window.PublicKeyCredential && localStorage.getItem('zp_faceid_registered') === '1';
+  if(hasFaceID) {
+    document.getElementById('app-lock-sub').textContent = 'Use Face ID to unlock.';
+    document.getElementById('faceid-btn').style.display = 'block';
+    document.getElementById('show-pin-btn').style.display = 'block';
+    // Auto-trigger Face ID
+    setTimeout(tryFaceID, 300);
+  } else {
+    document.getElementById('app-lock-sub').textContent = 'Enter PIN to access the app.';
+    document.getElementById('app-lock-input').style.display = 'block';
+    document.getElementById('pin-unlock-btn').style.display = 'block';
+    setTimeout(function(){ document.getElementById('app-lock-input').focus(); }, 200);
   }
 }
 
@@ -4272,7 +4364,9 @@ function checkScheduleErrors() {
     // Pizza staffing minimums
     var pizzaCount = Object.values(PIZZA).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
     var pizzaPMCount = Object.values(PIZZA).filter(function(d){
-      var p=parseBOHRaw(d[di],di); return p && p.st>=16 && p.st<=20;
+      var p=parseBOHRaw(d[di],di); if(!p) return false;
+      var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
+      return p.st < 20 && en > 16; // overlaps 4-8PM window
     }).length;
     if(di<=3) { // Mon-Thu
       if(pizzaCount < 2)
@@ -4288,7 +4382,9 @@ function checkScheduleErrors() {
     // Kitchen staffing minimums
     var kitchenCount = Object.values(KITCHEN).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
     var kitchenPMCount = Object.values(KITCHEN).filter(function(d){
-      var p=parseBOHRaw(d[di],di); return p && p.st>=16 && p.st<=20;
+      var p=parseBOHRaw(d[di],di); if(!p) return false;
+      var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
+      return p.st < 20 && en > 16; // overlaps 4-8PM window
     }).length;
     if(di===0||di===1||di===2||di===3||di===6) { // Sun-Thu
       if(kitchenCount < 2)
@@ -4361,8 +4457,14 @@ function checkScheduleErrors() {
 
     // Cashier minimums
     var cashierPMCount = Object.values(CASHIERS).filter(function(d){
-      var p=parseFOHRaw(d[di]); if(!p) return false;
-      var stH=hitlistHour(p.st,di); return stH!==null && stH>=16 && stH<=20;
+      var entry = d[di]; if(!entry) return false;
+      var startVal = Array.isArray(entry) ? entry[0] : String(entry).split(/[-–]/)[0];
+      var endVal = Array.isArray(entry) ? entry[1] : (String(entry).split(/[-–]/)[1]||null);
+      var stH = hitlistHour(startVal, di); if(stH===null) return false;
+      var hasClose = endVal && String(endVal).trim().toLowerCase().match(/^c[l]?$|^close$/);
+      var enH = hasClose ? 23 : (endVal ? hitlistHour(endVal, di) : 20);
+      if(enH===null) enH = 20;
+      return stH < 20 && enH > 16; // overlaps 4-8PM window
     }).length;
     var cashierCount = Object.values(CASHIERS).filter(function(d){ return fohHasShift(d[di]); }).length;
     if(di<=3) { // Mon-Thu
@@ -4410,12 +4512,12 @@ function checkScheduleErrors() {
       var p = parseBOHRaw(days[di], di);
       if(!p) return;
       if(p.hasClose) closerCount++;
-      else if(p.st < 11) amCount++;
+      else if(p.st <= 11) amCount++;
     });
     if(amCount < 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) before 11AM — need exactly 2'});
+      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) at or before 11AM — need exactly 2'});
     if(amCount > 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:amCount+' AM drivers before 11AM — maximum is 2'});
+      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:amCount+' AM drivers at or before 11AM — maximum is 2'});
     if(closerCount === 0)
       errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
     if(closerCount > 1)
@@ -4971,8 +5073,8 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
 </script>
 <script>
   // ── STARTUP ──
-  // Focus the app-lock PIN input so the numeric keypad appears immediately
-  setTimeout(function(){ var ali=document.getElementById('app-lock-input'); if(ali) ali.focus(); }, 200);
+  // Initialize app lock (Face ID or PIN)
+  initAppLock();
   initDayTabs();
   loadAllWeeks();
   var _initWeekKey = (document.getElementById('week-label')||{}).textContent||'';
@@ -5013,20 +5115,17 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
 
 
 <script>
-// Hidden rules tab: double-tap right side then double-tap left side of nav
+// Hidden rules tab: tap the Zazzo's logo 4 times
 (function(){
-  var taps = [];
-  document.addEventListener('click', function(ev){
-    var nav = ev.target.closest('nav');
-    if(!nav) return;
-    var x = ev.clientX;
-    var w = window.innerWidth;
-    var side = x > w * 0.6 ? 'R' : x < w * 0.4 ? 'L' : null;
-    if(!side) { taps = []; return; }
-    taps.push(side);
-    if(taps.length > 4) taps = taps.slice(-4);
-    if(taps.join('') === 'RRLL') {
-      taps = [];
+  var tapCount = 0, tapTimer = null;
+  var logo = document.getElementById('za-logo-img');
+  if(!logo) return;
+  logo.addEventListener('click', function(){
+    tapCount++;
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(function(){ tapCount = 0; }, 1500);
+    if(tapCount >= 4) {
+      tapCount = 0;
       if(!document.getElementById('rules-nav-btn')) {
         var btn = document.createElement('button');
         btn.className = 'nav-btn';
