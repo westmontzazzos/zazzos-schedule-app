@@ -4527,11 +4527,21 @@ function printScheduleErrors() {
     + bodyHtml
     + '<p style="margin-top:20px;font-size:10px;color:#aaa;">Printed from Zazzo\'s scheduling app</p>'
     
-  var w = window.open('', '_blank', 'width=700,height=600');
-  w.document.write(printHtml);
-  w.document.close();
-  w.focus();
-  setTimeout(function(){ w.print(); }, 400);
+  // Use hidden iframe so iOS doesn't lose the app on print
+  var iframeId = 'zp-print-frame';
+  var existing = document.getElementById(iframeId);
+  if(existing) existing.remove();
+  var iframe = document.createElement('iframe');
+  iframe.id = iframeId;
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(printHtml);
+  iframe.contentDocument.close();
+  setTimeout(function(){
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }, 400);
 }
 
 
