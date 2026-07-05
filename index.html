@@ -4235,6 +4235,27 @@ function updateWeekLabels(idx) {
 }
 
 
+
+function autoBypassLoggedDays() {
+  if(!allWeeks || !allWeeks[currentWeekIdx]) return;
+  var week = allWeeks[currentWeekIdx];
+  if(!week || !week.week_start) return;
+  var now = new Date();
+  var wkStart = new Date(week.week_start + 'T00:00:00');
+  if(!window._bypassedErrors) window._bypassedErrors = {};
+  for(var di = 0; di < 7; di++) {
+    var dayDate = new Date(wkStart);
+    dayDate.setDate(wkStart.getDate() + di);
+    var dayEnd = new Date(dayDate);
+    dayEnd.setHours(23,59,59,999);
+    if(now <= dayEnd) continue; // day hasn't ended
+    var loggedKey = 'zp_uncleared_logged_' + week.week_start + '_' + di;
+    if(!localStorage.getItem(loggedKey)) continue; // not yet logged
+    // Mark a wildcard bypass for this day so nothing from it shows up
+    window._bypassedErrors['__day_cleared_'+di] = true;
+  }
+}
+
 async function logUnclearedErrors() {
   // Only run for the current week
   if(!allWeeks || !allWeeks[currentWeekIdx]) return;
@@ -4306,7 +4327,13 @@ async function logUnclearedErrors() {
         headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
         body: JSON.stringify(logEntries)
       });
+      // Auto-bypass these errors so they never show in the popup again
+      if(!window._bypassedErrors) window._bypassedErrors = {};
+      uncleared.forEach(function(e){
+        window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg] = true;
+      });
       localStorage.setItem(loggedKey, '1');
+      checkScheduleErrors();
     } catch(e) {
       console.warn('Failed to log uncleared errors:', e);
     }
@@ -4326,7 +4353,12 @@ function applyWeek(idx) {
   if(currentTab === 'private' && document.getElementById('private-content').style.display !== 'none') renderPrivate();
   var _wkLblForBypass = (document.getElementById('week-label')||{}).textContent||'';
   window._bypassedErrors = {};
-  loadScheduleBypasses(_wkLblForBypass).then(function(){ setTimeout(checkScheduleErrors, 300); setTimeout(logUnclearedErrors, 1500); });
+  loadScheduleBypasses(_wkLblForBypass).then(function(){
+    // Auto-bypass errors for any past day already logged
+    autoBypassLoggedDays();
+    setTimeout(checkScheduleErrors, 300);
+    setTimeout(logUnclearedErrors, 1500);
+  });
 }
 
 // ── UPDATE SCHEDULE ──
@@ -4660,7 +4692,7 @@ function checkScheduleErrors() {
   // ── Show/refresh/close modal ──
   // Filter out bypassed errors
   if(window._bypassedErrors) {
-    function notBypassed(e){ return !window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg]; }
+    function notBypassed(e){ return !window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg] && !window._bypassedErrors['__day_cleared_'+e.di]; }
     errors.BOH = errors.BOH.filter(notBypassed);
     errors.FOH = errors.FOH.filter(notBypassed);
     errors.Drivers = errors.Drivers.filter(notBypassed);
