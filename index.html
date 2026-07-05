@@ -2856,6 +2856,15 @@ function checkAppLock() {
   }
 }
 
+function showIdentityInput() {
+  document.getElementById('identity-input-wrap').style.display = 'block';
+  setTimeout(function(){ document.getElementById('identity-custom-input').focus(); }, 100);
+}
+function setIdentityCustom() {
+  var name = (document.getElementById('identity-custom-input').value || '').trim();
+  if(!name) { alert('Please enter your name.'); return; }
+  setIdentity(name);
+}
 function setIdentity(name) {
   localStorage.setItem('zp_user_name', name);
   var modal = document.getElementById('identity-modal');
@@ -5468,6 +5477,11 @@ function handleLockIconTap() {
       <button onclick="setIdentity('Ely')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Ely</button>
       <button onclick="setIdentity('Selena')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Selena</button>
       <button onclick="setIdentity('Alex')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alex</button>
+      <button onclick="showIdentityInput()" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;color:#888;">Not Listed</button>
+      <div id="identity-input-wrap" style="display:none;">
+        <input id="identity-custom-input" type="text" placeholder="Enter your name" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;box-sizing:border-box;margin-bottom:8px;">
+        <button onclick="setIdentityCustom()" style="width:100%;padding:14px;border:none;border-radius:10px;background:#c8102e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;">Confirm</button>
+      </div>
     </div>
   </div>
 </div>
