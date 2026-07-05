@@ -1189,7 +1189,20 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
 </div>
 <div id="tab-update" class="main" style="display:none">
-  <div id="update-content">
+  <!-- Update tab lock overlay -->
+  <div id="update-lock" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;">
+    <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.08em;color:var(--black);margin-bottom:8px;">UPDATE SCHEDULE</div>
+    <div style="font-size:13px;color:var(--gray-400);margin-bottom:24px;">Tap the Zazzo's logo 5 times to unlock</div>
+    <div id="update-lock-dots" style="display:flex;gap:8px;margin-bottom:8px;">
+      <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
+      <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
+      <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
+      <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
+      <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
+    </div>
+  </div>
+  <div id="update-content" style="display:none">
     <div class="report-header">
       <div class="report-title">UPDATE SCHEDULE</div>
       <div class="report-sub">Upload new schedule photos to update the app automatically</div>
@@ -1266,6 +1279,7 @@ document.addEventListener("DOMContentLoaded",function(){
       </button>
       <div id="clear-status" style="font-size:12px;margin-top:6px;"></div>
     </div>
+  </div>
   </div>
 </div>
 
@@ -1645,7 +1659,19 @@ function showTab(tab, btn) {
   window.scrollTo(0,0);
   if(tab==='schedule') renderSchedule();
   if(tab==='hitlist') renderHitList();
-  if(tab==='update') renderAcceptedErrors();
+  if(tab==='update') {
+    // Lock update tab every time you navigate to it
+    document.getElementById('update-lock').style.display='flex';
+    document.getElementById('update-content').style.display='none';
+    // Reset dots
+    document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
+    window._updateTapCount = 0;
+    renderAcceptedErrors();
+  }
+  if(tab!=='update') {
+    // Lock when leaving update tab
+    window._updateTapCount = 0;
+  }
   if(tab==='private') {
     document.getElementById('pin-screen').style.display='flex';
     document.getElementById('private-content').style.display='none';
@@ -4580,8 +4606,6 @@ function previewImage(type) {
 }
 
 async function processSingle(type) {
-  var pin = await askPin('Enter PIN to upload schedule');
-  if(pin !== '2026') { if(pin !== null) alert('Incorrect PIN.'); return; }
   var weekStart = snapToMonday(document.getElementById('week-start').value);
   if(!weekStart) { alert('Please select a week start date first.'); return; }
   if(!uploadedImages[type]) { alert('Please upload a photo first.'); return; }
@@ -4730,8 +4754,6 @@ async function getWeekRecord(weekStart) {
 }
 
 async function processSchedules() {
-  var pin = await askPin('Enter PIN to upload schedule');
-  if(pin !== '2026') { if(pin !== null) alert('Incorrect PIN.'); return; }
   var weekStart = snapToMonday(document.getElementById('week-start').value);
   if(!weekStart) { alert('Please select a week start date.'); return; }
   if(!uploadedImages.boh || !uploadedImages.foh || !uploadedImages.drv) {
