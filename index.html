@@ -1024,8 +1024,20 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn active" onclick="switchSched('drivers',this)">Drivers</button>
     <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
     <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
+    <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Log</button>
   </div>
   <div class="sched-wrap" id="schedule-content"></div>
+  <!-- Override Log Modal -->
+  <div id="override-log-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);align-items:flex-end;justify-content:center;">
+    <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:20px 18px 36px;max-height:85vh;overflow-y:auto;">
+      <div style="width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;">Override Log</div>
+        <button onclick="document.getElementById('override-log-modal').style.display='none';" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+      </div>
+      <div id="override-log-body">Loading...</div>
+    </div>
+  </div>
 </div>
 
 <!-- PRIVATE -->
@@ -2376,70 +2388,165 @@ function acceptErrorByIdx(idx) {
 }
 function acceptError(di, dept, msg) {
   var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
-  // Show PIN modal
   var overlay = document.createElement('div');
   overlay.id = 'accept-pin-modal';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;';
   var inner = document.createElement('div');
-  inner.style.cssText = 'background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:20px 18px 36px;';
+  inner.style.cssText = 'background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:20px 18px 36px;overflow-y:auto;max-height:90vh;box-sizing:border-box;';
+
+  // Handle
   var handle = document.createElement('div');
   handle.style.cssText = 'width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px;';
-  var lbl = document.createElement('div');
-  lbl.style.cssText = "font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;color:#222;margin-bottom:4px;";
-  lbl.textContent = 'Override Scheduling Rule';
-  var sublbl = document.createElement('div');
-  sublbl.style.cssText = 'font-size:12px;color:#888;margin-bottom:16px;line-height:1.4;';
-  sublbl.textContent = 'I acknowledge that this rule is being broken and I am overriding it for this week. Enter PIN to confirm.';
+  inner.appendChild(handle);
+
+  // Title
+  var title = document.createElement('div');
+  title.style.cssText = 'font-family:\"Bebas Neue\",sans-serif;font-size:18px;letter-spacing:0.06em;color:#222;margin-bottom:4px;';
+  title.textContent = 'Override Scheduling Rule';
+  inner.appendChild(title);
+
+  // Error label
   var errlbl = document.createElement('div');
   errlbl.style.cssText = 'font-size:12px;font-weight:700;color:#c8102e;background:#fff8f8;border:1px solid #f5c0c8;border-radius:8px;padding:8px 10px;margin-bottom:14px;';
   errlbl.textContent = dept + ' — ' + msg;
+  inner.appendChild(errlbl);
+
+  // Who label
+  var whoLbl = document.createElement('div');
+  whoLbl.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;';
+  whoLbl.textContent = 'WHO IS OVERRIDING?';
+  inner.appendChild(whoLbl);
+
+  // Who buttons
+  var whoRow = document.createElement('div');
+  whoRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;';
+  ['Selena','Alex','Ely'].forEach(function(name){
+    var b = document.createElement('button');
+    b.className = 'zp-who-btn';
+    b.style.cssText = 'flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;';
+    b.textContent = name;
+    b.addEventListener('click', function(){ zpSelectOverrider(b, name); });
+    whoRow.appendChild(b);
+  });
+  inner.appendChild(whoRow);
+
+  // Ack label
+  var ackLbl = document.createElement('div');
+  ackLbl.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;';
+  ackLbl.textContent = 'ACKNOWLEDGMENT';
+  inner.appendChild(ackLbl);
+
+  // Ack buttons
+  var ackDefs = [
+    {type:'intentional', label:'Intentional: I hereby acknowledge this rule override was an intentional scheduling decision.'},
+    {type:'mistake', label:'Mistake: I hereby acknowledge this was a mistake and will be corrected moving forward.'}
+  ];
+  ackDefs.forEach(function(def){
+    var b = document.createElement('button');
+    b.className = 'zp-ack-btn';
+    b.style.cssText = 'width:100%;padding:10px 12px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:12px;text-align:left;cursor:pointer;margin-bottom:8px;line-height:1.4;box-sizing:border-box;';
+    b.textContent = def.label;
+    b.addEventListener('click', function(){ zpSelectAck(b, def.type); });
+    inner.appendChild(b);
+  });
+
+  // PIN label
+  var pinLbl = document.createElement('div');
+  pinLbl.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;margin-top:6px;';
+  pinLbl.textContent = 'ENTER PIN TO CONFIRM';
+  inner.appendChild(pinLbl);
+
+  // PIN input
   var inp = document.createElement('input');
+  inp.id = 'zp-override-pin';
   inp.type = 'number';
   inp.inputMode = 'numeric';
   inp.pattern = '[0-9]*';
   inp.placeholder = '• • • •';
   inp.style.cssText = 'width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:28px;font-family:monospace;color:#111;text-align:center;margin-bottom:16px;box-sizing:border-box;';
+  inner.appendChild(inp);
+
+  // Button row
   var btnRow = document.createElement('div');
   btnRow.style.cssText = 'display:flex;gap:10px;';
   var cancelBtn = document.createElement('button');
   cancelBtn.style.cssText = 'flex:1;padding:13px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;';
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.addEventListener('click', function(){ var m=document.getElementById('accept-pin-modal'); if(m) document.body.removeChild(m); });
+  cancelBtn.addEventListener('click', zpCancelOverride);
   var okBtn = document.createElement('button');
   okBtn.style.cssText = 'flex:1;padding:13px;background:#0d0d0d;color:#fff;border:none;border-radius:10px;font-size:18px;font-weight:700;cursor:pointer;';
   okBtn.textContent = 'CONFIRM';
-  okBtn.addEventListener('click', function(){
-    if(String(inp.value).trim() === '2026') {
-      var m=document.getElementById('accept-pin-modal'); if(m) document.body.removeChild(m);
-      if(!window._bypassedErrors) window._bypassedErrors = {};
-      var bypassKey = di+'|'+dept+'|'+msg;
-      window._bypassedErrors[bypassKey] = true;
-      // Save to Supabase with row ID so we can delete individually later
-      fetch(SUPABASE_URL + '/rest/v1/schedule_bypasses', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify([{week_label:weekKey, day_index:di, dept:dept, msg:msg}])
-      }).catch(function(e){ console.log('Accept save failed:',e.message); });
-      checkScheduleErrors();
-      renderAcceptedErrors();
-    } else {
-      inp.style.borderColor='#E31010';
-      inp.value='';
-      inp.placeholder='Incorrect PIN';
-    }
-  });
+  okBtn.addEventListener('click', function(){ zpConfirmOverride(di, dept, msg); });
   btnRow.appendChild(cancelBtn);
   btnRow.appendChild(okBtn);
-  inner.appendChild(handle);
-  inner.appendChild(lbl);
-  inner.appendChild(sublbl);
-  inner.appendChild(errlbl);
-  inner.appendChild(inp);
   inner.appendChild(btnRow);
+
   overlay.appendChild(inner);
-  overlay.addEventListener('click', function(e){ if(e.target===overlay){ var m=document.getElementById('accept-pin-modal'); if(m) document.body.removeChild(m); } });
+  overlay.addEventListener('click', function(ev){ if(ev.target===overlay) zpCancelOverride(); });
   document.body.appendChild(overlay);
   setTimeout(function(){ inp.focus(); }, 100);
+
+  window._zpOverrideWho = null;
+  window._zpOverrideAck = null;
+}
+
+function zpSelectOverrider(btn, name) {
+  document.querySelectorAll('.zp-who-btn').forEach(function(b){ b.style.borderColor='#e0e0e0'; b.style.background='#fff'; });
+  btn.style.borderColor = '#c8102e';
+  btn.style.background = '#fff8f8';
+  window._zpOverrideWho = name;
+}
+function zpSelectAck(btn, type) {
+  document.querySelectorAll('.zp-ack-btn').forEach(function(b){ b.style.borderColor='#e0e0e0'; b.style.background='#fff'; });
+  btn.style.borderColor = '#c8102e';
+  btn.style.background = '#fff8f8';
+  window._zpOverrideAck = type;
+}
+function zpCancelOverride() {
+  var m = document.getElementById('accept-pin-modal');
+  if(m) document.body.removeChild(m);
+}
+function zpConfirmOverride(di, dept, msg) {
+  if(!window._zpOverrideWho) { alert('Please select who is overriding.'); return; }
+  if(!window._zpOverrideAck) { alert('Please select an acknowledgment.'); return; }
+  var pin = (document.getElementById('zp-override-pin')||{}).value;
+  if(String(pin).trim() !== '2026') {
+    var pinInp = document.getElementById('zp-override-pin');
+    if(pinInp){ pinInp.style.borderColor='#E31010'; pinInp.value=''; pinInp.placeholder='Incorrect PIN'; }
+    return;
+  }
+  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  zpCancelOverride();
+  if(!window._bypassedErrors) window._bypassedErrors = {};
+  window._bypassedErrors[di+'|'+dept+'|'+msg] = true;
+
+  var now = new Date();
+  var logEntry = {
+    week_label: weekKey,
+    day_index: di,
+    dept: dept,
+    msg: msg,
+    who: window._zpOverrideWho,
+    ack_type: window._zpOverrideAck,
+    logged_at: now.toISOString(),
+    day_name: DAYS_FULL[di] || ''
+  };
+
+  fetch(SUPABASE_URL + '/rest/v1/schedule_bypasses', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify([{week_label:weekKey, day_index:di, dept:dept, msg:msg}])
+  }).catch(function(e){ console.log('Bypass save failed:',e.message); });
+
+  fetch(SUPABASE_URL + '/rest/v1/override_log', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([logEntry])
+  }).catch(function(e){ console.log('Log save failed:',e.message); });
+
+  checkScheduleErrors();
+  renderAcceptedErrors();
 }
 
 async function undoAcceptedError(di, dept, msg) {
@@ -5101,6 +5208,43 @@ window._updateLogoTimer = null;
     }
   });
 })();
+
+
+function showOverrideLog(btn) {
+  var modal = document.getElementById('override-log-modal');
+  modal.style.display = 'flex';
+  var body = document.getElementById('override-log-body');
+  body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+
+  fetch(SUPABASE_URL + '/rest/v1/override_log?order=logged_at.desc&limit=100', {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(!rows || !rows.length) {
+      body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No overrides logged yet.</div>';
+      return;
+    }
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var html = '';
+    rows.forEach(function(r){
+      var dt = r.logged_at ? new Date(r.logged_at) : null;
+      var dtStr = dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
+      var ackLabel = r.ack_type === 'intentional' ? 'Intentional decision' : 'Mistake — will correct';
+      var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' : '#c8102e';
+      html += '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
+      html += '<div style="font-size:13px;font-weight:700;color:#222;">'+(r.day_name||'')+(r.week_label?' — '+r.week_label:'')+'</div>';
+      html += '<div style="font-size:11px;color:#aaa;">'+dtStr+'</div>';
+      html += '</div>';
+      html += '<div style="font-size:12px;color:#c8102e;margin-bottom:4px;"><b>'+r.dept+'</b> — '+r.msg+'</div>';
+      html += '<div style="font-size:11px;font-weight:700;color:'+ackColor+';margin-bottom:2px;">'+ackLabel+'</div>';
+      html += '<div style="font-size:11px;color:#666;">By: <b>'+(r.who||'—')+'</b></div>';
+      html += '</div>';
+    });
+    body.innerHTML = html;
+  }).catch(function(e){
+    body.innerHTML = '<div style="color:#c8102e;font-size:13px;text-align:center;padding:20px;">Failed to load log.</div>';
+  });
+}
 
 </body>
 </html>
