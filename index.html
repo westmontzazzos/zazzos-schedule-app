@@ -985,7 +985,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" onclick="showTab('schedule',this)">Schedule</button>
     <button class="nav-btn" onclick="showTab('private',this)">Private</button>
     <button class="nav-btn" onclick="showTab('hitlist',this)">Heat Map</button>
-    <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
+    <button class="nav-btn" id="update-nav-btn" onclick="handleUpdateTap(this)">⬆ Update</button>
   </div>
 </nav>
 
@@ -5221,35 +5221,66 @@ function showOverrideLog(btn) {
 }
 
 
+
+
+
 <script>
-// Update tab logo unlock: tap logo 5 times while on Update tab lock screen
-window._updateLogoTaps = 0;
-window._updateLogoTimer = null;
+// Update tab: tap button 5 times to unlock. Logo taps x4 = Rules tab.
 (function(){
+  // Logo → Rules tab
+  var logoTaps = 0, logoTimer = null;
   var logo = document.getElementById('za-logo-img');
-  if(!logo) return;
-  logo.addEventListener('click', function(){
-    if(window.currentTab !== 'update') return;
-    var lockEl = document.getElementById('update-lock');
-    if(!lockEl || lockEl.style.display === 'none') return;
-    window._updateLogoTaps = (window._updateLogoTaps || 0) + 1;
-    clearTimeout(window._updateLogoTimer);
-    window._updateLogoTimer = setTimeout(function(){
-      window._updateLogoTaps = 0;
-      document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
-    }, 2000);
-    var dots = document.querySelectorAll('.lock-dot');
-    dots.forEach(function(d, i){
-      d.style.background = i < window._updateLogoTaps ? 'var(--red)' : 'var(--gray-200)';
+  if(logo) {
+    logo.addEventListener('click', function(){
+      logoTaps++;
+      clearTimeout(logoTimer);
+      logoTimer = setTimeout(function(){ logoTaps = 0; }, 1500);
+      if(logoTaps >= 4) {
+        logoTaps = 0;
+        if(!document.getElementById('rules-nav-btn')) {
+          var btn = document.createElement('button');
+          btn.className = 'nav-btn';
+          btn.id = 'rules-nav-btn';
+          btn.textContent = 'Rules';
+          btn.onclick = function(){ showTab('rules', btn); };
+          document.querySelector('.nav-tabs').appendChild(btn);
+        }
+        showTab('rules', document.getElementById('rules-nav-btn'));
+      }
     });
-    if(window._updateLogoTaps >= 5) {
-      window._updateLogoTaps = 0;
-      lockEl.style.display = 'none';
-      document.getElementById('update-content').style.display = 'block';
-      renderAcceptedErrors();
-    }
-  });
+  }
 })();
+
+// Update tab button tap counter
+var _updateTaps = 0, _updateTimer = null;
+function handleUpdateTap(btn) {
+  // Always navigate to update tab
+  if(window.currentTab !== 'update') {
+    showTab('update', btn);
+    _updateTaps = 0;
+  }
+  // Count taps toward unlock
+  _updateTaps++;
+  clearTimeout(_updateTimer);
+  _updateTimer = setTimeout(function(){
+    _updateTaps = 0;
+    document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
+  }, 2000);
+  // Light up dots
+  var dots = document.querySelectorAll('.lock-dot');
+  dots.forEach(function(d, i){
+    d.style.background = i < _updateTaps ? 'var(--red)' : 'var(--gray-200)';
+  });
+  // Unlock on 5
+  if(_updateTaps >= 5) {
+    _updateTaps = 0;
+    var lockEl = document.getElementById('update-lock');
+    var contentEl = document.getElementById('update-content');
+    if(lockEl) lockEl.style.display = 'none';
+    if(contentEl) contentEl.style.display = 'block';
+    renderAcceptedErrors();
+  }
+}
 </script>
 
 </body>
