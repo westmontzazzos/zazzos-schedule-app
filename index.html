@@ -5276,8 +5276,17 @@ async function readScheduleImage(dataUrl, type) {
   // If this pass fails for any reason, fall back to the pass-1 result.
   try {
     if(type === 'BOH') {
-      var bohNames = await callVision(base64, mediaType, 'Look at this photo of a Back of House schedule. Read ONLY the employee names in the left column, grouped under their section headers. Do not read any day or shift columns. Include EVERY name in every section, even rows that look mostly blank. Ignore phone numbers or digits in parentheses. Return ONLY a JSON object, no markdown and no explanation, with exactly this structure: {"MANAGERS":[],"PIZZA":[],"KITCHEN":[],"PREP":[],"BUS":[],"DISH":[]} — put each name as a string in its section array, and use an empty array for any section that has no names.');
+      var bohNames = await callVision(base64, mediaType, 'Look at this photo of a Back of House schedule. Read ONLY the employee names in the left column, grouped under their section headers. CRITICAL: Place each name ONLY in the section where it physically appears in the image. Do not move names between sections. Do not add names that do not appear in the image. Do not place a name under a section unless that name is visually listed under that section header in the photo. Ignore phone numbers or digits in parentheses. Return ONLY a JSON object, no markdown and no explanation, with exactly this structure: {"MANAGERS":[],"PIZZA":[],"KITCHEN":[],"PREP":[],"BUS":[],"DISH":[]} — put each name as a string in its section array, and use an empty array for any section that has no names.');
       sched = reconcileSectioned(sched, bohNames, ['MANAGERS','PIZZA','KITCHEN','PREP','BUS','DISH']);
+      // Enforce section rules: Nick=PREP only, Ever=PIZZA only
+      if(sched.KITCHEN) {
+        Object.keys(sched.KITCHEN).forEach(function(name){
+          var n = name.toLowerCase();
+          if(n === 'nick' || n === 'nicholas' || n === 'ever') {
+            delete sched.KITCHEN[name];
+          }
+        });
+      }
     } else if(type === 'FOH') {
       var fohNames = await callVision(base64, mediaType, 'Look at this photo of a Front of House schedule. Read ONLY the employee names in the left column, grouped under their section headers. Do not read any day or shift columns. Include EVERY name in every section, even rows that look mostly blank. Ignore phone numbers or digits in parentheses. Return ONLY a JSON object, no markdown and no explanation, with exactly this structure: {"SERVERS":[],"BARTENDERS":[],"CASHIERS":[],"HOSTS":[]} — put each name as a string in its section array, and use an empty array for any section that has no names.');
       sched = reconcileSectioned(sched, fohNames, ['SERVERS','BARTENDERS','CASHIERS','HOSTS']);
@@ -5802,7 +5811,7 @@ function printSchedSection(range) {
         return '<td>'+val+'</td>';
       }).join('') + '</tr>';
     });
-    if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#FFD700;color:#000;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
+    if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#FFD700!important;background-color:#FFD700!important;color:#000!important;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
   });
 
   var weekLabel = document.getElementById('sched-week-label') ? document.getElementById('sched-week-label').textContent : '';
