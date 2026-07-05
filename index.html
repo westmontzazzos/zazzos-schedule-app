@@ -1205,7 +1205,7 @@ document.addEventListener("DOMContentLoaded",function(){
   <div id="update-lock" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;">
     <div style="font-size:48px;margin-bottom:16px;">🔒</div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.08em;color:var(--black);margin-bottom:8px;">UPDATE SCHEDULE</div>
-    <div style="font-size:13px;color:var(--gray-400);margin-bottom:24px;">Tap the Zazzo's logo 5 times to unlock</div>
+    <div style="font-size:13px;color:var(--gray-400);margin-bottom:24px;">This area is restricted.</div>
     <div id="update-lock-dots" style="display:flex;gap:8px;margin-bottom:8px;">
       <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
       <div class="lock-dot" style="width:12px;height:12px;border-radius:50%;background:var(--gray-200);transition:background 0.2s;"></div>
@@ -5181,33 +5181,7 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
 })();
 </script>
 
-// Update tab logo unlock: tap Zazzo's logo 5 times while on Update tab
-window._updateLogoTaps = 0;
-window._updateLogoTimer = null;
-(function(){
-  var logo = document.getElementById('za-logo-img');
-  if(!logo) return;
-  logo.addEventListener('click', function(){
-    if(window.currentTab !== 'update') return;
-    if(document.getElementById('update-lock').style.display === 'none') return;
-    window._updateLogoTaps = (window._updateLogoTaps || 0) + 1;
-    clearTimeout(window._updateLogoTimer);
-    window._updateLogoTimer = setTimeout(function(){
-      window._updateLogoTaps = 0;
-      document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
-    }, 2000);
-    var dots = document.querySelectorAll('.lock-dot');
-    dots.forEach(function(d, i){
-      d.style.background = i < window._updateLogoTaps ? 'var(--red)' : 'var(--gray-200)';
-    });
-    if(window._updateLogoTaps >= 5) {
-      window._updateLogoTaps = 0;
-      document.getElementById('update-lock').style.display = 'none';
-      document.getElementById('update-content').style.display = 'block';
-      renderAcceptedErrors();
-    }
-  });
-})();
+
 
 
 function showOverrideLog(btn) {
@@ -5245,6 +5219,38 @@ function showOverrideLog(btn) {
     body.innerHTML = '<div style="color:#c8102e;font-size:13px;text-align:center;padding:20px;">Failed to load log.</div>';
   });
 }
+
+
+<script>
+// Update tab logo unlock: tap logo 5 times while on Update tab lock screen
+window._updateLogoTaps = 0;
+window._updateLogoTimer = null;
+(function(){
+  var logo = document.getElementById('za-logo-img');
+  if(!logo) return;
+  logo.addEventListener('click', function(){
+    if(window.currentTab !== 'update') return;
+    var lockEl = document.getElementById('update-lock');
+    if(!lockEl || lockEl.style.display === 'none') return;
+    window._updateLogoTaps = (window._updateLogoTaps || 0) + 1;
+    clearTimeout(window._updateLogoTimer);
+    window._updateLogoTimer = setTimeout(function(){
+      window._updateLogoTaps = 0;
+      document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
+    }, 2000);
+    var dots = document.querySelectorAll('.lock-dot');
+    dots.forEach(function(d, i){
+      d.style.background = i < window._updateLogoTaps ? 'var(--red)' : 'var(--gray-200)';
+    });
+    if(window._updateLogoTaps >= 5) {
+      window._updateLogoTaps = 0;
+      lockEl.style.display = 'none';
+      document.getElementById('update-content').style.display = 'block';
+      renderAcceptedErrors();
+    }
+  });
+})();
+</script>
 
 </body>
 </html>
