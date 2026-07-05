@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
 <title>Zazzo's — v1.5</title>
-<link rel="apple-touch-icon" id="za-touch-icon">
-<link rel="icon" type="image/png" id="za-touch-icon">
+<link rel="apple-touch-icon" id="za-touch-icon-apple">
+<link rel="icon" type="image/png" id="za-touch-icon-favicon">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Schedule">
@@ -1013,7 +1013,8 @@ var ZA_LOGO = "data:image/png;base64," +
 <script>
 document.addEventListener("DOMContentLoaded",function(){
   var el=document.getElementById("za-logo-img"); if(el) el.src=ZA_LOGO;
-  var t=document.getElementById("za-touch-icon"); if(t) t.href=ZA_LOGO;
+  var t=document.getElementById("za-touch-icon-apple"); if(t) t.href=ZA_LOGO;
+  var f=document.getElementById("za-touch-icon-favicon"); if(f) f.href=ZA_LOGO;
 });
 </script>
 </head>
