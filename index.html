@@ -1081,9 +1081,9 @@ document.addEventListener("DOMContentLoaded",function(){
     </div>
   </div>
   <div class="sub-nav">
-    <button class="sub-btn active" onclick="switchSched('drivers',this)">Drivers</button>
-    <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
-    <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
+    <button class="sub-btn active" onclick="switchSchedOrPrint('drivers',this)">Drivers</button>
+    <button class="sub-btn" onclick="switchSchedOrPrint('foh',this)">Front of House</button>
+    <button class="sub-btn" onclick="switchSchedOrPrint('boh',this)">Back of House</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
@@ -5594,10 +5594,10 @@ function showDomsNotes() {
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var now = new Date();
   document.getElementById('doms-notes-date').textContent = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
-  // Load any existing active note into fields
-  loadActiveNoteIntoCompose();
   panel.style.display = 'block';
   makeDraggable(document.getElementById('doms-notes-panel'), document.getElementById('doms-notes-header'));
+  // Load existing note after panel is shown
+  try { loadActiveNoteIntoCompose(); } catch(e) { console.warn('Could not load note:', e); }
 }
 
 function loadActiveNoteIntoCompose() {
@@ -5660,7 +5660,101 @@ function printDomsNotes() {
   if(boh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Back of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+boh+'</p>';
   var html = '<!DOCTYPE html><html><head><title>Dom's Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;margin:0 0 4px;}@media print{button{display:none;}}</style></head><body>'
     + '<h1>Dom's Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
-    + body + '</body></html>';
+    + body + '
+<!-- Schedule section print popup -->
+<div id="sched-print-popup" style="display:none;position:fixed;z-index:10001;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.18);padding:6px 0;min-width:160px;">
+  <div id="sched-print-popup-title" style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">PRINT OPTIONS</div>
+  <button onclick="printSchedSection('week')" style="display:block;width:100%;padding:10px 16px;background:none;border:none;text-align:left;font-size:14px;font-weight:600;cursor:pointer;color:#222;">🖨 Print Full Week</button>
+  <button onclick="printSchedSection('day')" style="display:block;width:100%;padding:10px 16px;background:none;border:none;text-align:left;font-size:14px;font-weight:600;cursor:pointer;color:#222;">🖨 Print This Day</button>
+</div>
+
+
+<script>
+var _lastSchedView = null;
+
+function switchSchedOrPrint(view, btn) {
+  var popup = document.getElementById('sched-print-popup');
+  // If already active and tapped again — show print popup
+  if(currentSchedView === view && btn.classList.contains('active')) {
+    var rect = btn.getBoundingClientRect();
+    popup.style.top = (rect.bottom + 6) + 'px';
+    popup.style.left = rect.left + 'px';
+    popup.style.display = 'block';
+    document.getElementById('sched-print-popup-title').textContent = view === 'drivers' ? 'DRIVERS' : view === 'foh' ? 'FRONT OF HOUSE' : 'BACK OF HOUSE';
+    // Close on outside tap
+    setTimeout(function(){
+      document.addEventListener('click', function closePop(e){
+        if(!document.getElementById('sched-print-popup').contains(e.target)){
+          document.getElementById('sched-print-popup').style.display='none';
+          document.removeEventListener('click', closePop);
+        }
+      });
+    }, 10);
+    return;
+  }
+  popup.style.display = 'none';
+  switchSched(view, btn);
+}
+
+function printSchedSection(range) {
+  document.getElementById('sched-print-popup').style.display = 'none';
+  var view = currentSchedView;
+  var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Build rows to print
+  var rows = '';
+  var title = view === 'drivers' ? 'Drivers' : view === 'foh' ? 'Front of House' : 'Back of House';
+
+  var daysToShow = range === 'day' ? [currentDay] : [0,1,2,3,4,5,6];
+
+  var header = '<tr><th>Name</th>' + daysToShow.map(function(di){
+    var ev = WEEK_EVENTS[di] ? '<br><span style="color:#c8102e;font-size:10px;">'+WEEK_EVENTS[di]+'</span>' : '';
+    return '<th>'+DAYS_FULL[di]+'<br><span style="font-weight:400;font-size:10px;">'+FULL_DATES[di]+'</span>'+ev+'</th>';
+  }).join('') + '</tr>';
+
+  // Get data based on view
+  var sections = [];
+  if(view === 'drivers') sections = [['Drivers', DRIVERS]];
+  else if(view === 'foh') sections = [['Servers', SERVERS],['Bartenders', BARTENDERS],['Cashiers', CASHIERS],['Hosts', HOSTS]];
+  else sections = [['Managers', MANAGERS],['Pizza', PIZZA],['Kitchen', KITCHEN],['Prep', PREP],['Bus', BUS],['Dish', DISH]];
+
+  sections.forEach(function(sec){
+    var secName = sec[0], secData = sec[1];
+    var secRows = '';
+    Object.entries(secData).forEach(function(e){
+      var name = e[0], days = e[1];
+      var hasShift = daysToShow.some(function(di){ return days[di] && days[di] !== 'x' && days[di] !== 'X'; });
+      if(!hasShift) return;
+      secRows += '<tr><td>'+name+'</td>' + daysToShow.map(function(di){
+        var val = days[di];
+        if(!val || val === 'x' || val === 'X') return '<td style="color:#ccc;">—</td>';
+        return '<td>'+val+'</td>';
+      }).join('') + '</tr>';
+    });
+    if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#222;color:#fff;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
+  });
+
+  var weekLabel = document.getElementById('sched-week-label') ? document.getElementById('sched-week-label').textContent : '';
+  var html = '<!DOCTYPE html><html><head><title>'+title+' Schedule</title>'
+    + '<style>body{font-family:Arial,sans-serif;font-size:11px;padding:16px;}h1{font-size:16px;color:#c8102e;margin:0 0 2px;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;}th{background:#f5f5f5;}@media print{button{display:none;}}</style>'
+    + '</head><body>'
+    + '<h1>'+title+'</h1>'
+    + '<div style="color:#888;font-size:10px;margin-bottom:4px;">'+weekLabel+'</div>'
+    + '<table><thead>'+header+'</thead><tbody>'+rows+'</tbody></table>'
+    + '</body></html>';
+
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+}
+</script>
+
+</body></html>';
   var iframe = document.createElement('iframe');
   iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
   document.body.appendChild(iframe);
