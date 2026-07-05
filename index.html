@@ -1818,7 +1818,7 @@ function buildRunSheetPDF(dayName, dateLabel, eventLabel, leftCol, rightCol, MAX
     if (!headed[p]) {
       headed[p] = true;
       text(p, M, M + 15, "Zazzo's Run Sheet", 15, true, [0.7, 0, 0]);
-      var eventStr = eventLabel ? '   |   ' + eventLabel.toUpperCase() : '';
+      var eventStr = eventLabel ? '   |   ' + eventLabel : '';
       var right = dayName + '   |   ' + dateLabel + eventStr;
       text(p, PW - M - tw(right, 10), M + 14, right, 10, false, [0.2, 0.2, 0.2]);
       line(p, M, M + 22, PW - M, M + 22, [0.7, 0, 0], 1);
@@ -2725,7 +2725,7 @@ function renderRunSheet(di) {
       <div>
         <div class="rs-header-day">${DAYS[di]}</div>
         <div class="rs-header-date">${FULL_DATES[di]}</div>
-        ${WEEK_EVENTS[di] ? `<div class="rs-header-event" style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;">${WEEK_EVENTS[di]}</div>` : ''}
+        ${WEEK_EVENTS[di] ? `<div class="rs-header-event" style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:0.08em;margin-top:2px;">${WEEK_EVENTS[di]}</div>` : ''}
       </div>
       <div id="rs-staff-count" style="text-align:right;font-size:11px;color:#A8A49E;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;"></div>
     </div>
@@ -2788,7 +2788,7 @@ function renderSchedule() {
   var schedHeaderCells = dh.map(function(d,i){
     var evText = WEEK_EVENTS[i] ? WEEK_EVENTS[i] : '';
     var evColor = evText ? 'color:var(--red);' : 'color:transparent;';
-    var ev = '<div style="font-size:9px;font-weight:700;'+evColor+'letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;line-height:1.2;">'+(evText||'&nbsp;')+'</div>';
+    var ev = '<div style="font-size:9px;font-weight:700;'+evColor+'letter-spacing:0.06em;margin-top:2px;line-height:1.2;">'+(evText||'&nbsp;')+'</div>';
     return '<th>'+d+ev+'</th>';
   }).join('');
   let html = '<table class="sched-table"><thead><tr><th>Name</th>'+schedHeaderCells+'</tr></thead><tbody>';
@@ -3883,6 +3883,14 @@ async function openEditor(di, focusName) {
   ];
 
   var html = '';
+  // Event field at top
+  var currentEvent = WEEK_EVENTS[di] || '';
+  html += '<div class="edit-section-hdr">EVENT</div>';
+  html += '<div class="edit-row">';
+  html += '<div class="edit-name">Event</div>';
+  html += '<div style="text-align:center"><input class="edit-input" id="edit-event-field" type="text" value="'+currentEvent+'" placeholder="e.g. Trivia"><div class="edit-label">leave blank if none</div></div>';
+  html += '</div>';
+
   var idx = 0;
   sections.forEach(function(sec) {
     html += '<div class="edit-section-hdr">' + sec.label + '</div>';
@@ -3944,6 +3952,13 @@ async function saveEdits() {
     'CASHIERS': CASHIERS, 'HOSTS': HOSTS, 'DRIVERS': DRIVERS
   };
 
+  // Save event field
+  var eventField = document.getElementById('edit-event-field');
+  if(eventField) {
+    var newEvent = eventField.value.trim();
+    WEEK_EVENTS[editorDay] = newEvent || null;
+  }
+
   editorData.forEach(function(item) {
     var val = document.getElementById('edit-'+item.idx).value.trim();
     var data = sectionMaps[item.section];
@@ -3980,7 +3995,8 @@ async function saveEdits() {
         body: JSON.stringify({
           boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
           foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
-          driver_data: JSON.stringify(DRIVERS)
+          driver_data: JSON.stringify(DRIVERS),
+          event_data: JSON.stringify(WEEK_EVENTS)
         })
       });
     }
