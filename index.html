@@ -1081,9 +1081,10 @@ document.addEventListener("DOMContentLoaded",function(){
     </div>
   </div>
   <div class="sub-nav">
-    <button class="sub-btn active" onclick="switchSchedOrPrint('drivers',this)">Drivers</button>
-    <button class="sub-btn" onclick="switchSchedOrPrint('foh',this)">Front of House</button>
-    <button class="sub-btn" onclick="switchSchedOrPrint('boh',this)">Back of House</button>
+    <button class="sub-btn active" onclick="switchSched('drivers',this)">Drivers</button>
+    <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
+    <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
+    <button class="sub-btn" onclick="showSchedPrintMenu(this)">🖨 Print</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
@@ -5661,44 +5662,53 @@ function printDomsNotes() {
   var html = '<!DOCTYPE html><html><head><title>Dom's Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;margin:0 0 4px;}@media print{button{display:none;}}</style></head><body>'
     + '<h1>Dom's Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
     + body + '
-<!-- Schedule section print popup -->
-<div id="sched-print-popup" style="display:none;position:fixed;z-index:10001;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.18);padding:6px 0;min-width:160px;">
-  <div id="sched-print-popup-title" style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">PRINT OPTIONS</div>
-  <button onclick="printSchedSection('week')" style="display:block;width:100%;padding:10px 16px;background:none;border:none;text-align:left;font-size:14px;font-weight:600;cursor:pointer;color:#222;">🖨 Print Full Week</button>
-  <button onclick="printSchedSection('day')" style="display:block;width:100%;padding:10px 16px;background:none;border:none;text-align:left;font-size:14px;font-weight:600;cursor:pointer;color:#222;">🖨 Print This Day</button>
+<!-- Schedule print popup -->
+<div id="sched-print-popup" style="display:none;position:fixed;z-index:10001;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.18);padding:6px 0;min-width:180px;">
+  <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">SECTION</div>
+  <button onclick="schedPrintSelect('drivers')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Drivers</button>
+  <button onclick="schedPrintSelect('foh')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Front of House</button>
+  <button onclick="schedPrintSelect('boh')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Back of House</button>
+  <div id="sched-print-range" style="display:none;border-top:1px solid #eee;margin-top:4px;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">RANGE</div>
+    <button onclick="printSchedSection('week')" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Full Week</button>
+    <button onclick="printSchedSection('day')" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">This Day Only</button>
+  </div>
 </div>
 
 
 <script>
-var _lastSchedView = null;
+var _schedPrintView = null;
 
-function switchSchedOrPrint(view, btn) {
+function showSchedPrintMenu(btn) {
   var popup = document.getElementById('sched-print-popup');
-  // If already active and tapped again — show print popup
-  if(currentSchedView === view && btn.classList.contains('active')) {
-    var rect = btn.getBoundingClientRect();
-    popup.style.top = (rect.bottom + 6) + 'px';
-    popup.style.left = rect.left + 'px';
-    popup.style.display = 'block';
-    document.getElementById('sched-print-popup-title').textContent = view === 'drivers' ? 'DRIVERS' : view === 'foh' ? 'FRONT OF HOUSE' : 'BACK OF HOUSE';
-    // Close on outside tap
-    setTimeout(function(){
-      document.addEventListener('click', function closePop(e){
-        if(!document.getElementById('sched-print-popup').contains(e.target)){
-          document.getElementById('sched-print-popup').style.display='none';
-          document.removeEventListener('click', closePop);
-        }
-      });
-    }, 10);
-    return;
-  }
-  popup.style.display = 'none';
-  switchSched(view, btn);
+  var rect = btn.getBoundingClientRect();
+  popup.style.top = (rect.bottom + 6) + 'px';
+  popup.style.right = '8px';
+  popup.style.left = 'auto';
+  document.getElementById('sched-print-range').style.display = 'none';
+  _schedPrintView = null;
+  document.querySelectorAll('.sched-print-opt').forEach(function(b){ b.style.background=''; });
+  popup.style.display = 'block';
+  setTimeout(function(){
+    document.addEventListener('click', function closePop(e){
+      if(!document.getElementById('sched-print-popup').contains(e.target)){
+        document.getElementById('sched-print-popup').style.display='none';
+        document.removeEventListener('click', closePop);
+      }
+    });
+  }, 10);
+}
+
+function schedPrintSelect(view) {
+  _schedPrintView = view;
+  document.querySelectorAll('.sched-print-opt').forEach(function(b){ b.style.background=''; });
+  event.target.style.background = '#fff8f8';
+  document.getElementById('sched-print-range').style.display = 'block';
 }
 
 function printSchedSection(range) {
   document.getElementById('sched-print-popup').style.display = 'none';
-  var view = currentSchedView;
+  var view = _schedPrintView || currentSchedView;
   var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
