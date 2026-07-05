@@ -4176,10 +4176,10 @@ function cleanNames(obj, sectionType) {
 function parseWeekData(week) {
   try {
     var boh = week.boh_data ? JSON.parse(week.boh_data) : {};
-  // Load events
-  var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
-  for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
     var foh = week.foh_data ? JSON.parse(week.foh_data) : {};
+    // Load events
+    var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
+    for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers');
     if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA);
