@@ -679,6 +679,65 @@ body {
 #refresh-fab.refreshing svg{ animation: fab-spin 0.7s linear infinite; transform-origin: 50% 50%; }
 @keyframes fab-spin{ to { transform: rotate(360deg); } }
 @media print { #refresh-fab{ display: none !important; } }
+
+@media(min-width:768px) {
+  /* Nav */
+  .nav-logo img { height: 44px; width: 44px; }
+  .nav-btn { font-size: 13px; padding: 0 24px; }
+
+  /* Layout */
+  .main { padding: 28px 32px 60px; max-width: 1100px; }
+
+  /* Cards */
+  .card { padding: 20px; }
+  .card-header { font-size: 14px; }
+
+  /* Summary rows */
+  .summary-value { font-size: 22px; }
+  .summary-label { font-size: 13px; }
+
+  /* Buttons */
+  .btn { font-size: 14px; padding: 14px 20px; }
+
+  /* Run Sheet day tabs */
+  .day-tabs { gap: 10px; }
+  .day-btn { font-size: 13px; padding: 8px 18px; }
+
+  /* Schedule table */
+  .sched-table th, .sched-table td { font-size: 13px; padding: 8px 12px; }
+
+  /* Sub nav */
+  .sub-btn { font-size: 13px; padding: 8px 20px; }
+
+  /* Report header */
+  .report-title { font-size: 32px; }
+
+  /* Heat map */
+  .heatmap-table { font-size: 13px; }
+
+  /* Private tab two-column layout for labor report */
+  .cost-table-wrap { overflow-x: auto; }
+
+  /* Modals centered on desktop */
+  #accept-pin-modal > div,
+  #override-log-modal > div {
+    border-radius: 16px !important;
+    max-width: 480px;
+    margin: auto;
+  }
+
+  /* Editor modal */
+  #editor-modal .modal-inner { max-width: 600px; margin: auto; border-radius: 16px; }
+
+  /* Lock screen */
+  .lock-card { max-width: 380px; padding: 48px 40px; }
+}
+
+@media(min-width:1024px) {
+  .main { max-width: 1200px; }
+  .report-title { font-size: 36px; }
+}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
