@@ -1084,6 +1084,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
     <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Log</button>
+    <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
   <div class="sched-wrap" id="schedule-content"></div>
   <!-- Override Log Modal -->
@@ -2908,6 +2909,8 @@ function checkAppLock() {
     if(!localStorage.getItem('zp_user_name')) {
       var modal = document.getElementById('identity-modal');
       if(modal) modal.style.display='flex';
+    } else {
+      setTimeout(checkDomsNotes, 500);
     }
   } else {
     document.getElementById('app-lock-error').style.display='block';
@@ -2928,6 +2931,7 @@ function setIdentity(name) {
   localStorage.setItem('zp_user_name', name);
   var modal = document.getElementById('identity-modal');
   if(modal) modal.style.display='none';
+  setTimeout(checkDomsNotes, 500);
 }
 
 function getCurrentUser() {
@@ -5544,6 +5548,220 @@ function handleLockIconTap() {
     </div>
   </div>
 </div>
+
+
+<!-- Dom's Notes compose popup -->
+<div id="doms-notes-panel" style="display:none;position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:10001;background:#fff;border-radius:14px;box-shadow:0 8px 40px rgba(0,0,0,0.22);width:92%;max-width:460px;overflow:hidden;">
+  <div id="doms-notes-header" style="background:var(--red);padding:14px 16px;cursor:grab;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Dom's Notes</div>
+    <button onclick="document.getElementById('doms-notes-panel').style.display='none';" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;line-height:1;">✕</button>
+  </div>
+  <div style="padding:16px;max-height:80vh;overflow-y:auto;">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">DATE</div>
+    <div id="doms-notes-date" style="font-size:14px;font-weight:600;color:#222;margin-bottom:16px;"></div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;">DRIVERS</div>
+    <textarea id="doms-note-drivers" placeholder="Notes for drivers..." style="width:100%;height:80px;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;resize:none;box-sizing:border-box;margin-bottom:14px;"></textarea>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;">FRONT OF HOUSE</div>
+    <textarea id="doms-note-foh" placeholder="Notes for front of house..." style="width:100%;height:80px;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;resize:none;box-sizing:border-box;margin-bottom:14px;"></textarea>
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;">BACK OF HOUSE</div>
+    <textarea id="doms-note-boh" placeholder="Notes for back of house..." style="width:100%;height:80px;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;resize:none;box-sizing:border-box;margin-bottom:16px;"></textarea>
+    <div style="display:flex;gap:10px;">
+      <button onclick="printDomsNotes()" style="flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Print</button>
+      <button onclick="saveDomsNote()" style="flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Save & Publish</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dom's Notes acknowledgment popup -->
+<div id="doms-ack-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Dom's Notes</div>
+      <div id="doms-ack-date" style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px;"></div>
+    </div>
+    <div id="doms-ack-body" style="padding:16px;max-height:60vh;overflow-y:auto;"></div>
+    <div style="padding:0 16px 16px;display:flex;gap:10px;" id="doms-ack-buttons"></div>
+  </div>
+</div>
+
+
+<script>
+// ── DOM'S NOTES ──────────────────────────────────────────────
+
+function showDomsNotes() {
+  var panel = document.getElementById('doms-notes-panel');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var now = new Date();
+  document.getElementById('doms-notes-date').textContent = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+  // Load any existing active note into fields
+  loadActiveNoteIntoCompose();
+  panel.style.display = 'block';
+  makeDraggable(document.getElementById('doms-notes-panel'), document.getElementById('doms-notes-header'));
+}
+
+function loadActiveNoteIntoCompose() {
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=1&status=eq.active', {
+    headers: {'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(rows && rows.length) {
+      var n = rows[0];
+      document.getElementById('doms-note-drivers').value = n.drivers || '';
+      document.getElementById('doms-note-foh').value = n.foh || '';
+      document.getElementById('doms-note-boh').value = n.boh || '';
+    }
+  }).catch(function(){});
+}
+
+function saveDomsNote() {
+  var drivers = document.getElementById('doms-note-drivers').value.trim();
+  var foh = document.getElementById('doms-note-foh').value.trim();
+  var boh = document.getElementById('doms-note-boh').value.trim();
+  if(!drivers && !foh && !boh) { alert('Please enter at least one note.'); return; }
+  var now = new Date();
+  var entry = {
+    drivers: drivers,
+    foh: foh,
+    boh: boh,
+    created_by: getCurrentUser(),
+    created_at: now.toISOString(),
+    status: 'active'
+  };
+  // First deactivate old notes
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes?status=eq.active', {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify({status:'archived'})
+  }).then(function(){
+    return fetch(SUPABASE_URL + '/rest/v1/doms_notes', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([entry])
+    });
+  }).then(function(){
+    document.getElementById('doms-notes-panel').style.display = 'none';
+    // Reset dismiss counts so everyone sees the new note
+    localStorage.removeItem('zp_doms_dismiss_count');
+    localStorage.removeItem('zp_doms_note_seen_id');
+    alert('Note published.');
+  }).catch(function(e){ alert('Failed to save note: ' + e.message); });
+}
+
+function printDomsNotes() {
+  var drivers = document.getElementById('doms-note-drivers').value.trim();
+  var foh = document.getElementById('doms-note-foh').value.trim();
+  var boh = document.getElementById('doms-note-boh').value.trim();
+  var now = new Date();
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dateStr = months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
+  var body = '';
+  if(drivers) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Drivers</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+drivers+'</p>';
+  if(foh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Front of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+foh+'</p>';
+  if(boh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Back of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+boh+'</p>';
+  var html = '<!DOCTYPE html><html><head><title>Dom's Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;margin:0 0 4px;}@media print{button{display:none;}}</style></head><body>'
+    + '<h1>Dom's Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
+    + body + '</body></html>';
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+}
+
+// ── ACK FLOW ─────────────────────────────────────────────────
+
+function checkDomsNotes() {
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=1&status=eq.active', {
+    headers: {'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(!rows || !rows.length) return;
+    var note = rows[0];
+    var seenId = localStorage.getItem('zp_doms_note_seen_id');
+    if(seenId === String(note.id)) return; // already acknowledged this note
+    showDomsAckModal(note);
+  }).catch(function(){});
+}
+
+function showDomsAckModal(note) {
+  var modal = document.getElementById('doms-ack-modal');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var d = new Date(note.created_at);
+  document.getElementById('doms-ack-date').textContent = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' — By: ' + (note.created_by || 'Dom');
+  var body = '';
+  if(note.drivers) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">DRIVERS</div><div style="font-size:13px;white-space:pre-wrap;">'+note.drivers+'</div></div>';
+  if(note.foh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">FRONT OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.foh+'</div></div>';
+  if(note.boh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">BACK OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.boh+'</div></div>';
+  document.getElementById('doms-ack-body').innerHTML = body;
+  var user = getCurrentUser();
+  var dismissCount = parseInt(localStorage.getItem('zp_doms_dismiss_count') || '0');
+  var btnContainer = document.getElementById('doms-ack-buttons');
+  btnContainer.innerHTML = '';
+  // Alex can always dismiss
+  if(user === 'Alex') {
+    var db = document.createElement('button');
+    db.textContent = 'Dismiss';
+    db.style.cssText = 'flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;';
+    db.onclick = function(){ modal.style.display='none'; };
+    btnContainer.appendChild(db);
+  } else if(dismissCount < 2) {
+    // Ely/Selena can dismiss up to 2 times
+    var db = document.createElement('button');
+    db.textContent = 'Dismiss (' + (2 - dismissCount) + ' left)';
+    db.style.cssText = 'flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;';
+    db.onclick = function(){
+      localStorage.setItem('zp_doms_dismiss_count', String(dismissCount + 1));
+      modal.style.display='none';
+    };
+    btnContainer.appendChild(db);
+  }
+  // Acknowledge button always shown
+  var ab = document.createElement('button');
+  ab.textContent = dismissCount >= 2 && user !== 'Alex' ? 'ACKNOWLEDGE (Required)' : 'Acknowledge';
+  ab.style.cssText = 'flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;';
+  ab.onclick = function(){ acknowledgeDomsNote(note); };
+  btnContainer.appendChild(ab);
+  modal.style.display = 'flex';
+}
+
+function acknowledgeDomsNote(note) {
+  var now = new Date();
+  var user = getCurrentUser();
+  var logEntry = {
+    note_id: note.id,
+    acknowledged_by: user,
+    acknowledged_at: now.toISOString()
+  };
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([logEntry])
+  }).catch(function(){});
+  localStorage.setItem('zp_doms_note_seen_id', String(note.id));
+  localStorage.removeItem('zp_doms_dismiss_count');
+  document.getElementById('doms-ack-modal').style.display = 'none';
+}
+
+// ── DRAG ─────────────────────────────────────────────────────
+
+function makeDraggable(el, handle) {
+  var startX, startY, origX, origY;
+  handle.addEventListener('mousedown', function(e){
+    startX = e.clientX; startY = e.clientY;
+    var rect = el.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    el.style.left = origX + 'px'; el.style.top = origY + 'px';
+    el.style.transform = 'none';
+    function onMove(e){
+      el.style.left = (origX + e.clientX - startX) + 'px';
+      el.style.top = (origY + e.clientY - startY) + 'px';
+    }
+    function onUp(){ document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+</script>
 
 </body>
 </html>
