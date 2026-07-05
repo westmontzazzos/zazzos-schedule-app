@@ -1479,7 +1479,7 @@ function parseHour(raw) {
   return null;
 }
 
-// ── DRIVER SCHEDULE ──
+// DOM'S NOTES
 const DRIVERS = {
   'AJ': [null,null,null,null,null,null,null],
   'Alex D': [null,null,null,null,null,null,null],
@@ -1506,7 +1506,7 @@ const DRIVER_ALIASES = { 'jeff z': 'Jeff Zeggebeen', 'jeff zeggeben': 'Jeff Zegg
 // General staff name aliases: short/alt names on the physical schedule → canonical wage-roster name
 const NAME_ALIASES = { 'alex': 'Alexis A', 'alex a': 'Alexis A' };
 
-// ── BOH SCHEDULE ──
+// DOM'S NOTES
 const MANAGERS = {
   'Alexis A': [null,null,null,null,null,null,null],
   'Brett': [null,null,null,null,null,null,null],
@@ -1598,7 +1598,7 @@ function getBOHSection(sectionData, di) {
   return result;
 }
 
-// ── FOH SCHEDULE ──
+// DOM'S NOTES
 const SERVERS = {
   'Abby': [null,null,null,null,null,null,null],
   'Alexis': [null,null,null,null,null,null,null],
@@ -1684,7 +1684,7 @@ function getFOHSection(sectionData, di) {
   return result;
 }
 
-// ── RENDER SCHEDULE ──
+// DOM'S NOTES
 
 function schedSort(entries, typ) {
   // Sort entries alphabetically by name (case-insensitive, natural number order)
@@ -1703,7 +1703,7 @@ function drvMin(raw) {
 }
 
 
-// ── RUN SHEETS ──
+// DOM'S NOTES
 function getDriversForDay(di) {
   const res = [];
   Object.entries(DRIVERS).forEach(([name, shifts]) => {
@@ -1762,7 +1762,7 @@ function switchSched(view, btn) {
   renderSchedule();
 }
 
-// ── DAY TABS ──
+// DOM'S NOTES
 function initDayTabs() {
   const tabs = document.getElementById('day-tabs');
   // Neutral placeholder until the real week loads (applyWeek rebuilds these with dates)
@@ -1778,7 +1778,7 @@ function selectDay(idx) {
   renderRunSheet(idx);
 }
 
-// ── RUN SHEET ──
+// DOM'S NOTES
 function printRunSheet() {
   var di = currentDay;
   var dayName   = DAYS[di];
@@ -2027,7 +2027,7 @@ function buildPayrollPDF(weekLabel, sal, hly, unmatched) {
   function pageBreak(need){ if(y + need > bottom){ p+=1; ensurePage(p); y = M + 40; } }
   function sectionBar(label){ pageBreak(40); rect(p, M, y, PW-2*M, 15, [0,0,0]); text(p, M+6, y+11, label, 9.5, true, [1,1,1]); y += 21; }
 
-  // ── SALARIED ──
+  // DOM'S NOTES
   sectionBar('SALARIED');
   text(p, M+4, y+8, 'Name', 7.5, true, [0.5,0.5,0.5]);
   rtext(p, 380, y+8, 'Weekly Salary', 7.5, true, [0.5,0.5,0.5]);
@@ -2052,7 +2052,7 @@ function buildPayrollPDF(weekLabel, sal, hly, unmatched) {
   rtext(p, PW-M-4, y+10, money(salSub), 9, true);
   y += rowH + 10;
 
-  // ── HOURLY ──
+  // DOM'S NOTES
   sectionBar('HOURLY');
   text(p, M+4, y+8, 'Name', 7.5, true, [0.5,0.5,0.5]);
   rtext(p, 300, y+8, 'Hrs', 7.5, true, [0.5,0.5,0.5]);
@@ -2083,14 +2083,14 @@ function buildPayrollPDF(weekLabel, sal, hly, unmatched) {
   rtext(p, PW-M-4, y+10, money(hlySub), 9, true);
   y += rowH + 10;
 
-  // ── GRAND TOTAL ──
+  // DOM'S NOTES
   pageBreak(22);
   rect(p, M, y, PW-2*M, 18, [0,0,0]);
   text(p, M+6, y+13, 'TRUE WEEKLY LABOR COST (salaried + hourly + employer taxes)', 9.5, true, [1,1,1]);
   rtext(p, PW-M-6, y+13, money(salSub + hlySub), 11, true, [1,0.6,0.6]);
   y += 28;
 
-  // ── UNMATCHED WARNING ──
+  // DOM'S NOTES
   if(unmatched && unmatched.length){
     pageBreak(20 + unmatched.length*12);
     text(p, M, y+9, 'WARNING - NOT IN WAGE ROSTER (not included in totals above):', 8.5, true, [0.6,0.45,0]);
@@ -2101,7 +2101,7 @@ function buildPayrollPDF(weekLabel, sal, hly, unmatched) {
     });
   }
 
-  // ── ASSEMBLE PDF ──
+  // DOM'S NOTES
   var objs = [], xref = [];
   function addObj(s){ objs.push(s); return objs.length; }
   var fontN = addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
@@ -2678,7 +2678,7 @@ async function loadScheduleBypasses(weekLabel) {
   } catch(e) { /* silent */ }
 }
 
-// ── PRINT WAGE ROSTER ────────────────────────────────────────────────────────
+// DOM'S NOTES
 function printWageRoster() {
   var PW=612,PH=792,M=32;
   var pages=[''],headed={};
@@ -2830,7 +2830,7 @@ function renderRunSheet(di) {
   });
 }
 
-// ── SCHEDULE ──
+// DOM'S NOTES
 function renderSchedule() {
   const el = document.getElementById('schedule-content');
   // Build day-column headers from the currently loaded week (not hardcoded)
@@ -2901,7 +2901,7 @@ function renderSchedule() {
   el.innerHTML=html;
 }
 
-// ── PIN / PRIVATE ──
+// DOM'S NOTES
 function checkAppLock() {
   var pin = document.getElementById('app-lock-input').value;
   if(pin==='2026') {
@@ -3118,7 +3118,7 @@ function renderPrivate() {
   var el=document.getElementById('private-data');
   var html='';
 
-  // ── ROSTER COVERAGE SWEEP ──
+  // DOM'S NOTES
   // Find anyone on the live schedule who is NOT covered by the hardcoded HLY
   // roster above. Coverage is detected by array identity: each HLY src() returns
   // the exact day-array references it reads, so any section entry whose array is
@@ -3167,11 +3167,11 @@ function renderPrivate() {
     unmatched: unmatched.slice()
   };
 
-  // ── HEADER ──
+  // DOM'S NOTES
   var _wkLbl=(document.getElementById('private-week-label')||{}).textContent||'';
   html+='<div class="report-header"><div class="report-title">LABOR COST REPORT</div><div class="report-sub">'+_wkLbl+'</div></div>';
 
-  // ── METRIC CARDS ──
+  // DOM'S NOTES
   html+='<div class="summary-card">';
   html+='<div class="summary-row"><span class="summary-label">Weekly Hourly Wages</span><span class="summary-value mono">'+fmtI$(totPayroll)+'</span></div>';
   html+='<div class="summary-row"><span class="summary-label">OT Premium</span><span class="summary-value green mono">'+fmtI$(totOTPremium)+'</span></div>';
@@ -3180,7 +3180,7 @@ function renderPrivate() {
   html+='<div class="summary-row"><span class="summary-label" style="font-size:10px;color:var(--gray-400);">Includes all hourly + salaried + employer taxes</span><span class="summary-value mono" style="font-size:11px;">'+fmtI$(totCost/7)+'/day</span></div>';
   html+='</div>';
 
-  // ── OT SUMMARY ──
+  // DOM'S NOTES
   var otEmps = HLY.filter(function(e){return Math.max(0,e.wh-40)>0;}).sort(function(a,b){return b.wh-a.wh;});
   html+='<div class="section-title">Overtime This Week</div><div class="report-table-wrap">';
   if(otEmps.length===0){
@@ -3201,7 +3201,7 @@ function renderPrivate() {
   }
   html+='</div>';
 
-  // ── DAILY BREAKDOWN ──
+  // DOM'S NOTES
   html+='<div class="cost-table-wrap"><div style="overflow-x:auto;">';
   html+='<div class="cost-sec-hdr">DAILY LABOR COST</div>';
   html+='<table class="report-table" style="min-width:600px"><thead><tr>';
@@ -3230,7 +3230,7 @@ function renderPrivate() {
   html+='<td class="ot-value">'+fmtI$(totCost)+'</td></tr></tbody></table></div></div>';
   html+='</div>';
 
-  // ── EMPLOYEE TABLE ──
+  // DOM'S NOTES
   html+='<div class="section-title">Weekly Employee Summary</div><div class="report-table-wrap">';
   html+='<table class="report-table" style="min-width:680px"><thead><tr><th>Employee</th><th>Role</th><th>Reg Hrs</th><th>OT Hrs</th><th>Weekly Wages</th><th>Taxes</th><th>True Cost</th></tr></thead><tbody>';
 
@@ -3262,7 +3262,7 @@ function renderPrivate() {
   el.innerHTML=html;
 }
 
-// ── HIT LIST TAB ──
+// DOM'S NOTES
 
 // Convert a time token (e.g. "10", "11:30", "5pm", "C") to a decimal 24h hour.
 // di is the day index so close time can be day-aware (Fri/Sat later close).
@@ -3641,7 +3641,7 @@ function renderHitList() {
   html += '</div>';
   html += '</div>';
 
-  // ── FOH MISSING END TIME FLAGS ──
+  // DOM'S NOTES
   if(fohFlags.length > 0){
     html += '<div style="background:#fff0f2;border:1.5px solid var(--red);border-radius:10px;padding:12px 14px;margin-bottom:12px;">';
     html += '<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px;">🚨 SCHEDULE ISSUES — ACTION REQUIRED</div>';
@@ -3651,7 +3651,7 @@ function renderHitList() {
     html += '</div>';
   }
 
-  // ── OVERAGE BREAKDOWN (shows when Est. Labor > $2,800) ──
+  // DOM'S NOTES
   if(totalCost > weeklyAvgCost) {
     // Build per-department cost and per-hour staffing detail
     var DEPT_THRESHOLD = weeklyAvgCost;
@@ -3931,8 +3931,8 @@ function renderHitList() {
   loadCurrentPOSLabor(_wkLbl2);
 }
 
-// ── INIT ──
-// ── SCHEDULE EDITOR ──// ── SCHEDULE EDITOR ──// ── SCHEDULE EDITOR ──// ── SCHEDULE EDITOR ──// ── SCHEDULE EDITOR ──
+// DOM'S NOTES
+// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES
 var editorDay = 0;
 var currentHitlistDay = 0;
 
@@ -4472,7 +4472,7 @@ function applyWeek(idx) {
   });
 }
 
-// ── UPDATE SCHEDULE ──
+// DOM'S NOTES
 function getAnthropicKey() {
   let k = localStorage.getItem('zp_anthropic_key');
   if (!k) {
@@ -4526,7 +4526,7 @@ function snapToMonday(dateStr) {
   return d.getFullYear() + '-' + mm + '-' + dd;
 }
 
-// ── SCHEDULE ERROR CHECKER ──
+// DOM'S NOTES
 function checkScheduleErrors() {
   if(errorsBypassed) return;
 
@@ -4599,7 +4599,7 @@ function checkScheduleErrors() {
     return !!String(endVal).trim().toLowerCase().match(/^c[l]?$|^close$/);
   }
 
-  // ── BOH CHECKS ──
+  // DOM'S NOTES
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
 
@@ -4676,7 +4676,7 @@ function checkScheduleErrors() {
     }
   }
 
-  // ── FOH CHECKS ──
+  // DOM'S NOTES
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
 
@@ -4780,7 +4780,7 @@ function checkScheduleErrors() {
     }
   }
 
-  // ── DRIVER CHECKS ──
+  // DOM'S NOTES
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
     var amCount = 0, closerCount = 0;
@@ -4800,7 +4800,7 @@ function checkScheduleErrors() {
       errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
   }
 
-  // ── Show/refresh/close modal ──
+  // DOM'S NOTES
   // Filter out bypassed errors
   if(window._bypassedErrors) {
     function notBypassed(e){ return !window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg] && !window._bypassedErrors['__day_cleared_'+e.di]; }
@@ -5373,7 +5373,7 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
 
 </script>
 <script>
-  // ── STARTUP ──
+  // DOM'S NOTES
   // Focus the app-lock PIN input so the numeric keypad appears immediately
   setTimeout(function(){ var ali=document.getElementById('app-lock-input'); if(ali) ali.focus(); }, 200);
   initDayTabs();
@@ -5588,7 +5588,7 @@ function handleLockIconTap() {
 
 
 <script>
-// ── DOM'S NOTES ──────────────────────────────────────────────
+// DOM'S NOTES
 
 function showDomsNotes() {
   var panel = document.getElementById('doms-notes-panel');
@@ -5659,9 +5659,19 @@ function printDomsNotes() {
   if(drivers) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Drivers</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+drivers+'</p>';
   if(foh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Front of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+foh+'</p>';
   if(boh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Back of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+boh+'</p>';
-  var html = '<!DOCTYPE html><html><head><title>Dom's Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;margin:0 0 4px;}@media print{button{display:none;}}</style></head><body>'
-    + '<h1>Dom's Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
-    + body + '
+  var html = '<!DOCTYPE html><html><head><title>Dom\'s Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;margin:0 0 4px;}@media print{button{display:none;}}</style></head><body>'
+    + '<h1>Dom\'s Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
+    + body + '<\/body><\/html>';
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+}
+</script>
+
 <!-- Schedule print popup -->
 <div id="sched-print-popup" style="display:none;position:fixed;z-index:10001;background:#fff;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.18);padding:6px 0;min-width:180px;">
   <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">SECTION</div>
@@ -5738,7 +5748,7 @@ function printSchedSection(range) {
       if(!hasShift) return;
       secRows += '<tr><td>'+name+'</td>' + daysToShow.map(function(di){
         var val = days[di];
-        if(!val || val === 'x' || val === 'X') return '<td style="color:#ccc;">—</td>';
+        if(!val || val === 'x' || val === 'X') return '<td style="color:#ccc;">-</td>';
         return '<td>'+val+'</td>';
       }).join('') + '</tr>';
     });
@@ -5774,7 +5784,7 @@ function printSchedSection(range) {
   setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
 }
 
-// ── ACK FLOW ─────────────────────────────────────────────────
+// DOM'S NOTES
 
 function checkDomsNotes() {
   fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=1&status=eq.active', {
@@ -5847,7 +5857,7 @@ function acknowledgeDomsNote(note) {
   document.getElementById('doms-ack-modal').style.display = 'none';
 }
 
-// ── DRAG ─────────────────────────────────────────────────────
+// DOM'S NOTES
 
 function makeDraggable(el, handle) {
   var startX, startY, origX, origY;
