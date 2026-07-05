@@ -4234,6 +4234,85 @@ function updateWeekLabels(idx) {
   document.querySelectorAll('[onclick="changeWeek(1)"]').forEach(b => b.style.opacity = idx >= allWeeks.length-1 ? '0.3' : '1');
 }
 
+
+async function logUnclearedErrors() {
+  // Only run for the current week
+  if(!allWeeks || !allWeeks[currentWeekIdx]) return;
+  var week = allWeeks[currentWeekIdx];
+  if(!week || !week.week_start) return;
+
+  var now = new Date();
+  var wkStart = new Date(week.week_start + 'T00:00:00');
+  var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // For each day in the week that has already passed midnight
+  for(var di = 0; di < 7; di++) {
+    var dayDate = new Date(wkStart);
+    dayDate.setDate(wkStart.getDate() + di);
+    // Day must have fully passed (past midnight)
+    var dayEnd = new Date(dayDate);
+    dayEnd.setHours(23,59,59,999);
+    if(now <= dayEnd) continue; // day hasn't ended yet
+
+    // Build a localStorage key to track if we already logged this day
+    var loggedKey = 'zp_uncleared_logged_' + week.week_start + '_' + di;
+    if(localStorage.getItem(loggedKey)) continue; // already logged
+
+    // Get all errors for this day
+    var allErrors = window._currentErrors || {BOH:[], FOH:[], Drivers:[]};
+    var dayErrors = (allErrors.BOH||[]).concat(allErrors.FOH||[]).concat(allErrors.Drivers||[])
+      .filter(function(e){ return e.di === di; });
+
+    // Filter out any that were bypassed/overridden
+    var bypassed = window._bypassedErrors || {};
+    var uncleared = dayErrors.filter(function(e){
+      return !bypassed[e.di+'|'+e.dept+'|'+e.msg];
+    });
+
+    if(uncleared.length === 0) {
+      // No uncleared errors — mark as done
+      localStorage.setItem(loggedKey, '1');
+      continue;
+    }
+
+    // Determine manager label by dept
+    var FOH_DEPTS = ['Servers','Bartenders','Cashiers','Hosts'];
+    var BOH_DEPTS = ['Kitchen','Pizza','Prep','Bus','Dish','Managers'];
+
+    var dateStr = DAYS_FULL[di] + ', ' + months[dayDate.getMonth()] + ' ' + dayDate.getDate() + ', ' + dayDate.getFullYear();
+    var weekKey = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+
+    // Log each uncleared error
+    var logEntries = uncleared.map(function(e){
+      var mgr = FOH_DEPTS.indexOf(e.dept) >= 0 ? 'Front of House manager' :
+                BOH_DEPTS.indexOf(e.dept) >= 0 ? 'Back of House manager' : 'Driver manager';
+      return {
+        week_label: weekKey,
+        day_index: di,
+        day_name: DAYS_FULL[di],
+        dept: e.dept,
+        msg: e.msg,
+        who: 'SYSTEM',
+        ack_type: 'uncleared',
+        logged_at: new Date().toISOString(),
+        note: 'Was never cleared by the ' + mgr
+      };
+    });
+
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/override_log', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify(logEntries)
+      });
+      localStorage.setItem(loggedKey, '1');
+    } catch(e) {
+      console.warn('Failed to log uncleared errors:', e);
+    }
+  }
+}
+
 function applyWeek(idx) {
   var week = allWeeks[idx];
   if(!week) return;
@@ -4247,7 +4326,7 @@ function applyWeek(idx) {
   if(currentTab === 'private' && document.getElementById('private-content').style.display !== 'none') renderPrivate();
   var _wkLblForBypass = (document.getElementById('week-label')||{}).textContent||'';
   window._bypassedErrors = {};
-  loadScheduleBypasses(_wkLblForBypass).then(function(){ setTimeout(checkScheduleErrors, 300); });
+  loadScheduleBypasses(_wkLblForBypass).then(function(){ setTimeout(checkScheduleErrors, 300); setTimeout(logUnclearedErrors, 1500); });
 }
 
 // ── UPDATE SCHEDULE ──
@@ -5238,8 +5317,11 @@ function showOverrideLog(btn) {
     rows.forEach(function(r){
       var dt = r.logged_at ? new Date(r.logged_at) : null;
       var dtStr = dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
-      var ackLabel = r.ack_type === 'intentional' ? 'Intentional decision' : 'Mistake — will correct';
-      var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' : '#c8102e';
+      var ackLabel = r.ack_type === 'intentional' ? 'Intentional decision' :
+                    r.ack_type === 'mistake' ? 'Mistake — will correct' :
+                    r.note || 'Was never cleared';
+      var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' :
+                     r.ack_type === 'uncleared' ? '#888' : '#c8102e';
       html += '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
       html += '<div style="font-size:13px;font-weight:700;color:#222;">'+(r.day_name||'')+(r.week_label?' — '+r.week_label:'')+'</div>';
@@ -5247,7 +5329,7 @@ function showOverrideLog(btn) {
       html += '</div>';
       html += '<div style="font-size:12px;color:#c8102e;margin-bottom:4px;"><b>'+r.dept+'</b> — '+r.msg+'</div>';
       html += '<div style="font-size:11px;font-weight:700;color:'+ackColor+';margin-bottom:2px;">'+ackLabel+'</div>';
-      html += '<div style="font-size:11px;color:#666;">By: <b>'+(r.who||'—')+'</b></div>';
+      html += '<div style="font-size:11px;color:#666;">'+(r.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged — not manually cleared</i>':'By: <b>'+(r.who||'—')+'</b>')+'</div>';
       html += '</div>';
     });
     body.innerHTML = html;
