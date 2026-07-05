@@ -1351,6 +1351,7 @@ function pinModalResolve(value) {
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DATES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const FULL_DATES = ['','','','','','',''];
+var WEEK_EVENTS = [null,null,null,null,null,null,null];
 
 // Close times: Sun-Thu = 10PM, Fri-Sat = 11PM
 // Time parsing rules:
@@ -1720,6 +1721,7 @@ function printRunSheet() {
   var di = currentDay;
   var dayName   = DAYS[di];
   var dateLabel = FULL_DATES[di];
+  var eventLabel = WEEK_EVENTS[di] ? WEEK_EVENTS[di] : null;
 
   var managers = getBOHSection(MANAGERS, di);
   var pizza    = getBOHSection(PIZZA, di);
@@ -2722,6 +2724,7 @@ function renderRunSheet(di) {
       <div>
         <div class="rs-header-day">${DAYS[di]}</div>
         <div class="rs-header-date">${FULL_DATES[di]}</div>
+        ${WEEK_EVENTS[di] ? `<div class="rs-header-event" style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;">${WEEK_EVENTS[di]}</div>` : ''}
       </div>
       <div id="rs-staff-count" style="text-align:right;font-size:11px;color:#A8A49E;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;"></div>
     </div>
@@ -2781,7 +2784,10 @@ function renderSchedule() {
     // Fallback when no week has loaded yet
     dh = schedDayNames.slice();
   }
-  let html = `<table class="sched-table"><thead><tr><th>Name</th>${dh.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<table class="sched-table"><thead><tr><th>Name</th>${dh.map((d,i)=>{
+    var ev = WEEK_EVENTS[i] ? `<div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;">${WEEK_EVENTS[i]}</div>` : '';
+    return `<th>${d}${ev}</th>`;
+  }).join('')}</tr></thead><tbody>`;
 
   if(currentSchedView==='drivers') {
     schedSort(Object.entries(DRIVERS),'drv')
@@ -4016,7 +4022,7 @@ async function loadAllWeeks() {
   }, 8000);
 
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,event_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     clearTimeout(timeoutId);
@@ -4095,7 +4101,7 @@ async function refreshData() {
   var savedTab = currentTab;
   var savedWeekIdx = currentWeekIdx;
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,event_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     if(r.ok) {
@@ -4170,6 +4176,9 @@ function cleanNames(obj, sectionType) {
 function parseWeekData(week) {
   try {
     var boh = week.boh_data ? JSON.parse(week.boh_data) : {};
+  // Load events
+  var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
+  for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
     var foh = week.foh_data ? JSON.parse(week.foh_data) : {};
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers');
@@ -4852,7 +4861,7 @@ async function clearWeekRecord() {
 
 async function getWeekRecord(weekStart) {
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=id,boh_data,foh_data,driver_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=id,boh_data,foh_data,driver_data,event_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     var rows = await r.json();
@@ -4883,6 +4892,9 @@ async function processSchedules() {
     statusEl.innerHTML = '<div style="padding:16px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);">⏳ Reading BOH schedule...</div>';
     var bohData = await readScheduleImage(uploadedImages.boh, 'BOH');
 
+    statusEl.innerHTML = '<div style="padding:16px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);">⏳ Reading events...</div>';
+    var eventData = await readEventsFromBOH(uploadedImages.boh);
+
     statusEl.innerHTML = '<div style="padding:16px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);">⏳ Reading FOH schedule...</div>';
     var fohData = await readScheduleImage(uploadedImages.foh, 'FOH');
 
@@ -4891,7 +4903,7 @@ async function processSchedules() {
 
     // Save to Supabase
     statusEl.innerHTML = '<div style="padding:16px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);">⏳ Saving to database...</div>';
-    await saveToSupabase(weekStart, bohData, fohData, drvData);
+    await saveToSupabase(weekStart, bohData, fohData, drvData, eventData);
 
     statusEl.innerHTML = '<div style="padding:16px;background:#f0fdf4;border-radius:8px;font-size:13px;color:var(--green);font-weight:600;">✓ Done! Schedule updated for all managers.</div>';
     await loadAllWeeks();
@@ -5072,7 +5084,21 @@ async function readScheduleImage(dataUrl, type) {
   return sched;
 }
 
-async function saveToSupabase(weekStart, bohData, fohData, drvData) {
+
+async function readEventsFromBOH(dataUrl) {
+  var base64 = dataUrl.split(',')[1];
+  var mediaType = dataUrl.split(';')[0].split(':')[1];
+  var prompt = 'Look at this Back of House schedule photo. There is an "Events" row near the top of the schedule, under the day/date headers. Read what event (if any) is listed for each day Monday through Sunday. If a day has no event, use null. Return ONLY a JSON array of 7 values in Mon-Sun order, no markdown, no explanation. Example: ["Trivia","Bingo","Live Music",null,null,null,null]';
+  try {
+    var result = await callVision(base64, mediaType, prompt);
+    if(Array.isArray(result) && result.length === 7) return result;
+    return [null,null,null,null,null,null,null];
+  } catch(e) {
+    return [null,null,null,null,null,null,null];
+  }
+}
+
+async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
   // Update the week's row if it already exists; otherwise create it.
   // Mirrors the per-section save path so the combined upload can never
   // duplicate a week or fail on a unique-constraint conflict.
@@ -5086,7 +5112,8 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
   var payload = {
     boh_data: JSON.stringify(bohData),
     foh_data: JSON.stringify(fohData),
-    driver_data: JSON.stringify(drvData)
+    driver_data: JSON.stringify(drvData),
+    event_data: JSON.stringify(eventData || [null,null,null,null,null,null,null])
   };
   var response;
   if(existing) {
