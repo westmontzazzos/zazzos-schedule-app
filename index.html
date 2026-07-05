@@ -5456,24 +5456,48 @@ function showOverrideLog(btn) {
   modal.style.display = 'flex';
   var body = document.getElementById('override-log-body');
   body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  fetch(SUPABASE_URL + '/rest/v1/override_log?order=logged_at.desc&limit=100', {
-    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-  }).then(function(r){ return r.json(); }).then(function(rows){
-    if(!rows || !rows.length) {
-      body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No overrides logged yet.</div>';
+  Promise.all([
+    fetch(SUPABASE_URL + '/rest/v1/override_log?order=logged_at.desc&limit=100', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.json(); }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack?order=acknowledged_at.desc&limit=100', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.json(); }).catch(function(){ return []; })
+  ]).then(function(results){
+    var overrideRows = results[0] || [];
+    var domsRows = (results[1] || []).map(function(r){
+      return {
+        logged_at: r.acknowledged_at,
+        who: r.acknowledged_by,
+        dept: "Dom's Notes",
+        msg: r.action === 'published' ? 'Note published' : r.action === 'printed' ? 'Note printed' : 'Note acknowledged',
+        ack_type: r.action || 'acknowledged',
+        day_name: '', week_label: '', note: ''
+      };
+    });
+    var rows = overrideRows.concat(domsRows).sort(function(a,b){
+      return new Date(b.logged_at) - new Date(a.logged_at);
+    });
+    if(!rows.length) {
+      body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No activity logged yet.</div>';
       return;
     }
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var html = '';
     rows.forEach(function(r){
       var dt = r.logged_at ? new Date(r.logged_at) : null;
       var dtStr = dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
       var ackLabel = r.ack_type === 'intentional' ? 'Intentional decision' :
                     r.ack_type === 'mistake' ? 'Mistake — will correct' :
-                    r.note || 'Was never cleared';
+                    r.ack_type === 'published' ? 'Published by Dom' :
+                    r.ack_type === 'printed' ? 'Printed' :
+                    r.ack_type === 'acknowledged' ? 'Acknowledged' :
+                    r.ack_type === 'uncleared' ? 'Never cleared' :
+                    r.note || '';
       var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' :
-                     r.ack_type === 'uncleared' ? '#888' : '#c8102e';
+                    r.ack_type === 'uncleared' ? '#888' :
+                    r.ack_type === 'published' ? '#1a7a3c' : '#c8102e';
       html += '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
       html += '<div style="font-size:13px;font-weight:700;color:#222;">'+(r.day_name||'')+(r.week_label?' — '+r.week_label:'')+'</div>';
@@ -5481,7 +5505,7 @@ function showOverrideLog(btn) {
       html += '</div>';
       html += '<div style="font-size:12px;color:#c8102e;margin-bottom:4px;"><b>'+r.dept+'</b> — '+r.msg+'</div>';
       html += '<div style="font-size:11px;font-weight:700;color:'+ackColor+';margin-bottom:2px;">'+ackLabel+'</div>';
-      html += '<div style="font-size:11px;color:#666;">'+(r.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged — not manually cleared</i>':'By: <b>'+(r.who||'—')+'</b>')+'</div>';
+      html += '<div style="font-size:11px;color:#666;">'+(r.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged</i>':'By: <b>'+(r.who||'—')+'</b>')+'</div>';
       html += '</div>';
     });
     body.innerHTML = html;
@@ -5729,6 +5753,94 @@ function printDomsNotes() {
   iframe.contentDocument.close();
   setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
 }
+function checkDomsNotes() {
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=1&status=eq.active', {
+    headers: {'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(!rows || !rows.length) return;
+    var note = rows[0];
+    var seenId = localStorage.getItem('zp_doms_note_seen_id');
+    if(seenId === String(note.id)) return;
+    showDomsAckModal(note);
+  }).catch(function(){});
+}
+
+function showDomsAckModal(note) {
+  var user = getCurrentUser();
+  if(user === 'Dom') return;
+  var modal = document.getElementById('doms-ack-modal');
+  if(!modal) return;
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var d = new Date(note.created_at);
+  document.getElementById('doms-ack-date').textContent = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' - By: ' + (note.created_by || 'Dom');
+  var body = '';
+  if(note.drivers) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">DRIVERS</div><div style="font-size:13px;white-space:pre-wrap;">'+note.drivers+'</div></div>';
+  if(note.foh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">FRONT OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.foh+'</div></div>';
+  if(note.boh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">BACK OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.boh+'</div></div>';
+  document.getElementById('doms-ack-body').innerHTML = body;
+  var dismissCount = parseInt(localStorage.getItem('zp_doms_dismiss_count') || '0');
+  var btnContainer = document.getElementById('doms-ack-buttons');
+  btnContainer.innerHTML = '';
+  if(user === 'Alex') {
+    var cb = document.createElement('button');
+    cb.textContent = 'Clear';
+    cb.style.cssText = 'flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;';
+    cb.onclick = function(){ modal.style.display='none'; };
+    btnContainer.appendChild(cb);
+  } else {
+    var pb = document.createElement('button');
+    pb.textContent = 'Print';
+    pb.style.cssText = 'flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;';
+    pb.onclick = function(){ printDomsNoteFromAck(note, user); };
+    btnContainer.appendChild(pb);
+    var ab = document.createElement('button');
+    ab.textContent = dismissCount >= 2 ? 'ACKNOWLEDGE (Required)' : 'Acknowledge';
+    ab.style.cssText = 'flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-left:8px;';
+    ab.onclick = function(){ acknowledgeDomsNote(note); };
+    btnContainer.appendChild(ab);
+  }
+  modal.style.display = 'flex';
+}
+
+function printDomsNoteFromAck(note, user) {
+  var now = new Date();
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([{note_id: note.id, acknowledged_by: user, acknowledged_at: now.toISOString(), action: 'printed'}])
+  }).catch(function(){});
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var d = new Date(note.created_at);
+  var dateStr = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+  var body = '';
+  if(note.drivers) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Drivers</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+note.drivers+'</p>';
+  if(note.foh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Front of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+note.foh+'</p>';
+  if(note.boh) body += '<h3 style="color:#c8102e;margin:0 0 6px;">Back of House</h3><p style="white-space:pre-wrap;margin:0 0 20px;">'+note.boh+'</p>';
+  var html = '<!DOCTYPE html><html><head><title>Dom\'s Notes</title><style>body{font-family:Arial,sans-serif;padding:28px;font-size:13px;}h1{font-size:18px;color:#c8102e;}<\/style><\/head><body>'
+    + '<h1>Dom\'s Notes</h1><p style="color:#888;font-size:11px;margin:0 0 20px;">'+dateStr+'</p>'
+    + body + '<\/body><\/html>';
+  var iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+}
+
+function acknowledgeDomsNote(note) {
+  var now = new Date();
+  var user = getCurrentUser();
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([{note_id: note.id, acknowledged_by: user, acknowledged_at: now.toISOString(), action: 'acknowledged'}])
+  }).catch(function(){});
+  localStorage.setItem('zp_doms_note_seen_id', String(note.id));
+  localStorage.removeItem('zp_doms_dismiss_count');
+  document.getElementById('doms-ack-modal').style.display = 'none';
+}
+
 </script>
 
 <!-- Schedule print popup -->
