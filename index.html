@@ -5210,7 +5210,7 @@ async function readScheduleImage(dataUrl, type) {
 async function readEventsFromBOH(dataUrl) {
   var base64 = dataUrl.split(',')[1];
   var mediaType = dataUrl.split(';')[0].split(':')[1];
-  var prompt = 'Look at this Back of House schedule photo. There is an "Events" row near the top of the schedule, under the day/date headers. Read what event (if any) is listed for each day Monday through Sunday. If a day has no event, use null. Return ONLY a JSON array of 7 values in Mon-Sun order, no markdown, no explanation. Example: ["Trivia","Bingo","Live Music",null,null,null,null]';
+  var prompt = 'Look at this Back of House schedule photo. Near the top of the schedule grid, there is a row labeled "Events" in the leftmost column. This row lists special events (like Trivia, Bingo, Live Music, etc.) for specific days of the week. Look carefully for this row — it appears directly under the Date and Day rows, before the employee names begin.\n\nFor each of the 7 day columns (Monday through Sunday), read the event text in the Events row. If a day has no event text, use null.\n\nReturn ONLY a valid JSON array of exactly 7 values in Monday-to-Sunday order. No markdown, no explanation, just the array. Example: ["Trivia","Bingo","Live Music",null,null,null,null]\n\nIf you cannot find an Events row at all, return: [null,null,null,null,null,null,null]';
   try {
     var result = await callVision(base64, mediaType, prompt);
     if(Array.isArray(result) && result.length === 7) return result;
