@@ -1818,7 +1818,8 @@ function buildRunSheetPDF(dayName, dateLabel, leftCol, rightCol, MAX) {
     if (!headed[p]) {
       headed[p] = true;
       text(p, M, M + 15, "Zazzo's Run Sheet", 15, true, [0.7, 0, 0]);
-      var right = dayName + '   |   ' + dateLabel;
+      var eventStr = WEEK_EVENTS[di] ? '   |   ' + WEEK_EVENTS[di].toUpperCase() : '';
+      var right = dayName + '   |   ' + dateLabel + eventStr;
       text(p, PW - M - tw(right, 10), M + 14, right, 10, false, [0.2, 0.2, 0.2]);
       line(p, M, M + 22, PW - M, M + 22, [0.7, 0, 0], 1);
     }
@@ -2785,7 +2786,9 @@ function renderSchedule() {
     dh = schedDayNames.slice();
   }
   let html = `<table class="sched-table"><thead><tr><th>Name</th>${dh.map((d,i)=>{
-    var ev = WEEK_EVENTS[i] ? `<div style="font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;">${WEEK_EVENTS[i]}</div>` : '';
+    var evText = WEEK_EVENTS[i] ? WEEK_EVENTS[i] : '';
+    var evColor = evText ? 'color:var(--red);' : 'color:transparent;';
+    var ev = `<div style="font-size:9px;font-weight:700;${evColor}letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;line-height:1.2;">${evText || '&nbsp;'}</div>`;
     return `<th>${d}${ev}</th>`;
   }).join('')}</tr></thead><tbody>`;
 
