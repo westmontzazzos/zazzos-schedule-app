@@ -4747,6 +4747,15 @@ async function processSingle(type) {
 
     var data = await readScheduleImage(uploadedImages[type], typeLabel);
 
+    // Read events from BOH photo
+    var evPatch = null;
+    if(type==='boh') {
+      try {
+        statusEl.textContent = 'Reading events...';
+        evPatch = await readEventsFromBOH(uploadedImages[type]);
+      } catch(e) { console.warn('Events read failed:', e); }
+    }
+
     // Check if a record exists for this week
     var existing = await getWeekRecord(weekStart);
 
@@ -4756,6 +4765,7 @@ async function processSingle(type) {
       if(type==='boh') patch.boh_data = JSON.stringify(data);
       if(type==='foh') patch.foh_data = JSON.stringify(data);
       if(type==='drv') patch.driver_data = JSON.stringify(data);
+      if(evPatch) patch.event_data = JSON.stringify(evPatch);
 
       await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + existing.id, {
         method: 'PATCH',
@@ -4780,6 +4790,7 @@ async function processSingle(type) {
         driver_data: type==='drv' ? JSON.stringify(data) : emptyDRV,
         created_at: new Date().toISOString()
       };
+      if(evPatch) newRecord.event_data = JSON.stringify(evPatch);
 
       await fetch(SUPABASE_URL + '/rest/v1/schedules', {
         method: 'POST',
