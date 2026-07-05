@@ -2785,12 +2785,13 @@ function renderSchedule() {
     // Fallback when no week has loaded yet
     dh = schedDayNames.slice();
   }
-  let html = `<table class="sched-table"><thead><tr><th>Name</th>${dh.map((d,i)=>{
+  var schedHeaderCells = dh.map(function(d,i){
     var evText = WEEK_EVENTS[i] ? WEEK_EVENTS[i] : '';
     var evColor = evText ? 'color:var(--red);' : 'color:transparent;';
-    var ev = `<div style="font-size:9px;font-weight:700;${evColor}letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;line-height:1.2;">${evText || '&nbsp;'}</div>`;
-    return `<th>${d}${ev}</th>`;
-  }).join('')}</tr></thead><tbody>`;
+    var ev = '<div style="font-size:9px;font-weight:700;'+evColor+'letter-spacing:0.06em;text-transform:uppercase;margin-top:2px;line-height:1.2;">'+(evText||'&nbsp;')+'</div>';
+    return '<th>'+d+ev+'</th>';
+  }).join('');
+  let html = '<table class="sched-table"><thead><tr><th>Name</th>'+schedHeaderCells+'</tr></thead><tbody>';
 
   if(currentSchedView==='drivers') {
     schedSort(Object.entries(DRIVERS),'drv')
