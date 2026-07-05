@@ -5590,6 +5590,51 @@ function handleLockIconTap() {
 <script>
 // DOM'S NOTES
 
+function makeDraggable(el, handle) {
+  handle.addEventListener('mousedown', function(e){
+    e.preventDefault();
+    var rect = el.getBoundingClientRect();
+    el.style.position = 'fixed';
+    el.style.transform = 'none';
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+    var startX = e.clientX, startY = e.clientY;
+    var origL = rect.left, origT = rect.top;
+    function onMove(e){
+      el.style.left = (origL + e.clientX - startX) + 'px';
+      el.style.top = (origT + e.clientY - startY) + 'px';
+    }
+    function onUp(){
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+  handle.addEventListener('touchstart', function(e){
+    var t = e.touches[0];
+    var rect = el.getBoundingClientRect();
+    el.style.position = 'fixed';
+    el.style.transform = 'none';
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+    var startX = t.clientX, startY = t.clientY;
+    var origL = rect.left, origT = rect.top;
+    function onMove(e){
+      e.preventDefault();
+      var t = e.touches[0];
+      el.style.left = (origL + t.clientX - startX) + 'px';
+      el.style.top = (origT + t.clientY - startY) + 'px';
+    }
+    function onEnd(){
+      handle.removeEventListener('touchmove', onMove);
+      handle.removeEventListener('touchend', onEnd);
+    }
+    handle.addEventListener('touchmove', onMove, {passive:false});
+    handle.addEventListener('touchend', onEnd);
+  });
+}
+
 function showDomsNotes() {
   var panel = document.getElementById('doms-notes-panel');
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -5752,7 +5797,7 @@ function printSchedSection(range) {
         return '<td>'+val+'</td>';
       }).join('') + '</tr>';
     });
-    if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#222;color:#fff;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
+    if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#FFD700;color:#000;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
   });
 
   var weekLabel = document.getElementById('sched-week-label') ? document.getElementById('sched-week-label').textContent : '';
