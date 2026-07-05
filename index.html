@@ -1761,7 +1761,7 @@ function printRunSheet() {
     ['Drivers',    drivers]
   ];
 
-  var blob = buildRunSheetPDF(dayName, dateLabel, leftCol, rightCol, MAX);
+  var blob = buildRunSheetPDF(dayName, dateLabel, eventLabel, leftCol, rightCol, MAX);
   var safeName = String(dayName).replace(/[^A-Za-z0-9]/g, '');
   deliverPDF(blob, 'Zazzos-RunSheet-' + safeName + '.pdf');
 }
@@ -1771,7 +1771,7 @@ function printRunSheet() {
 // No external libraries; draws text, rules and the black section bars directly
 // so the output matches the on-screen layout and works fully offline.
 // ---------------------------------------------------------------------------
-function buildRunSheetPDF(dayName, dateLabel, leftCol, rightCol, MAX) {
+function buildRunSheetPDF(dayName, dateLabel, eventLabel, leftCol, rightCol, MAX) {
   var PW = 612, PH = 792, M = 28, GAP = 20;        // US Letter portrait, points
   var colW = (PW - 2 * M - GAP) / 2;
   var colX = [M, M + colW + GAP];
@@ -1818,7 +1818,7 @@ function buildRunSheetPDF(dayName, dateLabel, leftCol, rightCol, MAX) {
     if (!headed[p]) {
       headed[p] = true;
       text(p, M, M + 15, "Zazzo's Run Sheet", 15, true, [0.7, 0, 0]);
-      var eventStr = WEEK_EVENTS[di] ? '   |   ' + WEEK_EVENTS[di].toUpperCase() : '';
+      var eventStr = eventLabel ? '   |   ' + eventLabel.toUpperCase() : '';
       var right = dayName + '   |   ' + dateLabel + eventStr;
       text(p, PW - M - tw(right, 10), M + 14, right, 10, false, [0.2, 0.2, 0.2]);
       line(p, M, M + 22, PW - M, M + 22, [0.7, 0, 0], 1);
