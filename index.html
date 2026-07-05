@@ -2845,10 +2845,25 @@ function checkAppLock() {
   if(pin==='2026') {
     var lock = document.getElementById('app-lock');
     if(lock) lock.style.display='none';
+    // Show identity picker if not set
+    if(!localStorage.getItem('zp_user_name')) {
+      var modal = document.getElementById('identity-modal');
+      if(modal) modal.style.display='flex';
+    }
   } else {
     document.getElementById('app-lock-error').style.display='block';
     document.getElementById('app-lock-input').value='';
   }
+}
+
+function setIdentity(name) {
+  localStorage.setItem('zp_user_name', name);
+  var modal = document.getElementById('identity-modal');
+  if(modal) modal.style.display='none';
+}
+
+function getCurrentUser() {
+  return localStorage.getItem('zp_user_name') || 'Unknown';
 }
 
 function checkPin() {
@@ -3996,7 +4011,9 @@ async function saveEdits() {
           boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
           foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
           driver_data: JSON.stringify(DRIVERS),
-          event_data: JSON.stringify(WEEK_EVENTS)
+          event_data: JSON.stringify(WEEK_EVENTS),
+          last_edited_by: getCurrentUser(),
+          last_edited_at: new Date().toISOString()
         })
       });
     }
@@ -5440,6 +5457,20 @@ function handleLockIconTap() {
   }
 }
 </script>
+
+
+<!-- Identity selector — shown once after PIN if name not saved -->
+<div id="identity-modal" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:320px;width:90%;text-align:center;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:0.08em;color:#222;margin-bottom:8px;">Who are you?</div>
+    <div style="font-size:13px;color:#888;margin-bottom:20px;">This is a one-time setup. Your name will be saved on this device.</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="setIdentity('Ely')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Ely</button>
+      <button onclick="setIdentity('Selena')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Selena</button>
+      <button onclick="setIdentity('Alex')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alex</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
