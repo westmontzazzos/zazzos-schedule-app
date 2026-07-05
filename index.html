@@ -985,7 +985,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" onclick="showTab('schedule',this)">Schedule</button>
     <button class="nav-btn" onclick="showTab('private',this)">Private</button>
     <button class="nav-btn" onclick="showTab('hitlist',this)">Heat Map</button>
-    <button class="nav-btn" id="update-nav-btn" onclick="handleUpdateTap(this)">⬆ Update</button>
+    <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
 
@@ -1203,7 +1203,7 @@ document.addEventListener("DOMContentLoaded",function(){
 <div id="tab-update" class="main" style="display:none">
   <!-- Update tab lock overlay -->
   <div id="update-lock" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;">
-    <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+    <div id="update-lock-icon" style="font-size:64px;margin-bottom:16px;cursor:pointer;user-select:none;-webkit-user-select:none;" onclick="handleLockIconTap()">🔒</div>
     <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.08em;color:var(--black);margin-bottom:8px;">UPDATE SCHEDULE</div>
     <div style="font-size:13px;color:var(--gray-400);margin-bottom:24px;">This area is restricted.</div>
     <div id="update-lock-dots" style="display:flex;gap:8px;margin-bottom:8px;">
@@ -5136,7 +5136,7 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
         <div style="font-family:\\'Bebas Neue\\',sans-serif;font-size:22px;color:#fff;letter-spacing:0.06em;">⚠️ SCHEDULE ERRORS DETECTED</div>
         <div id="sched-error-subtitle" style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px;"></div>
       </div>
-      <button onclick="document.getElementById('sched-error-modal').style.display='none';" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;width:32px;height:32px;border-radius:50%;cursor:pointer;flex-shrink:0;">✕</button>
+
     </div>
     <!-- Body -->
     <div id="sched-error-body" style="padding:16px 18px;"></div>
@@ -5225,55 +5225,45 @@ function showOverrideLog(btn) {
 
 
 <script>
-// Update tab: tap button 5 times to unlock. Logo taps x4 = Rules tab.
+// Logo taps x4 = Rules tab
 (function(){
-  // Logo → Rules tab
   var logoTaps = 0, logoTimer = null;
   var logo = document.getElementById('za-logo-img');
-  if(logo) {
-    logo.addEventListener('click', function(){
-      logoTaps++;
-      clearTimeout(logoTimer);
-      logoTimer = setTimeout(function(){ logoTaps = 0; }, 1500);
-      if(logoTaps >= 4) {
-        logoTaps = 0;
-        if(!document.getElementById('rules-nav-btn')) {
-          var btn = document.createElement('button');
-          btn.className = 'nav-btn';
-          btn.id = 'rules-nav-btn';
-          btn.textContent = 'Rules';
-          btn.onclick = function(){ showTab('rules', btn); };
-          document.querySelector('.nav-tabs').appendChild(btn);
-        }
-        showTab('rules', document.getElementById('rules-nav-btn'));
+  if(!logo) return;
+  logo.addEventListener('click', function(){
+    logoTaps++;
+    clearTimeout(logoTimer);
+    logoTimer = setTimeout(function(){ logoTaps = 0; }, 1500);
+    if(logoTaps >= 4) {
+      logoTaps = 0;
+      if(!document.getElementById('rules-nav-btn')) {
+        var btn = document.createElement('button');
+        btn.className = 'nav-btn';
+        btn.id = 'rules-nav-btn';
+        btn.textContent = 'Rules';
+        btn.onclick = function(){ showTab('rules', btn); };
+        document.querySelector('.nav-tabs').appendChild(btn);
       }
-    });
-  }
+      showTab('rules', document.getElementById('rules-nav-btn'));
+    }
+  });
 })();
 
-// Update tab button tap counter
-var _updateTaps = 0, _updateTimer = null;
-function handleUpdateTap(btn) {
-  // Always navigate to update tab
-  if(window.currentTab !== 'update') {
-    showTab('update', btn);
-    _updateTaps = 0;
-  }
-  // Count taps toward unlock
-  _updateTaps++;
-  clearTimeout(_updateTimer);
-  _updateTimer = setTimeout(function(){
-    _updateTaps = 0;
+// Lock icon tap x4 = unlock Update tab
+var _lockTaps = 0, _lockTimer = null;
+function handleLockIconTap() {
+  _lockTaps++;
+  clearTimeout(_lockTimer);
+  _lockTimer = setTimeout(function(){
+    _lockTaps = 0;
     document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
   }, 2000);
-  // Light up dots
   var dots = document.querySelectorAll('.lock-dot');
   dots.forEach(function(d, i){
-    d.style.background = i < _updateTaps ? 'var(--red)' : 'var(--gray-200)';
+    d.style.background = i < _lockTaps ? 'var(--red)' : 'var(--gray-200)';
   });
-  // Unlock on 5
-  if(_updateTaps >= 5) {
-    _updateTaps = 0;
+  if(_lockTaps >= 4) {
+    _lockTaps = 0;
     var lockEl = document.getElementById('update-lock');
     var contentEl = document.getElementById('update-content');
     if(lockEl) lockEl.style.display = 'none';
