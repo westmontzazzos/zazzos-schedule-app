@@ -985,7 +985,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" onclick="showTab('schedule',this)">Schedule</button>
     <button class="nav-btn" onclick="showTab('private',this)">Private</button>
     <button class="nav-btn" onclick="showTab('hitlist',this)">Heat Map</button>
-    <button class="nav-btn" id="update-nav-btn" onclick="handleUpdateNavTap(this)">⬆ Update</button>
+    <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
 
@@ -5074,32 +5074,33 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData) {
 })();
 </script>
 
-// Update tab nav button: tap 5 times to unlock
-window._updateNavTaps = 0;
-window._updateNavTimer = null;
-function handleUpdateNavTap(btn) {
-  if(window.currentTab !== 'update') {
-    showTab('update', btn);
-    window._updateNavTaps = 1;
-  } else {
-    window._updateNavTaps = (window._updateNavTaps || 0) + 1;
-  }
-  clearTimeout(window._updateNavTimer);
-  window._updateNavTimer = setTimeout(function(){
-    window._updateNavTaps = 0;
-    document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
-  }, 2000);
-  var dots = document.querySelectorAll('.lock-dot');
-  dots.forEach(function(d, i){
-    d.style.background = i < window._updateNavTaps ? 'var(--red)' : 'var(--gray-200)';
+// Update tab logo unlock: tap Zazzo's logo 5 times while on Update tab
+window._updateLogoTaps = 0;
+window._updateLogoTimer = null;
+(function(){
+  var logo = document.getElementById('za-logo-img');
+  if(!logo) return;
+  logo.addEventListener('click', function(){
+    if(window.currentTab !== 'update') return;
+    if(document.getElementById('update-lock').style.display === 'none') return;
+    window._updateLogoTaps = (window._updateLogoTaps || 0) + 1;
+    clearTimeout(window._updateLogoTimer);
+    window._updateLogoTimer = setTimeout(function(){
+      window._updateLogoTaps = 0;
+      document.querySelectorAll('.lock-dot').forEach(function(d){ d.style.background='var(--gray-200)'; });
+    }, 2000);
+    var dots = document.querySelectorAll('.lock-dot');
+    dots.forEach(function(d, i){
+      d.style.background = i < window._updateLogoTaps ? 'var(--red)' : 'var(--gray-200)';
+    });
+    if(window._updateLogoTaps >= 5) {
+      window._updateLogoTaps = 0;
+      document.getElementById('update-lock').style.display = 'none';
+      document.getElementById('update-content').style.display = 'block';
+      renderAcceptedErrors();
+    }
   });
-  if(window._updateNavTaps >= 5) {
-    window._updateNavTaps = 0;
-    document.getElementById('update-lock').style.display = 'none';
-    document.getElementById('update-content').style.display = 'block';
-    renderAcceptedErrors();
-  }
-}
+})();
 
 </body>
 </html>
