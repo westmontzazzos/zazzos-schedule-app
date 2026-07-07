@@ -3947,10 +3947,14 @@ function selectHitlistDay(di) {
 var editorData = [];
 
 async function openEditor(di, focusName) {
-  var pin = await askPin('Enter PIN to edit schedule');
-  if(pin !== '2026') {
-    if(pin !== null) alert('Incorrect PIN.');
-    return;
+  // Only ask PIN once per session
+  if(!window._editorUnlocked) {
+    var pin = await askPin('Enter PIN to edit schedule');
+    if(pin !== '2026') {
+      if(pin !== null) alert('Incorrect PIN.');
+      return;
+    }
+    window._editorUnlocked = true;
   }
   editorDay = di;
   editorData = [];
@@ -5887,6 +5891,15 @@ function schedPrintSelect(view) {
   document.getElementById('sched-print-range').style.display = 'block';
 }
 
+function fmtTimeForPrint(val) {
+  if(!val || val === '-') return '-';
+  // Format: remove :00 from whole hours, keep :30
+  return String(val).replace(/(\d+):00(am|pm)/gi, '$1$2')
+                    .replace(/(\d+):00\s*(AM|PM)/g, '$1$2')
+                    .toUpperCase()
+                    .replace(/AM/g, 'AM').replace(/PM/g, 'PM');
+}
+
 function printSchedSection(range) {
   document.getElementById('sched-print-popup').style.display = 'none';
   var view = _schedPrintView || currentSchedView;
@@ -5920,7 +5933,7 @@ function printSchedSection(range) {
       secRows += '<tr><td>'+name+'</td>' + daysToShow.map(function(di){
         var val = days[di];
         if(!val || val === 'x' || val === 'X') return '<td style="color:#ccc;">-</td>';
-        return '<td>'+val+'</td>';
+        return '<td>'+fmtTimeForPrint(val)+'</td>';
       }).join('') + '</tr>';
     });
     if(secRows) rows += '<tr><td colspan="'+(daysToShow.length+1)+'" style="background:#FFD700!important;background-color:#FFD700!important;color:#000!important;font-weight:700;padding:6px 10px;">'+secName+'</td></tr>' + secRows;
