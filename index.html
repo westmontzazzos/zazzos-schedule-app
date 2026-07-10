@@ -5963,7 +5963,7 @@ function printSchedSection(range) {
 
   var weekLabel = document.getElementById('sched-week-label') ? document.getElementById('sched-week-label').textContent : '';
   var html = '<!DOCTYPE html><html><head><title>'+title+' Schedule</title>'
-    + '<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}body{font-family:Arial,sans-serif;font-size:11px;padding:16px;}h1{font-size:16px;color:#c8102e;margin:0 0 2px;}table{width:100%;border-collapse:collapse;margin-top:12px;}th,td{border:1px solid #ddd;padding:5px 7px;text-align:left;}th{background:#f5f5f5;}@media print{button{display:none;}}</style>'
+    + '<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}@media print{@page{size:landscape;margin:6mm;}button{display:none;}}body{font-family:Arial,sans-serif;font-size:9px;padding:8px;}h1{font-size:13px;color:#c8102e;margin:0 0 1px;}table{width:100%;border-collapse:collapse;margin-top:6px;}th,td{border:1px solid #ddd;padding:2px 4px;text-align:left;}th{background:#f5f5f5;}</style>'
     + '</head><body>'
     + '<h1>'+title+'</h1>'
     + '<div style="color:#888;font-size:10px;margin-bottom:4px;">'+weekLabel+'</div>'
