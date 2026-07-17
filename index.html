@@ -4488,7 +4488,7 @@ function applyWeek(idx) {
   if(currentTab === 'schedule') renderSchedule();
   if(currentTab === 'hitlist')  renderHitList();
   if(currentTab === 'private' && document.getElementById('private-content').style.display !== 'none') renderPrivate();
-  var _wkLblForBypass = (document.getElementById('sched-week-label')||{}).textContent||'';
+  var _wkLblForBypass = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
   window._bypassedErrors = {};
   loadScheduleBypasses(_wkLblForBypass).then(function(){
     // Auto-bypass errors for any past day already logged
