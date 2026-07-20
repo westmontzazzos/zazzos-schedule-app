@@ -2908,6 +2908,12 @@ function checkAppLock() {
   if(pin==='2026') {
     var lock = document.getElementById('app-lock');
     if(lock) lock.style.display='none';
+    // Force re-identification if version changed
+    var IDENTITY_VERSION = '2';
+    if(localStorage.getItem('zp_identity_version') !== IDENTITY_VERSION) {
+      localStorage.removeItem('zp_user_name');
+      localStorage.setItem('zp_identity_version', IDENTITY_VERSION);
+    }
     // Show identity picker if not set
     if(!localStorage.getItem('zp_user_name')) {
       var modal = document.getElementById('identity-modal');
@@ -4112,8 +4118,8 @@ async function saveEdits() {
         week_label: weekLabel,
         day_index: editorDay,
         day_name: DAYS_FULL[editorDay] || '',
-        dept: 'Edit',
-        msg: 'Schedule edited',
+        dept: 'Run Sheet',
+        msg: 'Run sheet edited for ' + (DAYS_FULL[editorDay]||''),
         who: getCurrentUser(),
         ack_type: 'edit',
         logged_at: new Date().toISOString()
@@ -4491,10 +4497,38 @@ function applyWeek(idx) {
   var _wkLblForBypass = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
   window._bypassedErrors = {};
   loadScheduleBypasses(_wkLblForBypass).then(function(){
-    // Auto-bypass errors for any past day already logged
     autoBypassLoggedDays();
     setTimeout(checkScheduleErrors, 300);
     setTimeout(logUnclearedErrors, 1500);
+    setTimeout(checkOutstandingErrors, 1000);
+    // Log if this is a fresh upload (flag set in processSingle)
+    if(window._justUploaded) {
+      setTimeout(function(){
+        var errs = window._currentErrors;
+        if(errs) {
+          var allErrs = (errs.BOH||[]).concat(errs.FOH||[]).concat(errs.Drivers||[]);
+          if(allErrs.length > 0) {
+            var wkLbl = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+            var errSummary = allErrs.map(function(e){ return e.dept+': '+e.msg; }).join(' | ');
+            fetch(SUPABASE_URL + '/rest/v1/override_log', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+              body: JSON.stringify([{
+                week_label: wkLbl,
+                day_index: -1,
+                day_name: '',
+                dept: window._justUploaded,
+                msg: 'Uploaded with '+allErrs.length+' error(s): '+errSummary,
+                who: getCurrentUser(),
+                ack_type: 'upload_errors',
+                logged_at: new Date().toISOString()
+              }])
+            }).catch(function(){});
+          }
+        }
+        window._justUploaded = null;
+      }, 800);
+    }
   });
 }
 
@@ -5056,6 +5090,26 @@ async function processSingle(type) {
     statusEl.style.color = 'var(--green)';
     btn.textContent = '⚡ Save ' + type.toUpperCase();
     btn.disabled = false;
+    // Log upload to schedule log
+    try {
+      var sectionLabel = type==='boh'?'Back of House':type==='foh'?'Front of House':'Drivers';
+      fetch(SUPABASE_URL + '/rest/v1/override_log', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify([{
+          week_label: weekStart,
+          day_index: -1,
+          day_name: '',
+          dept: sectionLabel,
+          msg: sectionLabel + ' schedule uploaded',
+          who: getCurrentUser(),
+          ack_type: 'upload',
+          logged_at: new Date().toISOString()
+        }])
+      }).catch(function(){});
+    } catch(e2) {}
+    window._justUploaded = type==='boh'?'Back of House':type==='foh'?'Front of House':'Drivers';
+    localStorage.setItem('zp_last_uploader', getCurrentUser());
     await loadAllWeeks();
     // Jump to the newly saved week
     var newIdx = allWeeks.findIndex(w => w.week_start === weekStart);
@@ -5520,10 +5574,14 @@ function showOverrideLog(btn) {
                     r.ack_type === 'printed' ? 'Printed' :
                     r.ack_type === 'acknowledged' ? 'Acknowledged' :
                     r.ack_type === 'uncleared' ? 'Never cleared' :
-                    r.ack_type === 'edit' ? 'Schedule fixed' :
+                    r.ack_type === 'edit' ? 'Run sheet edited' :
+                    r.ack_type === 'upload' ? 'Schedule uploaded' :
+                    r.ack_type === 'upload_errors' ? 'Uploaded with errors' :
                     r.note || '';
       var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' :
                     r.ack_type === 'edit' ? '#1a7a3c' :
+                    r.ack_type === 'upload' ? '#1a7a3c' :
+                    r.ack_type === 'upload_errors' ? '#c8102e' :
                     r.ack_type === 'uncleared' ? '#888' :
                     r.ack_type === 'published' ? '#1a7a3c' : '#c8102e';
       html += '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">';
@@ -5603,7 +5661,8 @@ function handleLockIconTap() {
       <button onclick="setIdentity('Ely')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Ely</button>
       <button onclick="setIdentity('Selena')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Selena</button>
       <button onclick="setIdentity('Alex')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alex</button>
-      <button onclick="showIdentityInput()" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;color:#888;">Not Listed</button>
+      <button onclick="setIdentity('Dom')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Dom</button>
+      <button onclick="showIdentityInput()" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;color:#888;">Add / Not Listed</button>
       <div id="identity-input-wrap" style="display:none;">
         <input id="identity-custom-input" type="text" placeholder="Enter your name" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;box-sizing:border-box;margin-bottom:8px;">
         <button onclick="setIdentityCustom()" style="width:100%;padding:14px;border:none;border-radius:10px;background:#c8102e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;">Confirm</button>
@@ -5749,6 +5808,10 @@ function saveDomsNote() {
     document.getElementById('doms-notes-panel').style.display = 'none';
     localStorage.removeItem('zp_doms_dismiss_count');
     localStorage.removeItem('zp_doms_note_seen_id');
+    // Clear text boxes
+    document.getElementById('doms-note-drivers').value = '';
+    document.getElementById('doms-note-foh').value = '';
+    document.getElementById('doms-note-boh').value = '';
     // Log the publish action
     fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
       method: 'POST',
@@ -5982,6 +6045,74 @@ function printSchedSection(range) {
 }
 </script>
 
+
+
+<!-- Outstanding errors notification -->
+<div id="outstanding-errors-modal" style="display:none;position:fixed;inset:0;z-index:10003;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;">
+    <div style="background:var(--red);padding:16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.08em;color:#fff;">Outstanding Errors</div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:2px;">These errors still need attention</div>
+    </div>
+    <div id="outstanding-errors-body" style="padding:16px;max-height:50vh;overflow-y:auto;"></div>
+    <div style="padding:0 16px 16px;display:flex;gap:10px;">
+      <button onclick="bypassOutstandingErrors()" style="flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Bypass For Now</button>
+      <button onclick="fixOutstandingErrors()" style="flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Fix Now</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+function checkOutstandingErrors() {
+  // Only show to the person who uploaded (stored in localStorage)
+  var uploader = localStorage.getItem('zp_last_uploader');
+  if(!uploader || uploader !== getCurrentUser()) return;
+  
+  // Get current errors
+  var errs = window._currentErrors;
+  if(!errs) return;
+  var allErrs = (errs.BOH||[]).concat(errs.FOH||[]).concat(errs.Drivers||[]);
+  // Filter out bypassed
+  var bypassed = window._bypassedErrors || {};
+  var unresolved = allErrs.filter(function(e){ return !bypassed[e.di+'|'+e.dept+'|'+e.msg] && !bypassed['__day_cleared_'+e.di]; });
+  if(!unresolved.length) return;
+  
+  var body = document.getElementById('outstanding-errors-body');
+  var html = '';
+  unresolved.forEach(function(e){
+    html += '<div style="padding:8px 0;border-bottom:1px solid #eee;">';
+    html += '<div style="font-size:12px;font-weight:700;color:#c8102e;">'+e.dept+' — '+e.day+'</div>';
+    html += '<div style="font-size:13px;color:#333;">'+e.msg+'</div>';
+    html += '</div>';
+  });
+  body.innerHTML = html;
+  document.getElementById('outstanding-errors-modal').style.display = 'flex';
+}
+
+function bypassOutstandingErrors() {
+  document.getElementById('outstanding-errors-modal').style.display = 'none';
+  localStorage.removeItem('zp_last_uploader');
+  // Log bypass decision
+  var wkLbl = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+  fetch(SUPABASE_URL + '/rest/v1/override_log', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([{
+      week_label: wkLbl, day_index: -1, day_name: '', dept: 'Errors',
+      msg: 'Outstanding errors bypassed for now',
+      who: getCurrentUser(), ack_type: 'bypass_now', logged_at: new Date().toISOString()
+    }])
+  }).catch(function(){});
+}
+
+function fixOutstandingErrors() {
+  document.getElementById('outstanding-errors-modal').style.display = 'none';
+  // Switch to schedule tab and show errors
+  switchTab('schedule');
+  checkScheduleErrors();
+}
+</script>
 
 </body>
 </html>
