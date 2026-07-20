@@ -2330,7 +2330,7 @@ async function loadCurrentPOSLabor(weekLabel) {
 
 
 async function showCurrentPOSDetail() {
-  var weekKey = ((document.getElementById('hitlist-week-label')||{}).textContent || '').replace(/\u2013/g,'-').replace(/\u2014/g,'-');
+  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
   var DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   var rows = [];
   try {
