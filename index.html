@@ -4354,6 +4354,8 @@ function parseWeekData(week) {
     Object.keys(SERVERS).forEach(k => delete SERVERS[k]);       if(foh.SERVERS)    Object.assign(SERVERS, foh.SERVERS);
     Object.keys(BARTENDERS).forEach(k => delete BARTENDERS[k]); if(foh.BARTENDERS) Object.assign(BARTENDERS, foh.BARTENDERS);
     Object.keys(CASHIERS).forEach(k => delete CASHIERS[k]);     if(foh.CASHIERS)   Object.assign(CASHIERS, foh.CASHIERS);
+    // Move Allie from BARTENDERS to SERVERS after load
+    if(BARTENDERS['Allie']) { SERVERS['Allie'] = BARTENDERS['Allie']; delete BARTENDERS['Allie']; }
     Object.keys(HOSTS).forEach(k => delete HOSTS[k]);           if(foh.HOSTS)      Object.assign(HOSTS, foh.HOSTS);
     Object.keys(DRIVERS).forEach(k => delete DRIVERS[k]);       if(drv)            Object.assign(DRIVERS, drv);
   } catch(e) {
