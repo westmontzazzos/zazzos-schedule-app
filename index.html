@@ -2144,7 +2144,7 @@ function closePOSModal() {
 function showAdjustedPOS() {
   var projPOS = window._posLaborCost || 0;
   var di = currentHitlistDay !== undefined ? currentHitlistDay : 0;
-  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   var locked = window._posLocked && window._posLocked[weekKey+':'+di];
   if(locked) {
     showPINModal(function(){ showDollarModal(projPOS, di, weekKey); });
@@ -2334,7 +2334,7 @@ async function loadCurrentPOSLabor(weekLabel) {
 
 
 async function showCurrentPOSDetail() {
-  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   var DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   var rows = [];
   try {
@@ -2457,7 +2457,7 @@ function acceptErrorByIdx(idx) {
   acceptError(e.di, e.dept, e.msg);
 }
 function acceptError(di, dept, msg) {
-  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   var overlay = document.createElement('div');
   overlay.id = 'accept-pin-modal';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;';
@@ -2585,7 +2585,7 @@ function zpConfirmOverride(di, dept, msg) {
     if(pinInp){ pinInp.style.borderColor='#E31010'; pinInp.value=''; pinInp.placeholder='Incorrect PIN'; }
     return;
   }
-  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   zpCancelOverride();
   if(!window._bypassedErrors) window._bypassedErrors = {};
@@ -2620,7 +2620,7 @@ function zpConfirmOverride(di, dept, msg) {
 }
 
 async function undoAcceptedError(di, dept, msg) {
-  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
+  var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   // Remove from memory
   if(window._bypassedErrors) {
     delete window._bypassedErrors[di+'|'+dept+'|'+msg];
@@ -5373,10 +5373,49 @@ async function readScheduleImage(dataUrl, type) {
             delete sched.KITCHEN[name];
           }
         });
+        // Normalize short names to full names
+        var kitchenAliases = {'nithia': 'Nithia Maldonado', 'nicholas': 'Nicholas Urbana'};
+        Object.keys(sched.KITCHEN).forEach(function(name){
+          var alias = kitchenAliases[name.toLowerCase()];
+          if(alias && alias !== name) {
+            sched.KITCHEN[alias] = sched.KITCHEN[name];
+            delete sched.KITCHEN[name];
+          }
+        });
       }
+      // Normalize FOH names in BOH sections
+      ['PIZZA','PREP','BUS','DISH','MANAGERS'].forEach(function(sec){
+        if(!sched[sec]) return;
+        var prepAliases = {'nick': 'Nick', 'nicholas urbana': 'Nicholas Urbana'};
+        Object.keys(sched[sec]).forEach(function(name){
+          var alias = prepAliases[name.toLowerCase()];
+          if(alias && alias !== name) {
+            sched[sec][alias] = sched[sec][name];
+            delete sched[sec][name];
+          }
+        });
+      });
     } else if(type === 'FOH') {
       var fohNames = await callVision(base64, mediaType, 'Look at this photo of a Front of House schedule. Read ONLY the employee names in the left column, grouped under their section headers. Do not read any day or shift columns. Include EVERY name in every section, even rows that look mostly blank. Ignore phone numbers or digits in parentheses. Return ONLY a JSON object, no markdown and no explanation, with exactly this structure: {"SERVERS":[],"BARTENDERS":[],"CASHIERS":[],"HOSTS":[]} — put each name as a string in its section array, and use an empty array for any section that has no names.');
       sched = reconcileSectioned(sched, fohNames, ['SERVERS','BARTENDERS','CASHIERS','HOSTS']);
+      // Move Allie from BARTENDERS to SERVERS if misplaced
+      if(sched.BARTENDERS && sched.BARTENDERS['Allie']) {
+        if(!sched.SERVERS) sched.SERVERS = {};
+        sched.SERVERS['Allie'] = sched.BARTENDERS['Allie'];
+        delete sched.BARTENDERS['Allie'];
+      }
+      // Normalize FOH short names to full names
+      var fohAliases = {'sio': 'Sio McAvoy', 'alexis': 'Alexis'};
+      ['SERVERS','BARTENDERS','CASHIERS','HOSTS'].forEach(function(sec){
+        if(!sched[sec]) return;
+        Object.keys(sched[sec]).forEach(function(name){
+          var alias = fohAliases[name.toLowerCase()];
+          if(alias && alias !== name) {
+            sched[sec][alias] = sched[sec][name];
+            delete sched[sec][name];
+          }
+        });
+      });
     } else {
       var drvNames = await callVision(base64, mediaType, 'Look at this photo of a driver schedule. Read ONLY the left-most column (the list of driver names), top to bottom. Do not read any day or shift columns. Include EVERY name, even rows where the rest of the row looks blank — a driver with only one shift all week still gets a row. Ignore any phone numbers or digits in parentheses. Return ONLY a JSON array of strings in top-to-bottom order, no markdown and no explanation, for example: ["AJ","Alex D","Andrew"]');
       if(Array.isArray(drvNames)) sched = mergeOrdered(sched, drvNames);
