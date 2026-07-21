@@ -1615,6 +1615,8 @@ const SERVERS = {
   'Hannah M': [null,null,null,null,null,null,null],
   'Casandra': [null,null,null,null,null,null,null],
   'Allie': [null,null,null,null,null,null,null],
+  'Courtney': [null,null,null,null,null,null,null],
+  'Kamini': [null,null,null,null,null,null,null],
   'Justin': [null,null,null,null,null,null,null],
   'Jessica': [null,null,null,null,null,null,null],
   'Julia': [null,null,null,null,null,null,null],
@@ -1641,11 +1643,13 @@ const CASHIERS = {
   'Ellianna': [null,null,null,null,null,null,null],
   'Keegan': [null,null,null,null,null,null,null],
   'Molly': [null,null,null,null,null,null,null],
+  'Charlie': [null,null,null,null,null,null,null],
 };
 const HOSTS = {
   'Tia': [null,null,null,null,null,null,null],
   'Natalie': [null,null,null,null,null,null,null],
   'Molly': [null,null,null,null,null,null,null],
+  'Charlie': [null,null,null,null,null,null,null],
   'Ellianna': [null,null,null,null,null,null,null],
 };
 
@@ -3039,7 +3043,7 @@ function renderPrivate() {
   var HLY=[
     {n:'Alexis A',r:22,role:'Manager',src:function(){return [MANAGERS['Alexis A']]},type:'b'},
     {n:'Derek',r:19,role:'Kitchen Cook',src:function(){return [KITCHEN['Derek']]},type:'b'},
-    {n:'Nithia Maldonado',r:23,role:'Kitchen Cook',src:function(){return [KITCHEN['Nithia Maldonado']]},type:'b'},
+    {n:'Nithia Maldonado',r:17.50,role:'Kitchen Cook',src:function(){return [KITCHEN['Nithia Maldonado']]},type:'b'},
     {n:'Arturo Viveros',r:21,role:'Kitchen/Pizza',src:function(){return [PIZZA['Arturo'],KITCHEN['Arturo']]},type:'b'},
     {n:'Jesus Murillo',r:21,role:'Pizza/Kitchen',src:function(){return [PIZZA['Jesus'],KITCHEN['Jesus']]},type:'b'},
     {n:'Carlos Mora',r:19.25,role:'Pizza Cook',src:function(){return [PIZZA['Carlos'],KITCHEN['Carlos']]},type:'b'},
@@ -3078,7 +3082,10 @@ function renderPrivate() {
     {n:'Annaka',r:9,role:'Server',src:function(){return [SERVERS['Annaka']]},type:'f',role2:'servers'},
     {n:'Hannah M',r:9,role:'Server',src:function(){return [SERVERS['Hannah M'],SERVERS['Hannah M.']]},type:'f',role2:'servers'},
     {n:'Casandra',r:9,role:'Server',src:function(){return [SERVERS['Casandra']]},type:'f',role2:'servers'},
-    {n:'Allie',r:9,role:'Server',src:function(){return [SERVERS['Allie']]},type:'f',role2:'servers'},
+    {n:'Allie',r:9,role:'Server',src:function(){return [SERVERS['Allie']]},type:'f'},
+    {n:'Courtney',r:9,role:'Server',src:function(){return [SERVERS['Courtney']]},type:'f'},
+    {n:'Kamini',r:9,role:'Server',src:function(){return [SERVERS['Kamini']]},type:'f'},
+    {n:'Charlie',r:15,role:'Cashier',src:function(){return [CASHIERS['Charlie']]},type:'f',type:'f',role2:'servers'},
     {n:'Justin',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Justin'],BARTENDERS['Justin']]},type:'f',role2:'servers'},
     {n:'Jessica',r:9,role:'Server',src:function(){return [SERVERS['Jessica']]},type:'f',role2:'servers'},
     {n:'Julia',r:9,role:'Server',src:function(){return [SERVERS['Julia']]},type:'f',role2:'servers'},
@@ -3408,7 +3415,7 @@ function renderHitList() {
     // Schedule short-names mapped to pay-schedule wages (work schedule uses short names)
     'Carlos':19.25,'Eddie':19,'Eddy':19,'Eddie Cruz':19,'Jesus':21,'Luis':20,'Soto':19,'Monico':20,'Oscar':19,
     'Victor':20.50,'Arturo':21,'Jose B':23,'Nick':20,'Armani':16,'Marco':16,
-    'Alexis A':22,'Nithia Maldonado':23,'Arturo Viveros':21,'Jesus Murillo':21,'Derek':19,
+    'Alexis A':22,'Nithia Maldonado':17.50,'Arturo Viveros':21,'Jesus Murillo':21,'Derek':19,
     'Carlos Mora':19.25,'Nicholas Urbana':20,'Luis Perez':20,'Victor Cruz':20.50,
     'Monico Esparza':20,'Oscar Velazquez':19,'Luis Soto':19,'Gonzo':17,
     'Carlos Jr':17.50,'Leo':17.50,'Ever':17.50,'Sylvia':15,
@@ -3416,7 +3423,7 @@ function renderHitList() {
     'Eric':15,'Jaxon':15,
     'Abby':9,'Alexis':9,'Bridget':9,'Claudia':9,'Dorris':9,'Hannah':9,
     'Jaime':9,'Kelly':9,'Claudia G':9,'Annaka':9,'Hannah M':9,'Casandra':9,
-    'Allie':9,'Justin':9,'Carrie':9,'Jessica':9,'Lindsay':9,'Brooke':9,'Cheeks':9,
+    'Allie':9,'Courtney':9,'Kamini':9,'Charlie':15,'Justin':9,'Carrie':9,'Jessica':9,'Lindsay':9,'Brooke':9,'Cheeks':9,
     'Danielle':9,'Mary':9,'Natalie':15,'Presley':15,'Tia':15,'Emilie':15,'Ellianna':15,'Keegan':15,'Julia':9,'Molly':15,'Lea':9
   };
 
