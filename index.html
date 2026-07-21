@@ -2311,7 +2311,6 @@ async function loadCurrentPOSLabor(weekLabel) {
     if(!rows||!rows.length) return;
     var totalActual=0, totalProj=0;
     var dayMap = {};
-    alert('LOADING BYPASSES:\nweekLabel: ['+weekLabel+']\nrows: '+rows.length+'\n'+rows.map(function(r){return r.day_index+'|'+r.dept+'|'+r.msg;}).join('\n'));
     rows.forEach(function(row){ dayMap[row.day_index] = row; });
     Object.values(dayMap).forEach(function(row){ totalActual+=row.actual||0; totalProj+=row.proj||0; });
     var diff = totalActual - totalProj;
@@ -2591,7 +2590,6 @@ function zpConfirmOverride(di, dept, msg) {
   zpCancelOverride();
   if(!window._bypassedErrors) window._bypassedErrors = {};
   window._bypassedErrors[di+'|'+dept+'|'+msg] = true;
-  alert('SAVING BYPASS:\nweekKey: ['+weekKey+']\ndi: '+di+'\ndept: '+dept+'\nmsg: '+msg);
 
   var now = new Date();
   var logEntry = {
@@ -2609,7 +2607,7 @@ function zpConfirmOverride(di, dept, msg) {
     method: 'POST',
     headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify([{week_label:weekKey, day_index:di, dept:dept, msg:msg}])
-  }).then(function(r){ r.text().then(function(t){ alert('BYPASS SAVE RESPONSE:\nstatus: '+r.status+'\nbody: '+t.substring(0,200)); }); }).catch(function(e){ alert('BYPASS SAVE ERROR: '+e.message); });
+  }).catch(function(e){ console.log('Bypass save failed:',e.message); });
 
   fetch(SUPABASE_URL + '/rest/v1/override_log', {
     method: 'POST',
