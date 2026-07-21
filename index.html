@@ -4346,6 +4346,8 @@ function parseWeekData(week) {
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
     // Remove Nick from Kitchen regardless of how stored
     Object.keys(KITCHEN).forEach(function(k){ if(k.toLowerCase()==='nick'||k.toLowerCase()==='nicholas urbana'||k.toLowerCase()==='nicholas') delete KITCHEN[k]; });
+    // Normalize Nithia → Nithia Maldonado after Supabase load
+    if(KITCHEN['Nithia'] && !KITCHEN['Nithia Maldonado']) { KITCHEN['Nithia Maldonado'] = KITCHEN['Nithia']; delete KITCHEN['Nithia']; }
     Object.keys(PREP).forEach(k => delete PREP[k]);         if(boh.PREP)     Object.assign(PREP, boh.PREP);
     Object.keys(BUS).forEach(k => delete BUS[k]);           if(boh.BUS)      Object.assign(BUS, boh.BUS);
     Object.keys(DISH).forEach(k => delete DISH[k]);         if(boh.DISH)     Object.assign(DISH, boh.DISH);
@@ -5494,6 +5496,29 @@ async function readScheduleImage(dataUrl, type) {
   } catch(e) {
     console.warn('Row repair pass failed; keeping reconciled result.', e);
   }
+
+  // Role-based scrub — remove any name from a section they don't belong in
+  var PARSE_ROLE_MAP = {
+    'Kitchen': ['Arturo','Carlos','Jesus','Jose B','Derek','Nithia Maldonado','Nithia','Ever'],
+    'Pizza':   ['Arturo','Carlos','Jesus','Ever','Carlos Jr','Eddie','Gonzo','Gonzalo','Leo','Luis','Monico','Soto','Oscar','Victor','Marco'],
+    'Prep':    ['Nick','Nicholas Urbana','Sylvia'],
+    'Bus':     ['Armani','Eric','Marco','Gonzo','Gonzalo'],
+    'Dish':    ['Armani','Jaxon','Marco','Gonzo','Gonzalo'],
+    'Servers':    ['Abby','Alexis','Bridget','Claudia','Claudia G','Dorris','Hannah','Hannah M','Jaime','Kelly','Sio','Annaka','Casandra','Allie','Courtney','Kamini','Justin','Jessica','Julia'],
+    'Bartenders': ['Lindsay','Brooke','Cheeks','Danielle','Mary','Carrie','Lea','Jaime','Kelly','Sio','Justin'],
+    'Cashiers':   ['Jack','Natalie','Presley','Tia','Emilie','Ellianna','Keegan','Molly','Charlie','Sio','Abby'],
+    'Hosts':      ['Natalie','Presley','Tia','Emilie','Ellianna','Keegan','Molly','Charlie','Abby']
+  };
+  var SECTION_KEYS = ['Kitchen','Pizza','Prep','Bus','Dish','Servers','Bartenders','Cashiers','Hosts'];
+  SECTION_KEYS.forEach(function(sec) {
+    var upper = sec.toUpperCase();
+    if(!sched[upper]) return;
+    var allowed = PARSE_ROLE_MAP[sec];
+    Object.keys(sched[upper]).forEach(function(name) {
+      var match = allowed.some(function(a){ return a.toLowerCase() === name.toLowerCase(); });
+      if(!match) { delete sched[upper][name]; }
+    });
+  });
 
   return sched;
 }
