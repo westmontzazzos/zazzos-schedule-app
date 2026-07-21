@@ -2144,7 +2144,7 @@ function closePOSModal() {
 function showAdjustedPOS() {
   var projPOS = window._posLaborCost || 0;
   var di = currentHitlistDay !== undefined ? currentHitlistDay : 0;
-  var weekKey = (document.getElementById('hitlist-week-label')||{}).textContent || '';
+  var weekKey = ((document.getElementById('sched-week-label')||{}).textContent || '').replace(/–/g,'-').replace(/—/g,'-');
   var locked = window._posLocked && window._posLocked[weekKey+':'+di];
   if(locked) {
     showPINModal(function(){ showDollarModal(projPOS, di, weekKey); });
