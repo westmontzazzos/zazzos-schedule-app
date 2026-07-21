@@ -1480,82 +1480,6 @@ function parseHour(raw) {
 }
 
 // DOM'S NOTES
-// ── MASTER ROSTER ──────────────────────────────────────────────────
-// Single source of truth. Sections = allowed scheduling sections.
-const MASTER_ROSTER = {
-  // BOH
-  'Arturo':           { sections: ['Kitchen','Pizza'] },
-  'Carlos':           { sections: ['Kitchen','Pizza'] },
-  'Jesus':            { sections: ['Kitchen','Pizza'] },
-  'Jose B':           { sections: ['Kitchen'] },
-  'Derek':            { sections: ['Kitchen'] },
-  'Nithia Maldonado': { sections: ['Kitchen'] },
-  'Ever':             { sections: ['Kitchen','Pizza'] },
-  'Carlos Jr':        { sections: ['Pizza'] },
-  'Eddie':            { sections: ['Pizza'] },
-  'Gonzo':            { sections: ['Pizza','Dish','Bus'] },
-  'Gonzalo':          { sections: ['Pizza','Dish','Bus'] },
-  'Leo':              { sections: ['Pizza'] },
-  'Luis':             { sections: ['Pizza'] },
-  'Monico':           { sections: ['Pizza'] },
-  'Soto':             { sections: ['Pizza'] },
-  'Oscar':            { sections: ['Pizza'] },
-  'Victor':           { sections: ['Pizza'] },
-  'Nick':             { sections: ['Prep'] },
-  'Sylvia':           { sections: ['Prep'] },
-  'Marco':            { sections: ['Pizza','Dish','Bus'] },
-  'Armani':           { sections: ['Dish','Bus'] },
-  'Jaxon':            { sections: ['Dish','Bus'] },
-  'Eric':             { sections: ['Dish','Bus'] },
-  // FOH
-  'Abby':             { sections: ['Servers','Cashiers','Hosts'] },
-  'Alexis':           { sections: ['Servers'] },
-  'Bridget':          { sections: ['Servers'] },
-  'Claudia':          { sections: ['Servers'] },
-  'Claudia G':        { sections: ['Servers'] },
-  'Dorris':           { sections: ['Servers'] },
-  'Hannah':           { sections: ['Servers'] },
-  'Hannah M':         { sections: ['Servers'] },
-  'Jaime':            { sections: ['Servers','Bartenders'] },
-  'Kelly':            { sections: ['Servers','Bartenders'] },
-  'Sio':              { sections: ['Servers','Cashiers','Bartenders'] },
-  'Annaka':           { sections: ['Servers'] },
-  'Casandra':         { sections: ['Servers'] },
-  'Allie':            { sections: ['Servers'] },
-  'Courtney':         { sections: ['Servers'] },
-  'Kamini':           { sections: ['Servers'] },
-  'Justin':           { sections: ['Servers','Bartenders'] },
-  'Jessica':          { sections: ['Servers'] },
-  'Julia':            { sections: ['Servers'] },
-  'Lindsay':          { sections: ['Bartenders'] },
-  'Brooke':           { sections: ['Bartenders'] },
-  'Cheeks':           { sections: ['Bartenders'] },
-  'Danielle':         { sections: ['Bartenders'] },
-  'Mary':             { sections: ['Bartenders'] },
-  'Carrie':           { sections: ['Bartenders'] },
-  'Lea':              { sections: ['Bartenders'] },
-  'Jack':             { sections: ['Cashiers'] },
-  'Natalie':          { sections: ['Cashiers','Hosts'] },
-  'Presley':          { sections: ['Cashiers','Hosts'] },
-  'Tia':              { sections: ['Cashiers','Hosts'] },
-  'Emilie':           { sections: ['Cashiers','Hosts'] },
-  'Ellianna':         { sections: ['Cashiers','Hosts'] },
-  'Keegan':           { sections: ['Cashiers','Hosts'] },
-  'Molly':            { sections: ['Cashiers','Hosts'] },
-  'Charlie':          { sections: ['Cashiers','Hosts'] }
-};
-
-// Build section arrays from MASTER_ROSTER
-function _makeSection(sectionName) {
-  var obj = {};
-  Object.keys(MASTER_ROSTER).forEach(function(name) {
-    if(MASTER_ROSTER[name].sections.indexOf(sectionName) !== -1) {
-      obj[name] = [null,null,null,null,null,null,null];
-    }
-  });
-  return obj;
-}
-
 const DRIVERS = {
   'AJ': [null,null,null,null,null,null,null],
   'Alex D': [null,null,null,null,null,null,null],
@@ -1573,20 +1497,102 @@ const DRIVERS = {
   'Rhett': [null,null,null,null,null,null,null],
   'Rick': [null,null,null,null,null,null,null],
 };
+const PIZZA = {
+  'Carlos': [null,null,null,null,null,null,null],
+  'Carlos Jr': [null,null,null,null,null,null,null],
+  'Eddie': [null,null,null,null,null,null,null],
+  'Gonzo': [null,null,null,null,null,null,null],
+  'Jesus': [null,null,null,null,null,null,null],
+  'Leo': [null,null,null,null,null,null,null],
+  'Luis': [null,null,null,null,null,null,null],
+  'Monico': [null,null,null,null,null,null,null],
+  'Soto': [null,null,null,null,null,null,null],
+  'Oscar': [null,null,null,null,null,null,null],
+  'Victor': [null,null,null,null,null,null,null],
+  'Arturo': [null,null,null,null,null,null,null],
+  'Ever': [null,null,null,null,null,null,null],
+};
+const KITCHEN = {
+  'Arturo': [null,null,null,null,null,null,null],
+  'Carlos': [null,null,null,null,null,null,null],
+  'Jesus': [null,null,null,null,null,null,null],
+  'Jose B': [null,null,null,null,null,null,null],
+  'Derek': [null,null,null,null,null,null,null],
+  'Nithia Maldonado': [null,null,null,null,null,null,null],
+  'Ever': [null,null,null,null,null,null,null],
+};
+const PREP = {
+  'Nick': [null,null,null,null,null,null,null],
+  'Sylvia': [null,null,null,null,null,null,null],
+};
+const BUS = {
+  'Armani': [null,null,null,null,null,null,null],
+  'Eric': [null,null,null,null,null,null,null],
+  'Marco': [null,null,null,null,null,null,null],
+  'Gonzo': [null,null,null,null,null,null,null],
+};
+const DISH = {
+  'Armani': [null,null,null,null,null,null,null],
+  'Gonzalo': [null,null,null,null,null,null,null],
+  'Jaxon': [null,null,null,null,null,null,null],
+  'Marco': [null,null,null,null,null,null,null],
+};
+const SERVERS = {
+  'Abby': [null,null,null,null,null,null,null],
+  'Alexis': [null,null,null,null,null,null,null],
+  'Bridget': [null,null,null,null,null,null,null],
+  'Claudia': [null,null,null,null,null,null,null],
+  'Claudia G': [null,null,null,null,null,null,null],
+  'Dorris': [null,null,null,null,null,null,null],
+  'Hannah': [null,null,null,null,null,null,null],
+  'Hannah M': [null,null,null,null,null,null,null],
+  'Jaime': [null,null,null,null,null,null,null],
+  'Kelly': [null,null,null,null,null,null,null],
+  'Sio': [null,null,null,null,null,null,null],
+  'Annaka': [null,null,null,null,null,null,null],
+  'Casandra': [null,null,null,null,null,null,null],
+  'Allie': [null,null,null,null,null,null,null],
+  'Courtney': [null,null,null,null,null,null,null],
+  'Kamini': [null,null,null,null,null,null,null],
+  'Justin': [null,null,null,null,null,null,null],
+  'Jessica': [null,null,null,null,null,null,null],
+  'Julia': [null,null,null,null,null,null,null],
+};
+const BARTENDERS = {
+  'Lindsay': [null,null,null,null,null,null,null],
+  'Brooke': [null,null,null,null,null,null,null],
+  'Cheeks': [null,null,null,null,null,null,null],
+  'Danielle': [null,null,null,null,null,null,null],
+  'Jaime': [null,null,null,null,null,null,null],
+  'Mary': [null,null,null,null,null,null,null],
+  'Sio': [null,null,null,null,null,null,null],
+  'Justin': [null,null,null,null,null,null,null],
+  'Carrie': [null,null,null,null,null,null,null],
+  'Lea': [null,null,null,null,null,null,null],
+};
+const CASHIERS = {
+  'Jack': [null,null,null,null,null,null,null],
+  'Natalie': [null,null,null,null,null,null,null],
+  'Sio': [null,null,null,null,null,null,null],
+  'Presley': [null,null,null,null,null,null,null],
+  'Tia': [null,null,null,null,null,null,null],
+  'Emilie': [null,null,null,null,null,null,null],
+  'Ellianna': [null,null,null,null,null,null,null],
+  'Keegan': [null,null,null,null,null,null,null],
+  'Molly': [null,null,null,null,null,null,null],
+  'Charlie': [null,null,null,null,null,null,null],
+};
+const HOSTS = {
+  'Tia': [null,null,null,null,null,null,null],
+  'Natalie': [null,null,null,null,null,null,null],
+  'Molly': [null,null,null,null,null,null,null],
+  'Charlie': [null,null,null,null,null,null,null],
+  'Ellianna': [null,null,null,null,null,null,null],
+};
 
-const PIZZA      = _makeSection('Pizza');
-const KITCHEN    = _makeSection('Kitchen');
-const PREP       = _makeSection('Prep');
-const BUS        = _makeSection('Bus');
-const DISH       = _makeSection('Dish');
-const SERVERS    = _makeSection('Servers');
-const BARTENDERS = _makeSection('Bartenders');
-const CASHIERS   = _makeSection('Cashiers');
-const HOSTS      = _makeSection('Hosts');
-
-// Canonical roster snapshots used by repair/parse functions
+// Canonical BOH roster per section, captured before any week's data replaces these.
 const KNOWN_BOH = {
-  MANAGERS: Object.keys(MANAGERS), PIZZA: Object.keys(PIZZA), KITCHEN: Object.keys(KITCHEN),
+  PIZZA: Object.keys(PIZZA), KITCHEN: Object.keys(KITCHEN),
   PREP: Object.keys(PREP), BUS: Object.keys(BUS), DISH: Object.keys(DISH)
 };
 
@@ -4804,31 +4810,83 @@ function checkScheduleErrors() {
       errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
   }
 
-  // Role violation checks — driven by MASTER_ROSTER
+  // Role violation checks
+  var ROLE_MAP = {
+    'Arturo':           ['Kitchen','Pizza'],
+    'Carlos':           ['Kitchen','Pizza'],
+    'Jesus':            ['Kitchen','Pizza'],
+    'Jose B':           ['Kitchen'],
+    'Derek':            ['Kitchen'],
+    'Nithia Maldonado': ['Kitchen'],
+    'Ever':             ['Kitchen','Pizza'],
+    'Carlos Jr':        ['Pizza'],
+    'Eddie':            ['Pizza'],
+    'Gonzo':            ['Pizza','Dish','Bus'],
+    'Gonzalo':          ['Pizza','Dish','Bus'],
+    'Leo':              ['Pizza'],
+    'Luis':             ['Pizza'],
+    'Monico':           ['Pizza'],
+    'Soto':             ['Pizza'],
+    'Oscar':            ['Pizza'],
+    'Victor':           ['Pizza'],
+    'Nick':             ['Prep'],
+    'Sylvia':           ['Prep'],
+    'Marco':            ['Pizza','Dish','Bus'],
+    'Armani':           ['Dish','Bus'],
+    'Jaxon':            ['Dish','Bus'],
+    'Eric':             ['Dish','Bus'],
+    'Abby':             ['Servers','Cashiers','Hosts'],
+    'Alexis':           ['Servers'],
+    'Bridget':          ['Servers'],
+    'Claudia':          ['Servers'],
+    'Claudia G':        ['Servers'],
+    'Dorris':           ['Servers'],
+    'Hannah':           ['Servers'],
+    'Hannah M':         ['Servers'],
+    'Jaime':            ['Servers','Bartenders'],
+    'Kelly':            ['Servers','Bartenders'],
+    'Sio':              ['Servers','Cashiers','Bartenders'],
+    'Annaka':           ['Servers'],
+    'Casandra':         ['Servers'],
+    'Allie':            ['Servers'],
+    'Courtney':         ['Servers'],
+    'Kamini':           ['Servers'],
+    'Justin':           ['Servers','Bartenders'],
+    'Jessica':          ['Servers'],
+    'Julia':            ['Servers'],
+    'Lindsay':          ['Bartenders'],
+    'Brooke':           ['Bartenders'],
+    'Cheeks':           ['Bartenders'],
+    'Danielle':         ['Bartenders'],
+    'Mary':             ['Bartenders'],
+    'Carrie':           ['Bartenders'],
+    'Lea':              ['Bartenders'],
+    'Jack':             ['Cashiers'],
+    'Natalie':          ['Cashiers','Hosts'],
+    'Presley':          ['Cashiers','Hosts'],
+    'Tia':              ['Cashiers','Hosts'],
+    'Emilie':           ['Cashiers','Hosts'],
+    'Ellianna':         ['Cashiers','Hosts'],
+    'Keegan':           ['Cashiers','Hosts'],
+    'Molly':            ['Cashiers','Hosts'],
+    'Charlie':          ['Cashiers','Hosts']
+  };
   var ALL_SECTIONS = [
-    {obj: KITCHEN,    label: 'Kitchen'},
-    {obj: PIZZA,      label: 'Pizza'},
-    {obj: PREP,       label: 'Prep'},
-    {obj: DISH,       label: 'Dish'},
-    {obj: BUS,        label: 'Bus'},
-    {obj: SERVERS,    label: 'Servers'},
-    {obj: BARTENDERS, label: 'Bartenders'},
-    {obj: CASHIERS,   label: 'Cashiers'},
-    {obj: HOSTS,      label: 'Hosts'}
+    {obj:KITCHEN,label:'Kitchen'},{obj:PIZZA,label:'Pizza'},{obj:PREP,label:'Prep'},
+    {obj:DISH,label:'Dish'},{obj:BUS,label:'Bus'},
+    {obj:SERVERS,label:'Servers'},{obj:BARTENDERS,label:'Bartenders'},
+    {obj:CASHIERS,label:'Cashiers'},{obj:HOSTS,label:'Hosts'}
   ];
   var BOH_LABELS = ['Kitchen','Pizza','Prep','Dish','Bus'];
-  var FOH_LABELS = ['Servers','Bartenders','Cashiers','Hosts'];
   ALL_SECTIONS.forEach(function(sec) {
     Object.keys(sec.obj).forEach(function(name) {
-      var roster = MASTER_ROSTER[name];
-      if(!roster) return; // not in roster (e.g. managers), skip
-      if(roster.sections.indexOf(sec.label) !== -1) return; // allowed here
+      var allowed = ROLE_MAP[name];
+      if(!allowed) return;
+      if(allowed.indexOf(sec.label) !== -1) return;
       for(var d=0; d<7; d++) {
         if(sec.obj[name][d]) {
-          var allowedStr = roster.sections.join('/');
-          var isBOH = BOH_LABELS.indexOf(sec.label) !== -1;
-          var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.label, msg:name+' ('+allowedStr+') is scheduled as '+sec.label};
-          if(isBOH) errors.BOH.push(errObj);
+          var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.label, msg:name+' ('+allowed.join('/')+') is scheduled as '+sec.label};
+          if(BOH_LABELS.indexOf(sec.label) !== -1) errors.BOH.push(errObj);
           else errors.FOH.push(errObj);
         }
       }
