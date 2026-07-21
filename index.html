@@ -4868,7 +4868,52 @@ function checkScheduleErrors() {
   }
 
   // DOM'S NOTES
-  // Filter out bypassed errors
+  // Role violation checker
+  var ROLE_MAP = {
+    'Arturo':['Kitchen','Pizza'],'Carlos':['Kitchen','Pizza'],'Jesus':['Kitchen','Pizza'],
+    'Jose B':['Kitchen'],'Derek':['Kitchen'],'Nithia Maldonado':['Kitchen'],'Nithia':['Kitchen'],
+    'Ever':['Kitchen','Pizza'],'Carlos Jr':['Pizza'],'Eddie':['Pizza'],
+    'Gonzo':['Pizza','Dish','Bus'],'Gonzalo':['Pizza','Dish','Bus'],
+    'Leo':['Pizza'],'Luis':['Pizza'],'Monico':['Pizza'],'Soto':['Pizza'],
+    'Oscar':['Pizza'],'Victor':['Pizza'],'Nick':['Prep'],'Sylvia':['Prep'],
+    'Marco':['Pizza','Dish','Bus'],'Armani':['Dish','Bus'],'Jaxon':['Dish','Bus'],'Eric':['Dish','Bus'],
+    'Abby':['Servers','Cashiers','Hosts'],'Alexis':['Servers'],'Bridget':['Servers'],
+    'Claudia':['Servers'],'Claudia G':['Servers'],'Dorris':['Servers'],
+    'Hannah':['Servers'],'Hannah M':['Servers'],
+    'Jaime':['Servers','Bartenders'],'Kelly':['Servers','Bartenders'],
+    'Sio':['Servers','Cashiers','Bartenders'],
+    'Annaka':['Servers'],'Casandra':['Servers'],'Allie':['Servers'],
+    'Courtney':['Servers'],'Kamini':['Servers'],
+    'Justin':['Servers','Bartenders'],'Jessica':['Servers'],'Julia':['Servers'],
+    'Lindsay':['Bartenders'],'Brooke':['Bartenders'],'Cheeks':['Bartenders'],
+    'Danielle':['Bartenders'],'Mary':['Bartenders'],'Carrie':['Bartenders'],'Lea':['Bartenders'],
+    'Jack':['Cashiers'],'Natalie':['Cashiers','Hosts'],'Presley':['Cashiers','Hosts'],
+    'Tia':['Cashiers','Hosts'],'Emilie':['Cashiers','Hosts'],'Ellianna':['Cashiers','Hosts'],
+    'Keegan':['Cashiers','Hosts'],'Molly':['Cashiers','Hosts'],'Charlie':['Cashiers','Hosts']
+  };
+  var ALL_SECS = [
+    {obj:KITCHEN,lbl:'Kitchen'},{obj:PIZZA,lbl:'Pizza'},{obj:PREP,lbl:'Prep'},
+    {obj:DISH,lbl:'Dish'},{obj:BUS,lbl:'Bus'},
+    {obj:SERVERS,lbl:'Servers'},{obj:BARTENDERS,lbl:'Bartenders'},
+    {obj:CASHIERS,lbl:'Cashiers'},{obj:HOSTS,lbl:'Hosts'}
+  ];
+  var BOH_SECS = ['Kitchen','Pizza','Prep','Dish','Bus'];
+  ALL_SECS.forEach(function(sec) {
+    Object.keys(sec.obj).forEach(function(name) {
+      var allowed = ROLE_MAP[name];
+      if(!allowed) return;
+      if(allowed.indexOf(sec.lbl) !== -1) return;
+      for(var d=0; d<7; d++) {
+        if(sec.obj[name][d]) {
+          var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.lbl, msg:name+' ('+allowed.join('/')+') is scheduled as '+sec.lbl};
+          if(BOH_SECS.indexOf(sec.lbl) !== -1) errors.BOH.push(errObj);
+          else errors.FOH.push(errObj);
+        }
+      }
+    });
+  });
+
+    // Filter out bypassed errors
   if(window._bypassedErrors) {
     function notBypassed(e){ return !window._bypassedErrors[e.di+'|'+e.dept+'|'+e.msg] && !window._bypassedErrors['__day_cleared_'+e.di]; }
     errors.BOH = errors.BOH.filter(notBypassed);
