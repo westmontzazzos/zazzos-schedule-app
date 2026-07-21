@@ -1480,6 +1480,10 @@ function parseHour(raw) {
 }
 
 // DOM'S NOTES
+const MANAGERS = {
+  'Alexis A': [null,null,null,null,null,null,null],
+  'Dom': [null,null,null,null,null,null,null],
+};
 const DRIVERS = {
   'AJ': [null,null,null,null,null,null,null],
   'Alex D': [null,null,null,null,null,null,null],
@@ -1592,7 +1596,7 @@ const HOSTS = {
 
 // Canonical BOH roster per section, captured before any week's data replaces these.
 const KNOWN_BOH = {
-  PIZZA: Object.keys(PIZZA), KITCHEN: Object.keys(KITCHEN),
+  MANAGERS: Object.keys(MANAGERS), PIZZA: Object.keys(PIZZA), KITCHEN: Object.keys(KITCHEN),
   PREP: Object.keys(PREP), BUS: Object.keys(BUS), DISH: Object.keys(DISH)
 };
 
