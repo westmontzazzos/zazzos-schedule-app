@@ -4344,6 +4344,7 @@ function parseWeekData(week) {
     Object.keys(MANAGERS).forEach(k => delete MANAGERS[k]); if(boh.MANAGERS) Object.assign(MANAGERS, boh.MANAGERS);
     Object.keys(PIZZA).forEach(k => delete PIZZA[k]);       if(boh.PIZZA)    Object.assign(PIZZA, boh.PIZZA);
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
+    delete KITCHEN['Nick']; delete KITCHEN['Nicholas Urbana'];
     Object.keys(PREP).forEach(k => delete PREP[k]);         if(boh.PREP)     Object.assign(PREP, boh.PREP);
     Object.keys(BUS).forEach(k => delete BUS[k]);           if(boh.BUS)      Object.assign(BUS, boh.BUS);
     Object.keys(DISH).forEach(k => delete DISH[k]);         if(boh.DISH)     Object.assign(DISH, boh.DISH);
