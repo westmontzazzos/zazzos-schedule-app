@@ -2609,7 +2609,7 @@ function zpConfirmOverride(di, dept, msg) {
     method: 'POST',
     headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
     body: JSON.stringify([{week_label:weekKey, day_index:di, dept:dept, msg:msg}])
-  }).catch(function(e){ console.log('Bypass save failed:',e.message); });
+  }).then(function(r){ r.text().then(function(t){ alert('BYPASS SAVE RESPONSE:\nstatus: '+r.status+'\nbody: '+t.substring(0,200)); }); }).catch(function(e){ alert('BYPASS SAVE ERROR: '+e.message); });
 
   fetch(SUPABASE_URL + '/rest/v1/override_log', {
     method: 'POST',
