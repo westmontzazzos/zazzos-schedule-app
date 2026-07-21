@@ -2311,6 +2311,7 @@ async function loadCurrentPOSLabor(weekLabel) {
     if(!rows||!rows.length) return;
     var totalActual=0, totalProj=0;
     var dayMap = {};
+    alert('LOADING BYPASSES:\nweekLabel: ['+weekLabel+']\nrows: '+rows.length+'\n'+rows.map(function(r){return r.day_index+'|'+r.dept+'|'+r.msg;}).join('\n'));
     rows.forEach(function(row){ dayMap[row.day_index] = row; });
     Object.values(dayMap).forEach(function(row){ totalActual+=row.actual||0; totalProj+=row.proj||0; });
     var diff = totalActual - totalProj;
@@ -2590,6 +2591,7 @@ function zpConfirmOverride(di, dept, msg) {
   zpCancelOverride();
   if(!window._bypassedErrors) window._bypassedErrors = {};
   window._bypassedErrors[di+'|'+dept+'|'+msg] = true;
+  alert('SAVING BYPASS:\nweekKey: ['+weekKey+']\ndi: '+di+'\ndept: '+dept+'\nmsg: '+msg);
 
   var now = new Date();
   var logEntry = {
