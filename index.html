@@ -4345,7 +4345,7 @@ function parseWeekData(week) {
     Object.keys(PIZZA).forEach(k => delete PIZZA[k]);       if(boh.PIZZA)    Object.assign(PIZZA, boh.PIZZA);
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
     // Remove Nick from Kitchen regardless of how stored
-    Object.keys(KITCHEN).forEach(function(k){ if(k.toLowerCase()==='nick'||k.toLowerCase()==='nicholas urbana'||k.toLowerCase()==='nicholas') delete KITCHEN[k]; });
+    // Nick is allowed in Kitchen - no deletion needed
     // Normalize Nithia → Nithia Maldonado after Supabase load
     if(KITCHEN['Nithia'] && !KITCHEN['Nithia Maldonado']) { KITCHEN['Nithia Maldonado'] = KITCHEN['Nithia']; delete KITCHEN['Nithia']; }
     Object.keys(PREP).forEach(k => delete PREP[k]);         if(boh.PREP)     Object.assign(PREP, boh.PREP);
@@ -4878,7 +4878,7 @@ function checkScheduleErrors() {
     'Ever':['Kitchen','Pizza'],'Carlos Jr':['Pizza'],'Eddie':['Pizza'],
     'Gonzo':['Pizza','Dish','Bus'],'Gonzalo':['Pizza','Dish','Bus'],
     'Leo':['Pizza'],'Luis':['Pizza'],'Monico':['Pizza'],'Soto':['Pizza'],
-    'Oscar':['Pizza'],'Victor':['Pizza'],'Nick':['Prep'],'Sylvia':['Prep'],
+    'Oscar':['Pizza'],'Victor':['Pizza'],'Nick':['Prep','Kitchen'],'Sylvia':['Prep'],
     'Marco':['Pizza','Dish','Bus'],'Armani':['Dish','Bus'],'Jaxon':['Dish','Bus'],'Eric':['Dish','Bus'],
     'Abby':['Servers','Cashiers','Hosts'],'Alexis':['Servers'],'Bridget':['Servers'],
     'Claudia':['Servers'],'Claudia G':['Servers'],'Dorris':['Servers'],
@@ -5417,7 +5417,7 @@ async function readScheduleImage(dataUrl, type) {
       if(sched.KITCHEN) {
         Object.keys(sched.KITCHEN).forEach(function(name){
           var n = name.toLowerCase();
-          if(n === 'nick' || n === 'nicholas' || n === 'ever') {
+          if(n === 'ever') {
             delete sched.KITCHEN[name];
           }
         });
@@ -5499,7 +5499,7 @@ async function readScheduleImage(dataUrl, type) {
 
   // Role-based scrub — remove any name from a section they don't belong in
   var PARSE_ROLE_MAP = {
-    'Kitchen': ['Arturo','Carlos','Jesus','Jose B','Derek','Nithia Maldonado','Nithia','Ever'],
+    'Kitchen': ['Arturo','Carlos','Jesus','Jose B','Derek','Nithia Maldonado','Nithia','Ever','Nick','Nicholas Urbana'],
     'Pizza':   ['Arturo','Carlos','Jesus','Ever','Carlos Jr','Eddie','Gonzo','Gonzalo','Leo','Luis','Monico','Soto','Oscar','Victor','Marco'],
     'Prep':    ['Nick','Nicholas Urbana','Sylvia'],
     'Bus':     ['Armani','Eric','Marco','Gonzo','Gonzalo'],
