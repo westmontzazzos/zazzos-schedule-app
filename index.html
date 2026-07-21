@@ -4867,6 +4867,112 @@ function checkScheduleErrors() {
       errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
   }
 
+  // Role violation checks
+  var FOH_ROLES = {
+    'Abby':      ['Servers','Cashiers','Hosts'],
+    'Alexis':    ['Servers'],
+    'Bridget':   ['Servers'],
+    'Claudia':   ['Servers'],
+    'Claudia G': ['Servers'],
+    'Dorris':    ['Servers'],
+    'Hannah':    ['Servers'],
+    'Hannah M':  ['Servers'],
+    'Jaime':     ['Servers','Bartenders'],
+    'Kelly':     ['Servers','Bartenders'],
+    'Sio':       ['Servers','Cashiers'],
+    'Annaka':    ['Servers'],
+    'Casandra':  ['Servers'],
+    'Allie':     ['Servers'],
+    'Courtney':  ['Servers'],
+    'Kamini':    ['Servers'],
+    'Justin':    ['Servers','Bartenders'],
+    'Jessica':   ['Servers'],
+    'Julia':     ['Servers'],
+    'Lindsay':   ['Bartenders'],
+    'Brooke':    ['Bartenders'],
+    'Cheeks':    ['Bartenders'],
+    'Danielle':  ['Bartenders'],
+    'Mary':      ['Bartenders'],
+    'Carrie':    ['Bartenders'],
+    'Lea':       ['Bartenders'],
+    'Jack':      ['Cashiers'],
+    'Natalie':   ['Cashiers','Hosts'],
+    'Presley':   ['Cashiers','Hosts'],
+    'Tia':       ['Cashiers','Hosts'],
+    'Emilie':    ['Cashiers','Hosts'],
+    'Ellianna':  ['Cashiers','Hosts'],
+    'Keegan':    ['Cashiers','Hosts'],
+    'Molly':     ['Cashiers','Hosts'],
+    'Charlie':   ['Cashiers','Hosts']
+  };
+  var BOH_ROLES = {
+    'Arturo':    ['Kitchen','Pizza'],
+    'Ever':      ['Kitchen','Pizza'],
+    'Carlos':    ['Kitchen','Pizza'],
+    'Jesus':     ['Kitchen','Pizza'],
+    'Luis':      ['Pizza'],
+    'Victor':    ['Pizza'],
+    'Monico':    ['Pizza'],
+    'Oscar':     ['Pizza'],
+    'Soto':      ['Pizza'],
+    'Gonzo':     ['Pizza','Dish','Bus'],
+    'Gonzalo':   ['Pizza','Dish','Bus'],
+    'Carlos Jr': ['Pizza'],
+    'Leo':       ['Pizza'],
+    'Eddie':     ['Pizza'],
+    'Nick':      ['Prep'],
+    'Sylvia':    ['Prep'],
+    'Marco':     ['Pizza','Dish','Bus'],
+    'Armani':    ['Dish','Bus'],
+    'Jaxon':     ['Dish','Bus'],
+    'Eric':      ['Dish','Bus'],
+    'Nithia':    ['Kitchen'],
+    'Derek':     ['Kitchen'],
+    'Jose B':    ['Kitchen']
+  };
+  var FOH_SECTION_MAP = [
+    {obj: SERVERS,    label: 'Servers'},
+    {obj: BARTENDERS, label: 'Bartenders'},
+    {obj: CASHIERS,   label: 'Cashiers'},
+    {obj: HOSTS,      label: 'Hosts'}
+  ];
+  var BOH_SECTION_MAP = [
+    {obj: KITCHEN,  label: 'Kitchen'},
+    {obj: PIZZA,    label: 'Pizza'},
+    {obj: PREP,     label: 'Prep'},
+    {obj: DISH,     label: 'Dish'},
+    {obj: BUS,      label: 'Bus'}
+  ];
+  // Check FOH role violations across all days
+  FOH_SECTION_MAP.forEach(function(sec) {
+    Object.keys(sec.obj).forEach(function(name) {
+      var allowed = FOH_ROLES[name];
+      if(!allowed) return; // not in role map, skip
+      if(allowed.indexOf(sec.label) !== -1) return; // allowed here
+      for(var d=0; d<7; d++) {
+        if(sec.obj[name][d]) {
+          var allowedStr = allowed.join('/');
+          errors.FOH.push({di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.label, msg:name+' ('+allowedStr+') is scheduled as '+sec.label});
+        }
+      }
+    });
+  });
+  // Check BOH role violations across all days
+  BOH_SECTION_MAP.forEach(function(sec) {
+    if(!sec.obj) return;
+    Object.keys(sec.obj).forEach(function(name) {
+      var allowed = BOH_ROLES[name];
+      if(!allowed) return;
+      if(allowed.indexOf(sec.label) !== -1) return;
+      for(var d=0; d<7; d++) {
+        if(sec.obj[name][d]) {
+          var allowedStr = allowed.join('/');
+          errors.BOH.push({di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.label, msg:name+' ('+allowedStr+') is scheduled as '+sec.label});
+        }
+      }
+    });
+  });
+
   // DOM'S NOTES
   // Filter out bypassed errors
   if(window._bypassedErrors) {
