@@ -4694,17 +4694,17 @@ function checkScheduleErrors() {
     });
 
     // Openers (start ≤ 9AM)
-    if(!Object.entries(KITCHEN).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
+    if(!Object.entries(KITCHEN).concat(Object.entries(MANAGERS)).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'No Kitchen opener (nobody at or before 9AM)'});
-    if(!Object.entries(PIZZA).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
+    if(!Object.entries(PIZZA).concat(Object.entries(MANAGERS)).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'No Pizza opener (nobody at or before 9AM)'});
     if(!Object.entries(PREP).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Prep', msg:'No Prep opener (nobody at or before 9AM)'});
 
     // Closers (must have C)
-    if(!Object.entries(KITCHEN).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
+    if(!Object.entries(KITCHEN).concat(Object.entries(MANAGERS)).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'No Kitchen closer (nobody with C)'});
-    if(!Object.entries(PIZZA).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
+    if(!Object.entries(PIZZA).concat(Object.entries(MANAGERS)).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'No Pizza closer (nobody with C)'});
     if(!Object.entries(DISH).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish closer (nobody with C)'});
