@@ -2519,21 +2519,28 @@ function acceptError(di, dept, msg) {
     inner.appendChild(b);
   });
 
-  // PIN label
-  var pinLbl = document.createElement('div');
-  pinLbl.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;margin-top:6px;';
-  pinLbl.textContent = 'ENTER PIN TO CONFIRM';
-  inner.appendChild(pinLbl);
-
-  // PIN input
-  var inp = document.createElement('input');
-  inp.id = 'zp-override-pin';
-  inp.type = 'number';
-  inp.inputMode = 'numeric';
-  inp.pattern = '[0-9]*';
-  inp.placeholder = '• • • •';
-  inp.style.cssText = 'width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:28px;font-family:monospace;color:#111;text-align:center;margin-bottom:16px;box-sizing:border-box;';
-  inner.appendChild(inp);
+  // PIN label + input — hidden if already unlocked this session
+  if(!window._overrideUnlocked) {
+    var pinLbl = document.createElement('div');
+    pinLbl.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;margin-top:6px;';
+    pinLbl.textContent = 'ENTER PIN TO CONFIRM';
+    inner.appendChild(pinLbl);
+    var inp = document.createElement('input');
+    inp.id = 'zp-override-pin';
+    inp.type = 'number';
+    inp.inputMode = 'numeric';
+    inp.pattern = '[0-9]*';
+    inp.placeholder = '• • • •';
+    inp.style.cssText = 'width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:8px;font-size:28px;font-family:monospace;color:#111;text-align:center;margin-bottom:16px;box-sizing:border-box;';
+    inner.appendChild(inp);
+  } else {
+    // Already unlocked - add hidden input with PIN pre-filled
+    var inp = document.createElement('input');
+    inp.id = 'zp-override-pin';
+    inp.type = 'hidden';
+    inp.value = '2026';
+    inner.appendChild(inp);
+  }
 
   // Button row
   var btnRow = document.createElement('div');
@@ -2584,6 +2591,7 @@ function zpConfirmOverride(di, dept, msg) {
     if(pinInp){ pinInp.style.borderColor='#E31010'; pinInp.value=''; pinInp.placeholder='Incorrect PIN'; }
     return;
   }
+  window._overrideUnlocked = true; // PIN verified - skip for rest of session
   var weekKey = (function(){ var el = (document.getElementById('sched-week-label')||{}).textContent||''; if(!el && window.allWeeks && window.allWeeks[window.currentWeekIdx]) { var ws = window.allWeeks[window.currentWeekIdx].week_start; var d = new Date(ws+'T12:00:00'); var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat']; var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el = 'Week of '+months[d.getMonth()]+' '+d.getDate()+'-'+(d.getDate()+6)+', '+d.getFullYear(); } return el.replace(/–/g,'-').replace(/—/g,'-'); })();
   var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   zpCancelOverride();
@@ -5657,7 +5665,7 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
     <div style="padding:12px 18px 16px;border-top:1px solid #eee;">
       <div style="display:flex;gap:10px;margin-bottom:8px;">
         <button onclick="printScheduleErrors();" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">🖨 PRINT ERROR REPORT</button>
-        <button onclick="errorsBypassed=true;document.getElementById('sched-error-modal').style.display='none';" style="flex:1;padding:11px;background:#eee;color:#333;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">DISMISS & CONTINUE</button>
+        <button onclick="errorsBypassed=true;document.getElementById('sched-error-modal').style.display='none';window._overrideUnlocked=false;" style="flex:1;padding:11px;background:#eee;color:#333;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">DISMISS & CONTINUE</button>
       </div>
       <div style="font-size:10.5px;color:#999;text-align:center;">Dismiss to keep using the app — you can print this report at any time from the errors button.</div>
     </div>
