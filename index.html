@@ -4611,14 +4611,18 @@ function checkScheduleErrors() {
     if(wkEnd < twoWeeksAgo) return; // only skip if ended more than 2 weeks ago
   }
 
-  // Skip if no data uploaded yet
-  var hasAnyData =
+  // Check what's been uploaded
+  var hasBOHData =
     Object.values(KITCHEN).some(function(d){ return d && d.some(Boolean); }) ||
-    Object.values(PIZZA).some(function(d){ return d && d.some(Boolean); }) ||
+    Object.values(PIZZA).some(function(d){ return d && d.some(Boolean); });
+  var hasFOHData =
     Object.values(SERVERS).some(function(d){ return d && d.some(Boolean); }) ||
     Object.values(BARTENDERS).some(function(d){ return d && d.some(Boolean); }) ||
+    Object.values(CASHIERS).some(function(d){ return d && d.some(Boolean); });
+  var hasDriverData =
     Object.values(DRIVERS).some(function(d){ return d && d.some(Boolean); });
-  if(!hasAnyData) return;
+  if(!hasBOHData && !hasFOHData && !hasDriverData) return;
+  var weekLbl = (document.getElementById('sched-week-label')||{}).textContent || 'this week';
 
   var DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   var errors = { BOH: [], FOH: [], Drivers: [] };
@@ -4671,7 +4675,11 @@ function checkScheduleErrors() {
     return !!String(endVal).trim().toLowerCase().match(/^c[l]?$|^close$/);
   }
 
-  // DOM'S NOTES
+  // Fire single "not uploaded" error if section missing
+  if(!hasBOHData) errors.BOH.push({di:0, day:'', name:'—', dept:'BOH', msg:'Back of House schedule for '+weekLbl+' has not been uploaded'});
+  if(!hasFOHData) errors.FOH.push({di:0, day:'', name:'—', dept:'FOH', msg:'Front of House schedule for '+weekLbl+' has not been uploaded'});
+
+  if(hasBOHData || hasFOHData || hasDriverData)
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
 
@@ -4710,9 +4718,8 @@ function checkScheduleErrors() {
       errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish closer (nobody with C)'});
 
     // Pizza staffing minimums
-    var _pizzaAll = Object.values(PIZZA).concat(Object.values(MANAGERS));
-    var pizzaCount = _pizzaAll.filter(function(d){ return parseBOHRaw(d[di],di); }).length;
-    var pizzaPMCount = _pizzaAll.filter(function(d){
+    var pizzaCount = Object.values(PIZZA).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var pizzaPMCount = Object.values(PIZZA).filter(function(d){
       var p=parseBOHRaw(d[di],di); if(!p) return false;
       var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
       return p.st < 20 && en > 16; // overlaps 4-8PM window
@@ -4729,9 +4736,8 @@ function checkScheduleErrors() {
     }
 
     // Kitchen staffing minimums
-    var _kitchenAll = Object.values(KITCHEN).concat(Object.values(MANAGERS));
-    var kitchenCount = _kitchenAll.filter(function(d){ return parseBOHRaw(d[di],di); }).length;
-    var kitchenPMCount = _kitchenAll.filter(function(d){
+    var kitchenCount = Object.values(KITCHEN).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var kitchenPMCount = Object.values(KITCHEN).filter(function(d){
       var p=parseBOHRaw(d[di],di); if(!p) return false;
       var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
       return p.st < 20 && en > 16; // overlaps 4-8PM window
@@ -4761,6 +4767,8 @@ function checkScheduleErrors() {
       return String(entry).trim() !== '' && String(entry).trim().toLowerCase() !== 'null';
     }
 
+    // FOH checks — only if FOH schedule uploaded
+    if(hasFOHData) {
     // AM shifts missing end time — Servers, Bartenders, Hosts only (Cashiers handled separately)
     [{d:SERVERS,lbl:'Servers'},{d:BARTENDERS,lbl:'Bartenders'},{d:HOSTS,lbl:'Hosts'}].forEach(function(sec){
       Object.entries(sec.d).forEach(function(e){
@@ -4857,6 +4865,8 @@ function checkScheduleErrors() {
   // DOM'S NOTES
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
+    } // end hasFOHData
+
     var amCount = 0, closerCount = 0;
     Object.values(DRIVERS).forEach(function(days){
       var p = parseBOHRaw(days[di], di);
