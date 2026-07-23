@@ -4511,7 +4511,6 @@ function applyWeek(idx) {
     autoBypassLoggedDays();
     setTimeout(checkScheduleErrors, 300);
     setTimeout(logUnclearedErrors, 1500);
-    setTimeout(checkOutstandingErrors, 1000);
     // Log if this is a fresh upload (flag set in processSingle)
     if(window._justUploaded) {
       setTimeout(function(){
