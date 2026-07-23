@@ -6224,6 +6224,9 @@ function printSchedSection(range) {
 
 <script>
 function checkOutstandingErrors() {
+  // Don't show if main error modal is already visible
+  var errModal = document.getElementById('error-modal');
+  if(errModal && errModal.style.display !== 'none') return;
   // Only show to the person who uploaded (stored in localStorage)
   var uploader = localStorage.getItem('zp_last_uploader');
   if(!uploader || uploader !== getCurrentUser()) return;
