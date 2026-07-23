@@ -4344,8 +4344,7 @@ function parseWeekData(week) {
     Object.keys(MANAGERS).forEach(k => delete MANAGERS[k]); if(boh.MANAGERS) Object.assign(MANAGERS, boh.MANAGERS);
     Object.keys(PIZZA).forEach(k => delete PIZZA[k]);       if(boh.PIZZA)    Object.assign(PIZZA, boh.PIZZA);
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
-    // Remove Nick from Kitchen regardless of how stored
-    // Nick is allowed in Kitchen - no deletion needed
+    // Nick is allowed in Kitchen and Prep - no deletion
     // Normalize Nithia → Nithia Maldonado after Supabase load
     if(KITCHEN['Nithia'] && !KITCHEN['Nithia Maldonado']) { KITCHEN['Nithia Maldonado'] = KITCHEN['Nithia']; delete KITCHEN['Nithia']; }
     Object.keys(PREP).forEach(k => delete PREP[k]);         if(boh.PREP)     Object.assign(PREP, boh.PREP);
