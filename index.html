@@ -4962,7 +4962,7 @@ function checkScheduleErrors() {
     var h = '<div style="margin-bottom:16px;">';
     h += '<div style="font-size:11px;font-weight:700;letter-spacing:0.07em;color:#888;margin-bottom:8px;">'+label.toUpperCase()+'</div>';
     list.forEach(function(e) {
-      var diVal = e.di !== undefined ? e.di : '';
+      var diVal = (e.di !== undefined && e.di !== null && !isNaN(parseInt(e.di))) ? parseInt(e.di) : '';
       var focusVal = (e.name && e.name !== '—') ? e.name : '';
       var errIdx = window._currentErrorList ? window._currentErrorList.length : 0;
       if(window._currentErrorList) window._currentErrorList.push({di:e.di, dept:e.dept, msg:e.msg});
