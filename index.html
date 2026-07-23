@@ -4942,13 +4942,15 @@ function checkScheduleErrors() {
     {obj:CASHIERS,lbl:'Cashiers'},{obj:HOSTS,lbl:'Hosts'}
   ];
   var BOH_SECS = ['Kitchen','Pizza','Prep','Dish','Bus'];
+  var _managerNames = Object.keys(MANAGERS);
   ALL_SECS.forEach(function(sec) {
     Object.keys(sec.obj).forEach(function(name) {
+      if(_managerNames.indexOf(name) !== -1) return; // managers can work any section
       var allowed = ROLE_MAP[name];
       if(!allowed) return;
       if(allowed.indexOf(sec.lbl) !== -1) return;
       for(var d=0; d<7; d++) {
-        if(sec.obj[name][d]) {
+        if(sec.obj[name][d] && String(sec.obj[name][d]).trim().toLowerCase() !== 'x') {
           var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.lbl, msg:name+' added to '+sec.lbl+' — approve this role addition?'};
           if(BOH_SECS.indexOf(sec.lbl) !== -1) errors.BOH.push(errObj);
           else errors.FOH.push(errObj);
