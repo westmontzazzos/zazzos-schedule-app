@@ -4967,10 +4967,38 @@ function checkScheduleErrors() {
       var focusVal = (e.name && e.name !== '—') ? e.name : '';
       var errIdx = window._currentErrorList ? window._currentErrorList.length : 0;
       if(window._currentErrorList) window._currentErrorList.push({di:e.di, dept:e.dept, msg:e.msg});
-      var dayLabel = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][e.di] || '';
+      var _days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      var _fullDate = FULL_DATES && FULL_DATES[e.di] ? FULL_DATES[e.di].replace(',','') : '';
+      var dayLabel = (_days[e.di]||'') + (_fullDate ? ' '+_fullDate : '');
       h += '<div style="background:#fff8f8;border:1px solid #f5c0c8;border-radius:10px;padding:12px 14px;margin-bottom:8px;">';
       h += '<div style="font-size:13px;font-weight:700;color:#c8102e;margin-bottom:2px;">'+e.msg+'</div>';
       h += '<div style="font-size:11px;color:#aaa;margin-bottom:10px;">'+dayLabel+' · '+e.dept+(e.name&&e.name!=='—'?' · '+e.name:'')+'</div>';
+      // Staff time list for count-based errors
+      if(e.di !== undefined && e.msg && (e.msg.indexOf('Only') === 0 || e.msg.indexOf('need at least') !== -1)) {
+        var _sectionObj = {Kitchen:KITCHEN,Pizza:PIZZA,Prep:PREP,Bus:BUS,Dish:DISH,Servers:SERVERS,Bartenders:BARTENDERS,Cashiers:CASHIERS,Hosts:HOSTS}[e.dept];
+        if(_sectionObj) {
+          var _staffList = [];
+          Object.entries(_sectionObj).forEach(function(kv) {
+            var raw = kv[1][e.di];
+            if(!raw) return;
+            var rs = String(raw).trim();
+            if(!rs || rs.toLowerCase()==='x') return;
+            _staffList.push({name:kv[0], raw:rs});
+          });
+          // Sort by start time
+          _staffList.sort(function(a,b){
+            var pa = parseBOHRaw ? parseBOHRaw(a.raw,e.di) : null;
+            var pb = parseBOHRaw ? parseBOHRaw(b.raw,e.di) : null;
+            var sa = pa ? pa.st : 99, sb = pb ? pb.st : 99;
+            return sa - sb;
+          });
+          if(_staffList.length) {
+            h += '<div style="font-size:11px;color:#666;margin-bottom:8px;line-height:1.8;">';
+            _staffList.forEach(function(s){ h += s.raw+' — '+s.name+'<br>'; });
+            h += '</div>';
+          }
+        }
+      }
       h += '<div style="display:flex;gap:8px;">';
       if(diVal !== '') {
         h += '<button onclick="event.stopPropagation();document.getElementById(\'sched-error-modal\').style.display=\'none\';openEditor('+diVal+',\''+focusVal+'\');" '
