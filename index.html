@@ -4682,11 +4682,18 @@ function checkScheduleErrors() {
   for(var di = 0; di < 7; di++) {
     var day = dayLabel(di);
 
-    // Skip day if no BOH scheduled
+    // Skip BOH checks if no BOH scheduled today
     var anyBOHToday = [KITCHEN,PIZZA,PREP,BUS,DISH,MANAGERS].some(function(sec){
       return Object.values(sec).some(function(d){ return d[di]; });
     });
-    if(!anyBOHToday) continue;
+    var anyDriverToday = Object.values(DRIVERS).some(function(d){ return d[di]; });
+    if(!anyBOHToday && !anyDriverToday) continue;
+    if(!anyBOHToday) {
+      // Skip to driver checks
+      var _skipToBOHEnd = true;
+    } else {
+      var _skipToBOHEnd = false;
+    }
 
     // AM shifts missing end time (BOH)
     [
@@ -4866,22 +4873,32 @@ function checkScheduleErrors() {
     var day = dayLabel(di);
     } // end hasFOHData
 
-    var amCount = 0, closerCount = 0;
-    Object.values(DRIVERS).forEach(function(days){
-      var p = parseBOHRaw(days[di], di);
-      if(!p) return;
-      if(p.hasClose) closerCount++;
-      else if(p.st <= 11) amCount++;
-    });
-    if(amCount < 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) at or before 11AM — need exactly 2'});
-    if(amCount > 2)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:amCount+' AM drivers at or before 11AM — maximum is 2'});
-    if(closerCount === 0)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
-    if(closerCount > 1)
-      errors.Drivers.push({di:di, day:day, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
+  } // end main BOH/FOH day loop
+
+  // Separate driver loop - runs regardless of BOH data
+  if(hasDriverData) {
+    for(var ddi=0; ddi<7; ddi++) {
+      var dday = dayLabel(ddi);
+      var amCount = 0, closerCount = 0;
+      Object.values(DRIVERS).forEach(function(days){
+        var p = parseBOHRaw(days[ddi], ddi);
+        if(!p) return;
+        if(p.hasClose) closerCount++;
+        else if(p.st <= 11) amCount++;
+      });
+      var anyDriverToday = Object.values(DRIVERS).some(function(d){ return d[ddi]; });
+      if(!anyDriverToday) continue;
+      if(amCount < 2)
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) at or before 11AM — need exactly 2'});
+      if(amCount > 2)
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:amCount+' AM drivers at or before 11AM — maximum is 2'});
+      if(closerCount === 0)
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
+      if(closerCount > 1)
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
+    }
   }
+
 
   // DOM'S NOTES
   // Role violation checker
