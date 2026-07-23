@@ -4642,7 +4642,15 @@ function checkScheduleErrors() {
     if(cm) { st = hitlistHour(cm[1].trim(), di); en = closeEnd; hasClose = true; }
     else {
       var rm = s.match(/^([\d:]+(?:am|pm)?)\s*[-–]\s*([\d:]+(?:am|pm)?)$/i);
-      if(rm) { st = hitlistHour(rm[1], di); en = hitlistHour(rm[2], di); }
+      if(rm) {
+        st = hitlistHour(rm[1], di);
+        var enRaw = rm[2].toLowerCase();
+        if(!/am|pm/.test(enRaw) && st !== null && st >= 12) {
+          var enH = parseInt(enRaw, 10);
+          if(enH < 12) enRaw = enH + 'pm';
+        }
+        en = hitlistHour(enRaw, di);
+      }
       else   { st = hitlistHour(s, di); en = null; }
     }
     if(st === null) return null;
@@ -4724,8 +4732,9 @@ function checkScheduleErrors() {
       errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish closer (nobody with C)'});
 
     // Pizza staffing minimums
-    var pizzaCount = Object.values(PIZZA).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
-    var pizzaPMCount = Object.values(PIZZA).filter(function(d){
+    var _pizzaAll = Object.values(PIZZA).concat(Object.values(MANAGERS));
+    var pizzaCount = _pizzaAll.filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var pizzaPMCount = _pizzaAll.filter(function(d){
       var p=parseBOHRaw(d[di],di); if(!p) return false;
       var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
       return p.st < 20 && en > 16; // overlaps 4-8PM window
@@ -4742,8 +4751,9 @@ function checkScheduleErrors() {
     }
 
     // Kitchen staffing minimums
-    var kitchenCount = Object.values(KITCHEN).filter(function(d){ return parseBOHRaw(d[di],di); }).length;
-    var kitchenPMCount = Object.values(KITCHEN).filter(function(d){
+    var _kitchenAll = Object.values(KITCHEN).concat(Object.values(MANAGERS));
+    var kitchenCount = _kitchenAll.filter(function(d){ return parseBOHRaw(d[di],di); }).length;
+    var kitchenPMCount = _kitchenAll.filter(function(d){
       var p=parseBOHRaw(d[di],di); if(!p) return false;
       var en = p.en !== null ? p.en : (p.hasClose ? 23 : 20);
       return p.st < 20 && en > 16; // overlaps 4-8PM window
