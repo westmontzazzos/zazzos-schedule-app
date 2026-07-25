@@ -1527,14 +1527,15 @@ const PIZZA = {
   'Oscar': [null,null,null,null,null,null,null],
   'Victor': [null,null,null,null,null,null,null],
   'Arturo': [null,null,null,null,null,null,null],
+  'Laura Z': [null,null,null,null,null,null,null],
 };
 const KITCHEN = {
   'Arturo': [null,null,null,null,null,null,null],
   'Carlos': [null,null,null,null,null,null,null],
-  'Ever': [null,null,null,null,null,null,null],
   'Jesus': [null,null,null,null,null,null,null],
   'Jose B': [null,null,null,null,null,null,null],
-  'Derek': [null,null,null,null,null,null,null],
+  'Nithia Maldonado': [null,null,null,null,null,null,null],
+  'Laura Z': [null,null,null,null,null,null,null],
 };
 const PREP = {
   'Nick': [null,null,null,null,null,null,null],
@@ -2730,8 +2731,8 @@ function printWageRoster() {
   var sections=[
     {l:'Owners',r:[['Dom',true,60000],['Ely Calero',true,100000],['Lisa Barraco',true,40000]]},
     {l:'Managers',r:[['Alexis A',false,22],['Brett',true,10000],['Selena Gonzales',true,40292]]},
-    {l:'Pizza',r:[['Ever',false,17.5],['Arturo Viveros',false,21],['Carlos Jr',false,17.5],['Carlos Mora',false,19.25],['Eddie Cruz',false,19],['Gonzo',false,17],['Jesus Murillo',false,21],['Leo',false,17.5],['Luis Perez',false,20],['Luis Soto',false,19],['Monico Esparza',false,20],['Oscar Velazquez',false,19],['Victor Cruz',false,20.5]]},
-    {l:'Kitchen',r:[['Derek',false,19],['Nithia Maldonado',false,23],['Nicholas Urbana',false,20]]},
+    {l:'Pizza',r:[['Laura Z',false,19],['Arturo Viveros',false,21],['Carlos Jr',false,17.5],['Carlos Mora',false,19.25],['Eddie Cruz',false,19],['Gonzo',false,17],['Jesus Murillo',false,21],['Leo',false,17.5],['Luis Perez',false,20],['Luis Soto',false,19],['Monico Esparza',false,20],['Oscar Velazquez',false,19],['Victor Cruz',false,20.5]]},
+    {l:'Kitchen',r:[['Laura Z',false,19],['Nithia Maldonado',false,17.50],['Nicholas Urbana',false,20]]},
     {l:'Prep / Utility',r:[['Sylvia',false,15]]},
     {l:'Bus / Dish',r:[['Armani Finley',false,16],['Eric',false,15],['Gonzalo',false,17],['Jaxon',false,15],['Marco Sanchez',false,16]]},
     {l:'Servers',r:[['Abby',false,9],['Alexis',false,9],['Allie',false,9],['Annaka',false,9],['Bridget',false,9],['Casandra',false,9],['Claudia M',false,9],['Dorris',false,9],['Hannah',false,9],['Hannah M',false,9],['Jaime',false,9],['Jessica',false,9],['Julia',false,9],['Justin',false,9],['Kelly',false,9]]},
@@ -3049,7 +3050,7 @@ function renderPrivate() {
   ];
   var HLY=[
     {n:'Alexis A',r:22,role:'Manager',src:function(){return [MANAGERS['Alexis A']]},type:'b'},
-    {n:'Derek',r:19,role:'Kitchen Cook',src:function(){return [KITCHEN['Derek']]},type:'b'},
+    {n:'Laura Z',r:19,role:'Kitchen/Pizza',src:function(){return [KITCHEN['Laura Z'],PIZZA['Laura Z']]},type:'b'},
     {n:'Nithia Maldonado',r:17.50,role:'Kitchen Cook',src:function(){return [KITCHEN['Nithia Maldonado']]},type:'b'},
     {n:'Arturo Viveros',r:21,role:'Kitchen/Pizza',src:function(){return [PIZZA['Arturo'],KITCHEN['Arturo']]},type:'b'},
     {n:'Jesus Murillo',r:21,role:'Pizza/Kitchen',src:function(){return [PIZZA['Jesus'],KITCHEN['Jesus']]},type:'b'},
@@ -3064,7 +3065,7 @@ function renderPrivate() {
     {n:'Carlos Jr',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Carlos Jr']]},type:'b'},
     {n:'Leo',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Leo']]},type:'b'},
     {n:'Eddie Cruz',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Eddie'],PIZZA['Eddy'],KITCHEN['Eddie'],KITCHEN['Eddy']]},type:'b'},
-    {n:'Ever',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Ever'],KITCHEN['Ever']]},type:'b'},
+
     {n:'Sylvia',r:15,role:'Prep',src:function(){return [PREP['Sylvia']]},type:'b'},
     {n:'Jack Ruane',r:16,role:'Cashier',src:function(){return [CASHIERS['Jack']]},type:'f',role2:'cashiers'},
     {n:'Marco Sanchez',r:16,role:'Bus/Dish',src:function(){return [BUS['Marco'],DISH['Marco']]},type:'b'},
