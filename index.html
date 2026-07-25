@@ -1070,7 +1070,7 @@ document.addEventListener("DOMContentLoaded",function(){
 <!-- SCHEDULE -->
 <div id="tab-schedule" class="main" style="display:none">
   <div class="report-header">
-    <div class="report-title">SCHEDULE</div>
+    <div class="report-title" id="sched-edit-trigger" onclick="handleSchedTitleTap()" style="cursor:default;">SCHEDULE</div>
     <div class="report-sub">Weekly staff schedule</div>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -1082,6 +1082,7 @@ document.addEventListener("DOMContentLoaded",function(){
   </div>
   <div class="sub-nav">
     <button class="sub-btn active" onclick="switchSched('drivers',this)">Drivers</button>
+    <button id="sched-inline-save" onclick="saveSchedInlineEdits()" style="display:none;margin-left:auto;padding:6px 14px;background:var(--red);color:#fff;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em;cursor:pointer;">💾 Save Schedule</button>
     <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
     <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
     <button class="sub-btn" onclick="showSchedPrintMenu(this)">🖨 Print</button>
@@ -2844,6 +2845,78 @@ function renderRunSheet(di) {
 }
 
 // DOM'S NOTES
+
+var _schedTitleTapCount = 0;
+var _schedTitleTapTimer = null;
+function handleSchedTitleTap() {
+  _schedTitleTapCount++;
+  if(_schedTitleTapTimer) clearTimeout(_schedTitleTapTimer);
+  _schedTitleTapTimer = setTimeout(function(){ _schedTitleTapCount = 0; }, 1500);
+  if(_schedTitleTapCount >= 4) {
+    _schedTitleTapCount = 0;
+    toggleSchedEditMode();
+  }
+}
+
+async function toggleSchedEditMode() {
+  if(!window._schedEditMode) {
+    // Ask PIN
+    if(!window._editorUnlocked) {
+      var pin = await askPin('Enter PIN to edit schedule');
+      if(pin !== '2026') { if(pin !== null) alert('Incorrect PIN.'); return; }
+      window._editorUnlocked = true;
+    }
+    window._schedEditMode = true;
+    document.getElementById('sched-edit-trigger').style.color = 'var(--red)';
+    // Show save button
+    var saveBtn = document.getElementById('sched-inline-save');
+    if(saveBtn) saveBtn.style.display = 'inline-block';
+  } else {
+    await saveSchedInlineEdits();
+  }
+  renderSchedule();
+}
+
+async function saveSchedInlineEdits() {
+  // Collect all input values and write back to section objects
+  var inputs = document.querySelectorAll('.sched-inline-input');
+  inputs.forEach(function(inp) {
+    var section = inp.dataset.section;
+    var name = inp.dataset.name;
+    var di = parseInt(inp.dataset.di);
+    var val = inp.value.trim() || null;
+    var secObj = {DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
+    if(secObj && secObj[name] !== undefined) secObj[name][di] = val;
+  });
+  // Save to Supabase using same format as existing editor
+  var weekStart = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx].week_start : null;
+  if(!weekStart) { alert('No week loaded.'); return; }
+  try {
+    await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart, {
+      method: 'DELETE', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    await fetch(SUPABASE_URL + '/rest/v1/schedules', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([{
+        week_start: weekStart,
+        boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
+        foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
+        driver_data: JSON.stringify(DRIVERS),
+        event_data: JSON.stringify(WEEK_EVENTS),
+        last_edited_by: getCurrentUser(),
+        last_edited_at: new Date().toISOString()
+      }])
+    });
+    window._schedEditMode = false;
+    document.getElementById('sched-edit-trigger').style.color = '';
+    var saveBtn = document.getElementById('sched-inline-save');
+    if(saveBtn) saveBtn.style.display = 'none';
+    renderSchedule();
+    alert('Schedule saved.');
+  } catch(e) { alert('Save failed: ' + e.message); }
+}
+
 function renderSchedule() {
   const el = document.getElementById('schedule-content');
   // Build day-column headers from the currently loaded week (not hardcoded)
@@ -2874,6 +2947,10 @@ function renderSchedule() {
       .forEach(([name,days])=>{
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
+          if(window._schedEditMode){
+            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${raw||''}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            return;
+          }
           if(!raw){html+='<td></td>';return;}
           const t=parseHour(String(raw));
           if(!t){html+='<td></td>';return;}
@@ -2888,6 +2965,11 @@ function renderSchedule() {
       schedSort(Object.entries(d),'foh').forEach(([name,days])=>{
         html+=`<tr><td>${name}</td>`;
         days.forEach((e,di)=>{
+          if(window._schedEditMode){
+            var rawVal = e ? (Array.isArray(e) ? e.join('-') : e) : '';
+            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            return;
+          }
           if(!e){html+='<td></td>';return;}
           const am=fmtFOH(e[0],di,false);
           const pm=e[1]==='C'?'C':(e[1]?fmtFOH(e[1],di,false):'');
@@ -2902,6 +2984,10 @@ function renderSchedule() {
       schedSort(Object.entries(d),'boh').forEach(([name,days])=>{
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
+          if(window._schedEditMode){
+            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${raw||''}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            return;
+          }
           const p=parseBOH(raw,di);
           if(!p){html+='<td></td>';return;}
           html+=`<td>${p.p?p.a+' – '+p.p:p.a}</td>`;
