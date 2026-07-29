@@ -6970,6 +6970,21 @@ async function saveEdits() {
   btn.textContent = 'Saving...';
   btn.disabled = true;
 
+  // Snapshot which flagged (logged/overridden) errors exist for this day BEFORE the edit,
+  // so we can detect which ones this edit resolves.
+  var _preEditFlagged = [];
+  (function(){
+    var bp = window._bypassedErrors || {};
+    var cur = window._currentErrors || {BOH:[], FOH:[], Drivers:[]};
+    ['BOH','FOH','Drivers'].forEach(function(sec){
+      (cur[sec]||[]).forEach(function(e){
+        if(e.di === editorDay && bp[e.di+'|'+e.dept+'|'+e.msg]) {
+          _preEditFlagged.push({di:e.di, dept:e.dept, msg:e.msg});
+        }
+      });
+    });
+  })();
+
   var sectionMaps = {
     'MANAGERS': MANAGERS, 'PIZZA': PIZZA, 'KITCHEN': KITCHEN,
     'PREP': PREP, 'BUS': BUS, 'DISH': DISH,
@@ -7059,6 +7074,49 @@ async function saveEdits() {
   btn.textContent = '💾 Save Changes';
   btn.disabled = false;
   refreshErrorModalAfterSave();
+  if(_preEditFlagged.length) checkForResolvedErrors(_preEditFlagged);
+}
+
+// Compares a snapshot of previously-flagged errors against the freshly recomputed
+// error list; anything that no longer appears is logged as "resolved" under its
+// original thread (same week/day/dept/msg key used for the original flag).
+function checkForResolvedErrors(preEditFlagged) {
+  setTimeout(function() {
+    var cur = window._currentErrors || {BOH:[], FOH:[], Drivers:[]};
+    var stillPresent = {};
+    ['BOH','FOH','Drivers'].forEach(function(sec){
+      (cur[sec]||[]).forEach(function(e){
+        stillPresent[e.di+'|'+e.dept+'|'+e.msg] = true;
+      });
+    });
+    var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    var weekLabel = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+    var resolvedEntries = [];
+    preEditFlagged.forEach(function(f){
+      var key = f.di+'|'+f.dept+'|'+f.msg;
+      if(!stillPresent[key]) {
+        resolvedEntries.push({
+          week_label: weekLabel,
+          day_index: f.di,
+          day_name: DAYS_FULL[f.di] || '',
+          dept: f.dept,
+          msg: f.msg,
+          who: getCurrentUser(),
+          ack_type: 'resolved',
+          logged_at: new Date().toISOString(),
+          note: 'Resolved by schedule edit'
+        });
+        if(window._bypassedErrors) delete window._bypassedErrors[key];
+      }
+    });
+    if(resolvedEntries.length) {
+      fetch(SUPABASE_URL + '/rest/v1/override_log', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify(resolvedEntries)
+      }).catch(function(e){ console.log('Resolved-log save failed:', e.message); });
+    }
+  }, 700); // after refreshErrorModalAfterSave's checkScheduleErrors() has updated window._currentErrors
 }
 
 var errorsBypassed = false;  // suppressed for this session once dismissed
@@ -7456,8 +7514,58 @@ function applyWeek(idx) {
         }
         window._justUploaded = null;
       }, 800);
+      // Separately: did this upload fix any previously flagged errors? (independent
+      // of whether the upload itself introduced new ones, checked above)
+      setTimeout(checkForResolvedErrorsAfterUpload, 850);
     }
   });
+}
+
+// Same idea as checkForResolvedErrors() (used after a manual run-sheet edit), but
+// triggered after a schedule photo re-upload instead. Compares the errors that were
+// previously flagged/overridden for this week (window._bypassedErrors, reloaded fresh
+// from the schedule_bypasses table by loadScheduleBypasses just before this runs)
+// against the newly recomputed error list. Anything that disappeared gets logged as
+// "resolved" under its original thread — no matter how it disappeared.
+function checkForResolvedErrorsAfterUpload() {
+  var bp = window._bypassedErrors || {};
+  var cur = window._currentErrors || {BOH:[], FOH:[], Drivers:[]};
+  var stillPresent = {};
+  ['BOH','FOH','Drivers'].forEach(function(sec){
+    (cur[sec]||[]).forEach(function(e){ stillPresent[e.di+'|'+e.dept+'|'+e.msg] = true; });
+  });
+  var DAYS_FULL = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+  var weekLabel = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+  var resolvedEntries = [];
+  Object.keys(bp).forEach(function(key){
+    if(key.indexOf('__day_cleared_') === 0) return; // whole-day wildcard, not a specific error thread
+    if(stillPresent[key]) return; // still open, nothing resolved
+    var p1 = key.indexOf('|');
+    var p2 = key.indexOf('|', p1 + 1);
+    if(p1 < 0 || p2 < 0) return;
+    var di = parseInt(key.slice(0, p1), 10);
+    var dept = key.slice(p1 + 1, p2);
+    var msg = key.slice(p2 + 1);
+    resolvedEntries.push({
+      week_label: weekLabel,
+      day_index: di,
+      day_name: DAYS_FULL[di] || '',
+      dept: dept,
+      msg: msg,
+      who: getCurrentUser(),
+      ack_type: 'resolved',
+      logged_at: new Date().toISOString(),
+      note: 'Resolved by schedule re-upload'
+    });
+    delete window._bypassedErrors[key];
+  });
+  if(resolvedEntries.length) {
+    fetch(SUPABASE_URL + '/rest/v1/override_log', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify(resolvedEntries)
+    }).catch(function(e){ console.log('Resolved-log (upload) save failed:', e.message); });
+  }
 }
 
 // DOM'S NOTES
@@ -8619,63 +8727,157 @@ function showOverrideLog(btn) {
   var body = document.getElementById('override-log-body');
   body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var REQUIRED_ACK_MANAGERS = ['Ely','Selena'];
+
+  function fmtDt(iso) {
+    var dt = iso ? new Date(iso) : null;
+    return dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
+  }
+  function eventLabel(r) {
+    return r.ack_type === 'intentional' ? 'Intentional decision' :
+           r.ack_type === 'mistake' ? 'Mistake — will correct' :
+           r.ack_type === 'published' ? 'Published by Dom' :
+           r.ack_type === 'printed' ? 'Printed' :
+           r.ack_type === 'acknowledged' ? 'Acknowledged' :
+           r.ack_type === 'uncleared' ? 'Never cleared' :
+           r.ack_type === 'resolved' ? 'Resolved' :
+           r.ack_type === 'edit' ? 'Run sheet edited' :
+           r.ack_type === 'upload' ? 'Schedule uploaded' :
+           r.ack_type === 'upload_errors' ? 'Uploaded with errors' :
+           r.ack_type === 'bypass_now' ? 'Bypassed for now' :
+           r.note || r.ack_type || '';
+  }
+  function eventColor(r) {
+    return r.ack_type === 'resolved' ? '#1a7a3c' :
+           r.ack_type === 'intentional' ? '#1a7a3c' :
+           r.ack_type === 'edit' ? '#1a7a3c' :
+           r.ack_type === 'upload' ? '#1a7a3c' :
+           r.ack_type === 'upload_errors' ? '#c8102e' :
+           r.ack_type === 'uncleared' ? '#888' :
+           r.ack_type === 'published' ? '#1a7a3c' : '#c8102e';
+  }
+  // Threads are only formed for events that represent a specific, traceable issue:
+  // schedule errors (raised -> overridden/acknowledged -> resolved) and Dom's Notes
+  // (published -> printed/acknowledged by each manager). Everything else (uploads,
+  // generic run-sheet edits with no linked error, one-off bypass decisions) stays
+  // as a standalone card since there's no "issue" to trace to completion.
+  var ERROR_ACK_TYPES = {intentional:1, mistake:1, uncleared:1, resolved:1};
 
   Promise.all([
-    fetch(SUPABASE_URL + '/rest/v1/override_log?order=logged_at.desc&limit=100', {
+    fetch(SUPABASE_URL + '/rest/v1/override_log?order=logged_at.desc&limit=150', {
       headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     }).then(function(r){ return r.json(); }).catch(function(){ return []; }),
     fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack?order=acknowledged_at.desc&limit=100', {
       headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.json(); }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=30', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     }).then(function(r){ return r.json(); }).catch(function(){ return []; })
   ]).then(function(results){
     var overrideRows = results[0] || [];
-    var domsRows = (results[1] || []).map(function(r){
+    var domsAckRows = results[1] || [];
+    var domsNotesById = {};
+    (results[2] || []).forEach(function(n){ domsNotesById[n.id] = n; });
+
+    var domsRows = domsAckRows.map(function(r){
       return {
         logged_at: r.acknowledged_at,
         who: r.acknowledged_by,
         dept: "Dom's Notes",
         msg: r.action === 'published' ? 'Note published' : r.action === 'printed' ? 'Note printed' : 'Note acknowledged',
         ack_type: r.action || 'acknowledged',
-        day_name: '', week_label: '', note: ''
+        day_name: '', week_label: '', note: '',
+        note_id: r.note_id
       };
     });
-    var rows = overrideRows.concat(domsRows).sort(function(a,b){
-      return new Date(b.logged_at) - new Date(a.logged_at);
-    });
-    if(!rows.length) {
+
+    var allRows = overrideRows.concat(domsRows);
+    if(!allRows.length) {
       body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No activity logged yet.</div>';
       return;
     }
-    var html = '';
-    rows.forEach(function(r){
-      var dt = r.logged_at ? new Date(r.logged_at) : null;
-      var dtStr = dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
-      var ackLabel = r.ack_type === 'intentional' ? 'Intentional decision' :
-                    r.ack_type === 'mistake' ? 'Mistake — will correct' :
-                    r.ack_type === 'published' ? 'Published by Dom' :
-                    r.ack_type === 'printed' ? 'Printed' :
-                    r.ack_type === 'acknowledged' ? 'Acknowledged' :
-                    r.ack_type === 'uncleared' ? 'Never cleared' :
-                    r.ack_type === 'edit' ? 'Run sheet edited' :
-                    r.ack_type === 'upload' ? 'Schedule uploaded' :
-                    r.ack_type === 'upload_errors' ? 'Uploaded with errors' :
-                    r.note || '';
-      var ackColor = r.ack_type === 'intentional' ? '#1a7a3c' :
-                    r.ack_type === 'edit' ? '#1a7a3c' :
-                    r.ack_type === 'upload' ? '#1a7a3c' :
-                    r.ack_type === 'upload_errors' ? '#c8102e' :
-                    r.ack_type === 'uncleared' ? '#888' :
-                    r.ack_type === 'published' ? '#1a7a3c' : '#c8102e';
-      html += '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">';
-      html += '<div style="font-size:13px;font-weight:700;color:#222;">'+(r.day_name||'')+(r.week_label?' — '+r.week_label:'')+'</div>';
-      html += '<div style="font-size:11px;color:#aaa;">'+dtStr+'</div>';
-      html += '</div>';
-      html += '<div style="font-size:12px;color:#c8102e;margin-bottom:4px;"><b>'+r.dept+'</b> — '+r.msg+'</div>';
-      html += '<div style="font-size:11px;font-weight:700;color:'+ackColor+';margin-bottom:2px;">'+ackLabel+'</div>';
-      html += '<div style="font-size:11px;color:#666;">'+(r.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged</i>':'By: <b>'+(r.who||'—')+'</b>')+'</div>';
-      html += '</div>';
+
+    // Group into threads. threadKey === null means "standalone" (own card, no grouping).
+    var threads = {}; // key -> array of rows
+    var standalone = [];
+    allRows.forEach(function(r){
+      var key = null;
+      if(r.dept === "Dom's Notes") {
+        key = 'doms:' + (r.note_id != null ? r.note_id : 'unknown-' + r.logged_at);
+      } else if(ERROR_ACK_TYPES[r.ack_type] && r.dept && r.msg) {
+        key = 'err:' + (r.week_label||'') + '|' + r.day_index + '|' + r.dept + '|' + r.msg;
+      }
+      if(key) {
+        if(!threads[key]) threads[key] = [];
+        threads[key].push(r);
+      } else {
+        standalone.push(r);
+      }
     });
+
+    // Build renderable thread objects
+    var threadCards = Object.keys(threads).map(function(key){
+      var events = threads[key].slice().sort(function(a,b){ return new Date(a.logged_at) - new Date(b.logged_at); });
+      var latest = events[events.length - 1];
+      var isDoms = key.indexOf('doms:') === 0;
+      var status, statusColor, headerTitle, headerSub;
+      if(isDoms) {
+        var noteId = events[0].note_id;
+        var note = noteId != null ? domsNotesById[noteId] : null;
+        var preview = note ? [note.drivers, note.foh, note.boh].filter(Boolean).join(' • ').slice(0,80) : '';
+        headerTitle = "Dom's Note" + (note && note.created_by ? ' — by ' + note.created_by : '');
+        headerSub = preview || '(note text unavailable)';
+        var ackedBy = {};
+        events.forEach(function(e){ if(e.ack_type === 'acknowledged' || e.ack_type === 'printed') ackedBy[e.who] = true; });
+        var missing = REQUIRED_ACK_MANAGERS.filter(function(m){ return !ackedBy[m]; });
+        if(missing.length === 0) { status = 'ACKNOWLEDGED'; statusColor = '#1a7a3c'; }
+        else { status = 'PENDING: ' + missing.join(', '); statusColor = '#c8102e'; }
+      } else {
+        headerTitle = latest.dept + (latest.day_name ? ' — ' + latest.day_name : '') + (latest.week_label ? ' — ' + latest.week_label : '');
+        headerSub = events[0].msg;
+        var wasResolved = events.some(function(e){ return e.ack_type === 'resolved'; });
+        status = wasResolved ? 'RESOLVED' : 'OPEN';
+        statusColor = wasResolved ? '#1a7a3c' : '#c8102e';
+      }
+      return {
+        latestTime: new Date(latest.logged_at),
+        html: (function(){
+          var h = '<div style="border:1px solid #eee;border-left:4px solid '+statusColor+';border-radius:10px;padding:12px;margin-bottom:10px;">';
+          h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">';
+          h += '<div style="font-size:13px;font-weight:700;color:#222;">'+headerTitle+'</div>';
+          h += '<div style="font-size:10px;font-weight:700;color:'+statusColor+';white-space:nowrap;margin-left:8px;">'+status+'</div>';
+          h += '</div>';
+          h += '<div style="font-size:12px;color:#c8102e;margin-bottom:8px;">'+headerSub+'</div>';
+          h += '<div style="border-top:1px solid #f2f2f2;padding-top:6px;">';
+          events.forEach(function(e){
+            h += '<div style="margin-bottom:6px;padding-left:8px;border-left:2px solid #eee;">';
+            h += '<div style="font-size:11px;font-weight:700;color:'+eventColor(e)+';">'+eventLabel(e)+'</div>';
+            h += '<div style="font-size:11px;color:#666;">'+(e.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged</i>':'By: <b>'+(e.who||'—')+'</b>')+' &nbsp;·&nbsp; '+fmtDt(e.logged_at)+'</div>';
+            h += '</div>';
+          });
+          h += '</div></div>';
+          return h;
+        })()
+      };
+    });
+
+    var standaloneCards = standalone.map(function(r){
+      return {
+        latestTime: new Date(r.logged_at),
+        html: '<div style="border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:10px;">'
+          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+          + '<div style="font-size:13px;font-weight:700;color:#222;">'+(r.day_name||'')+(r.week_label?' — '+r.week_label:'')+'</div>'
+          + '<div style="font-size:11px;color:#aaa;">'+fmtDt(r.logged_at)+'</div>'
+          + '</div>'
+          + '<div style="font-size:12px;color:#c8102e;margin-bottom:4px;"><b>'+r.dept+'</b> — '+r.msg+'</div>'
+          + '<div style="font-size:11px;font-weight:700;color:'+eventColor(r)+';margin-bottom:2px;">'+eventLabel(r)+'</div>'
+          + '<div style="font-size:11px;color:#666;">'+(r.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged</i>':'By: <b>'+(r.who||'—')+'</b>')+'</div>'
+          + '</div>'
+      };
+    });
+
+    var allCards = threadCards.concat(standaloneCards).sort(function(a,b){ return b.latestTime - a.latestTime; });
+    var html = allCards.map(function(c){ return c.html; }).join('');
     body.innerHTML = html;
   }).catch(function(e){
     body.innerHTML = '<div style="color:#c8102e;font-size:13px;text-align:center;padding:20px;">Failed to load log.</div>';
@@ -8883,10 +9085,11 @@ function saveDomsNote() {
   }).then(function(){
     return fetch(SUPABASE_URL + '/rest/v1/doms_notes', {
       method: 'POST',
-      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=representation'},
       body: JSON.stringify([entry])
     });
-  }).then(function(){
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    var newNoteId = (rows && rows.length) ? rows[0].id : null;
     document.getElementById('doms-notes-panel').style.display = 'none';
     localStorage.removeItem('zp_doms_dismiss_count');
     localStorage.removeItem('zp_doms_note_seen_id');
@@ -8894,11 +9097,11 @@ function saveDomsNote() {
     document.getElementById('doms-note-drivers').value = '';
     document.getElementById('doms-note-foh').value = '';
     document.getElementById('doms-note-boh').value = '';
-    // Log the publish action
+    // Log the publish action (tied to the new note's thread)
     fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
       method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body: JSON.stringify([{note_id: null, acknowledged_by: getCurrentUser(), acknowledged_at: new Date().toISOString(), action: 'published'}])
+      body: JSON.stringify([{note_id: newNoteId, acknowledged_by: getCurrentUser(), acknowledged_at: new Date().toISOString(), action: 'published'}])
     }).catch(function(){});
     alert('Note published.');
   }).catch(function(e){ alert('Failed to save note: ' + e.message); });
