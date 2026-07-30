@@ -3877,6 +3877,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" onclick="showTab('schedule',this)">Schedule</button>
     <button class="nav-btn" onclick="showTab('private',this)">Private</button>
     <button class="nav-btn" onclick="showTab('hitlist',this)">Heat Map</button>
+    <button class="nav-btn" onclick="showTab('drawer',this)">💰 Drawer Count</button>
     <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
@@ -3988,6 +3989,44 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="day-tab" onclick="selectHitlistDay(6)">Sun</button>
   </div>
   <div id="hitlist-content"></div>
+</div>
+
+<!-- DRAWER COUNT -->
+<div id="tab-drawer" class="main" style="display:none">
+  <div class="report-header">
+    <div class="report-title">DRAWER COUNT</div>
+    <div class="report-sub">Count coins, rolls &amp; bills — auto-calculates pull vs $250 starting balance</div>
+  </div>
+
+  <div id="drawer-register-picker" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
+
+  <div id="drawer-count-form" style="display:none;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <label style="font-size:12px;color:#666;font-weight:700;">Date:</label>
+      <input type="date" id="drawer-count-date" style="border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
+    </div>
+
+    <div id="drawer-section-coins"></div>
+    <div id="drawer-section-rolls" style="margin-top:16px;"></div>
+    <div id="drawer-section-bills" style="margin-top:16px;"></div>
+
+    <div id="drawer-total-box" style="margin-top:18px;border-radius:10px;padding:14px;background:#f7f7f5;text-align:center;">
+      <div style="font-size:11px;color:#888;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;">Total in Drawer</div>
+      <div id="drawer-total-amount" style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:#222;">$0.00</div>
+      <div id="drawer-pull-line" style="font-size:15px;font-weight:700;margin-top:4px;">—</div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveDrawerCount()">💾 Save Count</button>
+      <button class="btn btn-secondary" onclick="cancelDrawerCount()">Cancel</button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:26px;margin-bottom:8px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;">Recent Counts</div>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="printDrawerCounts()">🖨 Print Tonight's Counts</button>
+  </div>
+  <div id="drawer-recent-list" style="font-size:13px;color:#aaa;">Loading...</div>
 </div>
 
 <!-- UPDATE SCHEDULE -->
@@ -4559,7 +4598,7 @@ let currentDay = 0;
 
 function showTab(tab, btn) {
   currentTab = tab;
-  ['runsheets','schedule','private','hitlist','update','rules'].forEach(t => {
+  ['runsheets','schedule','private','hitlist','update','rules','drawer'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
   });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -4567,6 +4606,7 @@ function showTab(tab, btn) {
   window.scrollTo(0,0);
   if(tab==='schedule') renderSchedule();
   if(tab==='hitlist') renderHitList();
+  if(tab==='drawer') renderDrawerTab();
   if(tab==='update') {
     // Lock update tab every time you navigate to it
     document.getElementById('update-lock').style.display='flex';
@@ -5595,6 +5635,262 @@ function printWageRoster() {
   deliverPDF(new Blob([pdf],{type:'application/pdf'}),'Zazzos-WageRoster.pdf');
 }
 
+
+// ---------------------------------------------------------------------------
+// DRAWER COUNT — coins/rolls/bills entry, per-register, saved to Supabase
+// (drawer_counts table), with a $250 starting balance used to compute the
+// nightly pull (or flag a shortage). Built to help catch discrepancies early.
+// ---------------------------------------------------------------------------
+var DRAWER_REGISTERS = ['5','8','3','12','9'];
+var DRAWER_STARTING_BALANCE = 250;
+var DRAWER_ITEMS = {
+  coins: [
+    {id:'penny',   label:'Penny',   value:0.01},
+    {id:'nickel',  label:'Nickel',  value:0.05},
+    {id:'dime',    label:'Dime',    value:0.10},
+    {id:'quarter', label:'Quarter', value:0.25}
+  ],
+  rolls: [
+    {id:'pennyRoll',   label:'Penny Roll (50/roll)',   value:0.50},
+    {id:'nickelRoll',  label:'Nickel Roll (40/roll)',  value:2.00},
+    {id:'dimeRoll',    label:'Dime Roll (50/roll)',    value:5.00},
+    {id:'quarterRoll', label:'Quarter Roll (40/roll)', value:10.00}
+  ],
+  bills: [
+    {id:'b1',   label:'$1',   value:1},
+    {id:'b5',   label:'$5',   value:5},
+    {id:'b10',  label:'$10',  value:10},
+    {id:'b20',  label:'$20',  value:20},
+    {id:'b50',  label:'$50',  value:50},
+    {id:'b100', label:'$100', value:100}
+  ]
+};
+var _drawerSelectedRegister = null;
+
+function renderDrawerTab() {
+  var picker = document.getElementById('drawer-register-picker');
+  picker.innerHTML = DRAWER_REGISTERS.map(function(r){
+    return '<button class="btn btn-secondary drawer-reg-btn" data-reg="'+r+'" onclick="selectDrawerRegister(\''+r+'\')" style="flex:1;min-width:70px;">Register '+r+'</button>';
+  }).join('');
+  loadRecentDrawerCounts();
+}
+
+function selectDrawerRegister(reg) {
+  _drawerSelectedRegister = reg;
+  document.querySelectorAll('.drawer-reg-btn').forEach(function(b){
+    b.classList.toggle('btn-primary', b.getAttribute('data-reg') === reg);
+    b.classList.toggle('btn-secondary', b.getAttribute('data-reg') !== reg);
+  });
+  document.getElementById('drawer-count-form').style.display = 'block';
+  var dateInput = document.getElementById('drawer-count-date');
+  if(!dateInput.value) {
+    var now = new Date();
+    dateInput.value = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+  }
+  function buildSection(containerId, title, items) {
+    var html = '<div style="font-size:11px;font-weight:700;color:#888;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:6px;">'+title+'</div>';
+    items.forEach(function(it){
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
+        + '<div style="font-size:13px;color:#333;">'+it.label+'</div>'
+        + '<input type="number" inputmode="numeric" min="0" id="drawer-qty-'+it.id+'" value="0" oninput="recalcDrawerTotal()" style="width:70px;text-align:right;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;">'
+        + '</div>';
+    });
+    document.getElementById(containerId).innerHTML = html;
+  }
+  buildSection('drawer-section-coins', 'Loose Coins', DRAWER_ITEMS.coins);
+  buildSection('drawer-section-rolls', 'Rolls',       DRAWER_ITEMS.rolls);
+  buildSection('drawer-section-bills', 'Bills',        DRAWER_ITEMS.bills);
+  recalcDrawerTotal();
+}
+
+function cancelDrawerCount() {
+  _drawerSelectedRegister = null;
+  document.getElementById('drawer-count-form').style.display = 'none';
+  document.querySelectorAll('.drawer-reg-btn').forEach(function(b){
+    b.classList.remove('btn-primary'); b.classList.add('btn-secondary');
+  });
+}
+
+function recalcDrawerTotal() {
+  var total = 0;
+  ['coins','rolls','bills'].forEach(function(sec){
+    DRAWER_ITEMS[sec].forEach(function(it){
+      var el = document.getElementById('drawer-qty-'+it.id);
+      var qty = el ? (parseInt(el.value, 10) || 0) : 0;
+      total += qty * it.value;
+    });
+  });
+  document.getElementById('drawer-total-amount').textContent = '$' + total.toFixed(2);
+  var pullLine = document.getElementById('drawer-pull-line');
+  var diff = total - DRAWER_STARTING_BALANCE;
+  if(Math.abs(diff) < 0.005) {
+    pullLine.textContent = 'Even — no pull needed';
+    pullLine.style.color = '#666';
+  } else if(diff > 0) {
+    pullLine.textContent = 'PULL $' + diff.toFixed(2);
+    pullLine.style.color = '#1a7a3c';
+  } else {
+    pullLine.textContent = '⚠️ SHORT $' + Math.abs(diff).toFixed(2);
+    pullLine.style.color = '#c8102e';
+  }
+  return total;
+}
+
+function saveDrawerCount() {
+  if(!_drawerSelectedRegister) { alert('Select a register first.'); return; }
+  var dateVal = document.getElementById('drawer-count-date').value;
+  if(!dateVal) { alert('Please set the count date.'); return; }
+  var breakdown = {};
+  ['coins','rolls','bills'].forEach(function(sec){
+    breakdown[sec] = {};
+    DRAWER_ITEMS[sec].forEach(function(it){
+      var el = document.getElementById('drawer-qty-'+it.id);
+      breakdown[sec][it.id] = el ? (parseInt(el.value, 10) || 0) : 0;
+    });
+  });
+  var total = recalcDrawerTotal();
+  var pull = total - DRAWER_STARTING_BALANCE;
+  var entry = {
+    register: _drawerSelectedRegister,
+    count_date: dateVal,
+    counted_by: getCurrentUser(),
+    counted_at: new Date().toISOString(),
+    counts_json: JSON.stringify(breakdown),
+    total: Math.round(total * 100) / 100,
+    starting_balance: DRAWER_STARTING_BALANCE,
+    pull_amount: Math.round(pull * 100) / 100
+  };
+  fetch(SUPABASE_URL + '/rest/v1/drawer_counts', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([entry])
+  }).then(function(r){
+    if(!r.ok) throw new Error('Save failed');
+    alert('Register ' + _drawerSelectedRegister + ' count saved.');
+    cancelDrawerCount();
+    loadRecentDrawerCounts();
+  }).catch(function(e){ alert('Failed to save: ' + e.message); });
+}
+
+function loadRecentDrawerCounts() {
+  var list = document.getElementById('drawer-recent-list');
+  fetch(SUPABASE_URL + '/rest/v1/drawer_counts?order=count_date.desc,counted_at.desc&limit=75', {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(!rows || !rows.length) {
+      list.innerHTML = '<div style="color:#aaa;font-size:13px;">No counts logged yet.</div>';
+      return;
+    }
+    var byDate = {};
+    var dateOrder = [];
+    rows.forEach(function(r){
+      if(!byDate[r.count_date]) { byDate[r.count_date] = []; dateOrder.push(r.count_date); }
+      byDate[r.count_date].push(r);
+    });
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var html = '';
+    dateOrder.forEach(function(d){
+      var dt = new Date(d + 'T12:00:00');
+      html += '<div style="font-size:12px;font-weight:700;color:#666;margin:10px 0 4px;">'+months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+'</div>';
+      byDate[d].sort(function(a,b){ return a.register.localeCompare(b.register, undefined, {numeric:true}); }).forEach(function(r){
+        var isShort = r.pull_amount < -0.005;
+        var pullLabel = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2));
+        var t = new Date(r.counted_at);
+        var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
+          + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+'</div>'
+          + '<div style="font-size:11px;color:#888;">'+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+'</div></div>'
+          + '<div style="font-size:13px;font-weight:700;color:'+(isShort?'#c8102e':'#1a7a3c')+';">'+pullLabel+'</div>'
+          + '</div>';
+      });
+    });
+    list.innerHTML = html;
+  }).catch(function(){ list.innerHTML = '<div style="color:#c8102e;font-size:13px;">Failed to load recent counts.</div>'; });
+}
+
+function printDrawerCounts() {
+  var todayStr = (function(){ var n=new Date(); return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); })();
+  fetch(SUPABASE_URL + '/rest/v1/drawer_counts?count_date=eq.' + todayStr + '&order=register.asc', {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    if(!rows || !rows.length) { alert('No drawer counts logged for today yet.'); return; }
+    var blob = buildDrawerCountsPDF(todayStr, rows);
+    deliverPDF(blob, 'Zazzos-DrawerCounts-' + todayStr + '.pdf');
+  }).catch(function(e){ alert('Failed to load counts: ' + e.message); });
+}
+
+function buildDrawerCountsPDF(dateStr, rows) {
+  var PW=612, PH=792, M=32;
+  var pages=[''], headed={};
+  function n(x){return Math.round(x*100)/100;}
+  function Y(y){return PH-y;}
+  function esc(s){s=(s==null?'':String(s));var o='';for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c===92)o+='\\\\';else if(c===40)o+='\\(';else if(c===41)o+='\\)';else if(c>=32&&c<127)o+=s[i];else o+='?';}return o;}
+  function rect(p,x,y,w,h,col){pages[p]+=n(col[0])+' '+n(col[1])+' '+n(col[2])+' rg '+n(x)+' '+n(Y(y+h))+' '+n(w)+' '+n(h)+' re f\n';}
+  function line(p,x1,y1,x2,y2,col,lw){pages[p]+=n(lw||0.5)+' w '+n(col[0])+' '+n(col[1])+' '+n(col[2])+' RG '+n(x1)+' '+n(Y(y1))+' m '+n(x2)+' '+n(Y(y2))+' l S\n';}
+  function text(p,x,y,s,sz,bold,col){col=col||[0,0,0];pages[p]+='BT '+n(col[0])+' '+n(col[1])+' '+n(col[2])+' rg /'+(bold?'F2':'F1')+' '+n(sz)+' Tf '+n(x)+' '+n(Y(y))+' Td ('+esc(s)+') Tj ET\n';}
+  function tw(s,sz){return String(s||'').length*sz*0.52;}
+  function rtext(p,x,y,s,sz,bold,col){text(p,x-tw(s,sz),y,s,sz,bold,col);}
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dt = new Date(dateStr + 'T12:00:00');
+  var dateLabel = months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear();
+  var CN=M+4, CB=M+130, CT=M+230, CR=PW-M-4;
+  function ensurePage(pg){
+    while(pages.length<=pg)pages.push('');
+    if(!headed[pg]){headed[pg]=true;
+      rect(pg,0,0,PW,28,[0.89,0.063,0.063]);
+      text(pg,M,20,"ZAZZO'S -- DRAWER COUNTS",14,true,[1,1,1]);
+      rtext(pg,PW-M,19,dateLabel+' -- CONFIDENTIAL',9,false,[1,0.85,0.85]);
+      rect(pg,M,36,PW-2*M,13,[0.94,0.93,0.91]);
+      text(pg,CN,46,'REGISTER',7,true,[0.5,0.5,0.5]);
+      text(pg,CB,46,'COUNTED BY / TIME',7,true,[0.5,0.5,0.5]);
+      text(pg,CT,46,'TOTAL',7,true,[0.5,0.5,0.5]);
+      rtext(pg,CR,46,'PULL / SHORT',7,true,[0.5,0.5,0.5]);
+      line(pg,M,50,PW-M,50,[0.8,0.8,0.8],0.5);
+    }
+  }
+  ensurePage(0);
+  var p=0, y=58, bot=PH-M, rH=22;
+  function pb(need){ if(y+need>bot){ p+=1; ensurePage(p); y=58; } }
+  var totalAll=0, totalPull=0, shortCount=0;
+  rows.forEach(function(r, idx){
+    pb(rH);
+    if(idx%2===1) rect(p,M,y,PW-2*M,rH,[0.975,0.975,0.97]);
+    var isShort = r.pull_amount < -0.005;
+    var t = new Date(r.counted_at);
+    var timeStr = ((t.getHours()%12)||12)+':'+String(t.getMinutes()).padStart(2,'0')+(t.getHours()>=12?'PM':'AM');
+    text(p,CN,y+14,'Register '+r.register,9.5,true,[0,0,0]);
+    text(p,CB,y+14,(r.counted_by||'—')+' / '+timeStr,8.5,false,[0.4,0.4,0.4]);
+    text(p,CT,y+14,'$'+Number(r.total).toFixed(2),9.5,false,[0,0,0]);
+    var pullStr = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+Number(r.pull_amount).toFixed(2));
+    rtext(p,CR,y+14,pullStr, 9.5, true, isShort ? [0.79,0.06,0.06] : [0.1,0.47,0.24]);
+    line(p,M,y+rH-1,PW-M,y+rH-1,[0.92,0.92,0.92],0.3);
+    totalAll += Number(r.total);
+    totalPull += Number(r.pull_amount);
+    if(isShort) shortCount++;
+    y += rH;
+  });
+  pb(26);
+  y += 4;
+  rect(p,M,y,PW-2*M,20,[0.12,0.12,0.12]);
+  text(p,M+8,y+14,'TOTAL COUNTED: $'+totalAll.toFixed(2)+'   |   NET PULL: $'+totalPull.toFixed(2)+(shortCount?'   |   '+shortCount+' REGISTER(S) SHORT':''),9,true,[1,1,1]);
+  y += 30;
+  text(p,M,y+9,'Starting balance target: $'+DRAWER_STARTING_BALANCE.toFixed(2)+' per register. Opening manager: verify each register above against the physical drawer.',7.5,false,[0.55,0.55,0.55]);
+  var objs=[];function addObj(s){objs.push(s);return objs.length;}
+  var fN=addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  var fB=addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+  var cIds=pages.map(function(c){return addObj('<< /Length '+c.length+' >>\nstream\n'+c+'endstream');});
+  var pIds=[],psId=objs.length+pages.length+1;
+  cIds.forEach(function(cid){pIds.push(addObj('<< /Type /Page /Parent '+psId+' 0 R /MediaBox [0 0 '+PW+' '+PH+'] /Contents '+cid+' 0 R /Resources << /Font << /F1 '+fN+' 0 R /F2 '+fB+' 0 R >> >> >>'));});
+  addObj('<< /Type /Pages /Kids ['+pIds.map(function(i){return i+' 0 R';}).join(' ')+'] /Count '+pIds.length+' >>');
+  var catId=addObj('<< /Type /Catalog /Pages '+(objs.length)+' 0 R >>');
+  var pdf='%PDF-1.4\n',offs=[];
+  objs.forEach(function(o,i){offs.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+o+'\nendobj\n';});
+  var xs=pdf.length;
+  pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n';
+  offs.forEach(function(o){pdf+=('0000000000'+o).slice(-10)+' 00000 n \n';});
+  pdf+='trailer\n<< /Size '+(objs.length+1)+' /Root '+catId+' 0 R >>\nstartxref\n'+xs+'\n%%EOF';
+  return new Blob([pdf],{type:'application/pdf'});
+}
 
 function renderRunSheet(di) {
   const el = document.getElementById('run-sheet-display');
