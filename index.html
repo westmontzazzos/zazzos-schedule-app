@@ -5692,7 +5692,7 @@ function selectDrawerRegister(reg) {
     items.forEach(function(it){
       html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0;">'
         + '<div style="font-size:13px;color:#333;">'+it.label+'</div>'
-        + '<input type="number" inputmode="numeric" min="0" id="drawer-qty-'+it.id+'" value="0" oninput="recalcDrawerTotal()" style="width:70px;text-align:right;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;">'
+        + '<input type="number" inputmode="numeric" min="0" id="drawer-qty-'+it.id+'" placeholder="0" style="width:70px;text-align:right;border:1px solid #ddd;border-radius:6px;padding:5px 8px;font-size:13px;" oninput="recalcDrawerTotal()">'
         + '</div>';
     });
     document.getElementById(containerId).innerHTML = html;
