@@ -3995,15 +3995,19 @@ document.addEventListener("DOMContentLoaded",function(){
 <div id="tab-drawer" class="main" style="display:none">
   <div class="report-header">
     <div class="report-title">DRAWER COUNT</div>
-    <div class="report-sub">Count coins, rolls &amp; bills — auto-calculates pull vs $250 starting balance</div>
+    <div class="report-sub">Count coins, rolls &amp; bills — enter what the register opened at, and it'll calculate the correct pull</div>
   </div>
 
   <div id="drawer-register-picker" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
 
   <div id="drawer-count-form" style="display:none;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
       <label style="font-size:12px;color:#666;font-weight:700;">Date:</label>
       <input type="date" id="drawer-count-date" style="border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <label style="font-size:12px;color:#666;font-weight:700;">What did the register open at?</label>
+      <input type="number" inputmode="decimal" step="0.01" id="drawer-opening-amount" value="250" oninput="recalcDrawerTotal()" style="width:90px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;text-align:right;">
     </div>
 
     <div id="drawer-section-coins"></div>
@@ -5682,6 +5686,7 @@ function selectDrawerRegister(reg) {
     b.classList.toggle('btn-secondary', b.getAttribute('data-reg') !== reg);
   });
   document.getElementById('drawer-count-form').style.display = 'block';
+  document.getElementById('drawer-opening-amount').value = DRAWER_STARTING_BALANCE;
   var dateInput = document.getElementById('drawer-count-date');
   if(!dateInput.value) {
     var now = new Date();
@@ -5722,7 +5727,9 @@ function recalcDrawerTotal() {
   });
   document.getElementById('drawer-total-amount').textContent = '$' + total.toFixed(2);
   var pullLine = document.getElementById('drawer-pull-line');
-  var diff = total - DRAWER_STARTING_BALANCE;
+  var openingEl = document.getElementById('drawer-opening-amount');
+  var openingAmt = openingEl ? (parseFloat(openingEl.value) || 0) : DRAWER_STARTING_BALANCE;
+  var diff = total - openingAmt;
   if(Math.abs(diff) < 0.005) {
     pullLine.textContent = 'Even — no pull needed';
     pullLine.style.color = '#666';
@@ -5749,7 +5756,8 @@ function saveDrawerCount() {
     });
   });
   var total = recalcDrawerTotal();
-  var pull = total - DRAWER_STARTING_BALANCE;
+  var openingAmt = parseFloat(document.getElementById('drawer-opening-amount').value) || 0;
+  var pull = total - openingAmt;
   var entry = {
     register: _drawerSelectedRegister,
     count_date: dateVal,
@@ -5757,7 +5765,7 @@ function saveDrawerCount() {
     counted_at: new Date().toISOString(),
     counts_json: JSON.stringify(breakdown),
     total: Math.round(total * 100) / 100,
-    starting_balance: DRAWER_STARTING_BALANCE,
+    starting_balance: Math.round(openingAmt * 100) / 100,
     pull_amount: Math.round(pull * 100) / 100
   };
   fetch(SUPABASE_URL + '/rest/v1/drawer_counts', {
@@ -5797,9 +5805,10 @@ function loadRecentDrawerCounts() {
         var pullLabel = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2));
         var t = new Date(r.counted_at);
         var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
+        var openedNote = (r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
         html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
           + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+'</div>'
-          + '<div style="font-size:11px;color:#888;">'+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+'</div></div>'
+          + '<div style="font-size:11px;color:#888;">'+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+openedNote+'</div></div>'
           + '<div style="font-size:13px;font-weight:700;color:'+(isShort?'#c8102e':'#1a7a3c')+';">'+pullLabel+'</div>'
           + '</div>';
       });
@@ -5874,7 +5883,7 @@ function buildDrawerCountsPDF(dateStr, rows) {
   rect(p,M,y,PW-2*M,20,[0.12,0.12,0.12]);
   text(p,M+8,y+14,'TOTAL COUNTED: $'+totalAll.toFixed(2)+'   |   NET PULL: $'+totalPull.toFixed(2)+(shortCount?'   |   '+shortCount+' REGISTER(S) SHORT':''),9,true,[1,1,1]);
   y += 30;
-  text(p,M,y+9,'Starting balance target: $'+DRAWER_STARTING_BALANCE.toFixed(2)+' per register. Opening manager: verify each register above against the physical drawer.',7.5,false,[0.55,0.55,0.55]);
+  text(p,M,y+9,'Pull/short is calculated against each register\'s recorded opening amount for that night. Opening manager: verify each register above against the physical drawer.',7.5,false,[0.55,0.55,0.55]);
   var objs=[];function addObj(s){objs.push(s);return objs.length;}
   var fN=addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
   var fB=addObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
