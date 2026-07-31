@@ -4002,6 +4002,10 @@ document.addEventListener("DOMContentLoaded",function(){
 
   <div id="drawer-count-form" style="display:none;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <label style="font-size:12px;color:#666;font-weight:700;">Who was on this drawer?</label>
+      <input type="text" id="drawer-cashier-name" placeholder="Name" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
       <label style="font-size:12px;color:#666;font-weight:700;">Date:</label>
       <input type="date" id="drawer-count-date" style="border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
     </div>
@@ -4030,6 +4034,34 @@ document.addEventListener("DOMContentLoaded",function(){
     <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;">Recent Counts</div>
     <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="printDrawerCounts()">🖨 Print Tonight's Counts</button>
   </div>
+
+  <div style="border:1px solid #eee;border-radius:10px;padding:10px;margin-bottom:10px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+      <input type="text" id="drawer-search-name" placeholder="Search by name (cashier or manager)" style="flex:1;min-width:160px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
+      <select id="drawer-search-register" style="border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
+        <option value="">All registers</option>
+        <option value="5">Register 5</option>
+        <option value="8">Register 8</option>
+        <option value="3">Register 3</option>
+        <option value="12">Register 12</option>
+        <option value="9">Register 9</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <label style="font-size:11px;color:#666;">From:</label>
+      <input type="date" id="drawer-search-from" style="border:1px solid #ddd;border-radius:8px;padding:6px 8px;font-size:12px;">
+      <label style="font-size:11px;color:#666;">To:</label>
+      <input type="date" id="drawer-search-to" style="border:1px solid #ddd;border-radius:8px;padding:6px 8px;font-size:12px;">
+      <label style="font-size:12px;color:#666;display:flex;align-items:center;gap:4px;margin-left:auto;">
+        <input type="checkbox" id="drawer-search-shorts-only"> Shorts only
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-primary" style="flex:1;padding:8px;font-size:13px;" onclick="searchDrawerCounts()">🔍 Search</button>
+      <button class="btn btn-secondary" style="padding:8px 14px;font-size:13px;" onclick="clearDrawerSearch()">Clear</button>
+    </div>
+  </div>
+
   <div id="drawer-recent-list" style="font-size:13px;color:#aaa;">Loading...</div>
 </div>
 
@@ -5687,6 +5719,7 @@ function selectDrawerRegister(reg) {
   });
   document.getElementById('drawer-count-form').style.display = 'block';
   document.getElementById('drawer-opening-amount').value = DRAWER_STARTING_BALANCE;
+  document.getElementById('drawer-cashier-name').value = '';
   var dateInput = document.getElementById('drawer-count-date');
   if(!dateInput.value) {
     var now = new Date();
@@ -5747,6 +5780,8 @@ function saveDrawerCount() {
   if(!_drawerSelectedRegister) { alert('Select a register first.'); return; }
   var dateVal = document.getElementById('drawer-count-date').value;
   if(!dateVal) { alert('Please set the count date.'); return; }
+  var cashierName = document.getElementById('drawer-cashier-name').value.trim();
+  if(!cashierName) { alert('Enter who was on this drawer before saving.'); return; }
   var breakdown = {};
   ['coins','rolls','bills'].forEach(function(sec){
     breakdown[sec] = {};
@@ -5761,6 +5796,7 @@ function saveDrawerCount() {
   var entry = {
     register: _drawerSelectedRegister,
     count_date: dateVal,
+    cashier_name: cashierName,
     counted_by: getCurrentUser(),
     counted_at: new Date().toISOString(),
     counts_json: JSON.stringify(breakdown),
@@ -5780,41 +5816,85 @@ function saveDrawerCount() {
   }).catch(function(e){ alert('Failed to save: ' + e.message); });
 }
 
+function renderDrawerCountRows(rows, list) {
+  if(!rows || !rows.length) {
+    list.innerHTML = '<div style="color:#aaa;font-size:13px;">No counts found.</div>';
+    return;
+  }
+  var byDate = {};
+  var dateOrder = [];
+  rows.forEach(function(r){
+    if(!byDate[r.count_date]) { byDate[r.count_date] = []; dateOrder.push(r.count_date); }
+    byDate[r.count_date].push(r);
+  });
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var html = '';
+  dateOrder.forEach(function(d){
+    var dt = new Date(d + 'T12:00:00');
+    html += '<div style="font-size:12px;font-weight:700;color:#666;margin:10px 0 4px;">'+months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+'</div>';
+    byDate[d].sort(function(a,b){ return a.register.localeCompare(b.register, undefined, {numeric:true}) || new Date(a.counted_at)-new Date(b.counted_at); }).forEach(function(r){
+      var isShort = r.pull_amount < -0.005;
+      var pullLabel = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2));
+      var t = new Date(r.counted_at);
+      var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
+      var openedNote = (r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
+        + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+(r.cashier_name?' — '+r.cashier_name:'')+'</div>'
+        + '<div style="font-size:11px;color:#888;">Counted by '+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+openedNote+'</div></div>'
+        + '<div style="font-size:13px;font-weight:700;color:'+(isShort?'#c8102e':'#1a7a3c')+';">'+pullLabel+'</div>'
+        + '</div>';
+    });
+  });
+  list.innerHTML = html;
+}
+
 function loadRecentDrawerCounts() {
   var list = document.getElementById('drawer-recent-list');
   fetch(SUPABASE_URL + '/rest/v1/drawer_counts?order=count_date.desc,counted_at.desc&limit=75', {
     headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
   }).then(function(r){ return r.json(); }).then(function(rows){
-    if(!rows || !rows.length) {
-      list.innerHTML = '<div style="color:#aaa;font-size:13px;">No counts logged yet.</div>';
-      return;
-    }
-    var byDate = {};
-    var dateOrder = [];
-    rows.forEach(function(r){
-      if(!byDate[r.count_date]) { byDate[r.count_date] = []; dateOrder.push(r.count_date); }
-      byDate[r.count_date].push(r);
-    });
-    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var html = '';
-    dateOrder.forEach(function(d){
-      var dt = new Date(d + 'T12:00:00');
-      html += '<div style="font-size:12px;font-weight:700;color:#666;margin:10px 0 4px;">'+months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+'</div>';
-      byDate[d].sort(function(a,b){ return a.register.localeCompare(b.register, undefined, {numeric:true}); }).forEach(function(r){
-        var isShort = r.pull_amount < -0.005;
-        var pullLabel = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2));
-        var t = new Date(r.counted_at);
-        var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
-        var openedNote = (r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
-          + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+'</div>'
-          + '<div style="font-size:11px;color:#888;">'+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+openedNote+'</div></div>'
-          + '<div style="font-size:13px;font-weight:700;color:'+(isShort?'#c8102e':'#1a7a3c')+';">'+pullLabel+'</div>'
-          + '</div>';
-      });
-    });
-    list.innerHTML = html;
+    renderDrawerCountRows(rows, list);
   }).catch(function(){ list.innerHTML = '<div style="color:#c8102e;font-size:13px;">Failed to load recent counts.</div>'; });
+}
+
+// Search across all saved counts — by name (cashier or manager), register, date range,
+// and/or shorts-only. This is the reconciliation tool: pull up everything one person
+// has ever counted, or every shortage in a date range, to actually trace a discrepancy
+// to a person instead of just "the register was off."
+function searchDrawerCounts() {
+  var list = document.getElementById('drawer-recent-list');
+  list.innerHTML = '<div style="color:#aaa;font-size:13px;">Searching...</div>';
+  var nameVal = document.getElementById('drawer-search-name').value.trim();
+  var regVal = document.getElementById('drawer-search-register').value;
+  var fromVal = document.getElementById('drawer-search-from').value;
+  var toVal = document.getElementById('drawer-search-to').value;
+  var shortsOnly = document.getElementById('drawer-search-shorts-only').checked;
+
+  var params = ['order=count_date.desc,counted_at.desc', 'limit=500'];
+  if(regVal) params.push('register=eq.' + encodeURIComponent(regVal));
+  if(fromVal) params.push('count_date=gte.' + fromVal);
+  if(toVal) params.push('count_date=lte.' + toVal);
+  if(shortsOnly) params.push('pull_amount=lt.-0.005');
+  // Name can match either whoever counted it (manager) or whoever was on the drawer (cashier)
+  if(nameVal) {
+    var esc = nameVal.replace(/,/g, '');
+    params.push('or=(cashier_name.ilike.*' + encodeURIComponent(esc) + '*,counted_by.ilike.*' + encodeURIComponent(esc) + '*)');
+  }
+
+  fetch(SUPABASE_URL + '/rest/v1/drawer_counts?' + params.join('&'), {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.json(); }).then(function(rows){
+    renderDrawerCountRows(rows, list);
+  }).catch(function(){ list.innerHTML = '<div style="color:#c8102e;font-size:13px;">Search failed.</div>'; });
+}
+
+function clearDrawerSearch() {
+  document.getElementById('drawer-search-name').value = '';
+  document.getElementById('drawer-search-register').value = '';
+  document.getElementById('drawer-search-from').value = '';
+  document.getElementById('drawer-search-to').value = '';
+  document.getElementById('drawer-search-shorts-only').checked = false;
+  loadRecentDrawerCounts();
 }
 
 function printDrawerCounts() {
@@ -5842,7 +5922,7 @@ function buildDrawerCountsPDF(dateStr, rows) {
   var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var dt = new Date(dateStr + 'T12:00:00');
   var dateLabel = months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear();
-  var CN=M+4, CB=M+130, CT=M+230, CR=PW-M-4;
+  var CN=M+4, CC=M+95, CB=M+230, CT=M+330, CR=PW-M-4;
   function ensurePage(pg){
     while(pages.length<=pg)pages.push('');
     if(!headed[pg]){headed[pg]=true;
@@ -5851,6 +5931,7 @@ function buildDrawerCountsPDF(dateStr, rows) {
       rtext(pg,PW-M,19,dateLabel+' -- CONFIDENTIAL',9,false,[1,0.85,0.85]);
       rect(pg,M,36,PW-2*M,13,[0.94,0.93,0.91]);
       text(pg,CN,46,'REGISTER',7,true,[0.5,0.5,0.5]);
+      text(pg,CC,46,'CASHIER',7,true,[0.5,0.5,0.5]);
       text(pg,CB,46,'COUNTED BY / TIME',7,true,[0.5,0.5,0.5]);
       text(pg,CT,46,'TOTAL',7,true,[0.5,0.5,0.5]);
       rtext(pg,CR,46,'PULL / SHORT',7,true,[0.5,0.5,0.5]);
@@ -5868,6 +5949,7 @@ function buildDrawerCountsPDF(dateStr, rows) {
     var t = new Date(r.counted_at);
     var timeStr = ((t.getHours()%12)||12)+':'+String(t.getMinutes()).padStart(2,'0')+(t.getHours()>=12?'PM':'AM');
     text(p,CN,y+14,'Register '+r.register,9.5,true,[0,0,0]);
+    text(p,CC,y+14,r.cashier_name||'—',8.5,false,[0.3,0.3,0.3]);
     text(p,CB,y+14,(r.counted_by||'—')+' / '+timeStr,8.5,false,[0.4,0.4,0.4]);
     text(p,CT,y+14,'$'+Number(r.total).toFixed(2),9.5,false,[0,0,0]);
     var pullStr = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+Number(r.pull_amount).toFixed(2));
