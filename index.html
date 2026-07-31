@@ -6100,7 +6100,7 @@ async function saveSchedInlineEdits() {
     var name = inp.dataset.name;
     var di = parseInt(inp.dataset.di);
     var val = inp.value.trim() || null;
-    var secObj = {DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
+    var secObj = {MANAGERS:MANAGERS,DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
     if(secObj && secObj[name] !== undefined) secObj[name][di] = val;
   });
   // Save to Supabase using same format as existing editor
