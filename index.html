@@ -7529,7 +7529,7 @@ function checkForResolvedErrors(preEditFlagged) {
   }, 700); // after refreshErrorModalAfterSave's checkScheduleErrors() has updated window._currentErrors
 }
 
-var errorsBypassed = false;  // suppressed for this session once dismissed
+var errorsBypassed = false;  // kept for compatibility, no longer used to gate checkScheduleErrors
 
 // Opens the existing editor (with PIN keypad) from an error row tap
 function openEditorFromError(di, focusName) {
@@ -7539,7 +7539,6 @@ function openEditorFromError(di, focusName) {
 
 // Called after saveEdits — if error modal was open, refresh it
 function refreshErrorModalAfterSave() {
-  if(errorsBypassed) return;
   // Small delay to let renders settle
   setTimeout(function() {
     checkScheduleErrors();
@@ -7901,7 +7900,7 @@ async function logUnclearedErrors() {
 function applyWeek(idx) {
   var week = allWeeks[idx];
   if(!week) return;
-  errorsBypassed = false; // reset error suppression when navigating to a new week
+  errorsBypassed = false; window._dismissedErrorSig = null; // reset dismiss tracking when navigating to a new week
   parseWeekData(week);
   updateWeekLabels(idx);
   currentDay = 0;
@@ -8127,7 +8126,6 @@ function confirmEarlyBOHStarts() {
 }
 
 function checkScheduleErrors() {
-  if(errorsBypassed) return;
 
   // Skip weeks that ended more than 2 weeks ago — recent past weeks still checked
   if(allWeeks && allWeeks[currentWeekIdx] && allWeeks[currentWeekIdx].week_start) {
@@ -8610,7 +8608,16 @@ function checkScheduleErrors() {
   window._schedErrors = { html: html, depts: depts, total: totalErrors };
 
   document.getElementById('sched-error-body').innerHTML = html;
-  document.getElementById('sched-error-modal').style.display = 'flex';
+
+  // Only pop the modal if THIS exact set of errors hasn't already been dismissed.
+  // A dismiss no longer disables checking forever — if anything changes (new error,
+  // different day, different message), it shows again immediately.
+  var allErrsForSig = (errors.BOH||[]).concat(errors.FOH||[]).concat(errors.Drivers||[]);
+  var errorSig = totalErrors + '|' + allErrsForSig.map(function(e){ return e.di+':'+e.dept+':'+e.msg; }).sort().join(',');
+  window._currentErrorSig = errorSig;
+  if(totalErrors > 0 && window._dismissedErrorSig !== errorSig) {
+    document.getElementById('sched-error-modal').style.display = 'flex';
+  }
 }
 
 function printScheduleErrors() {
@@ -9259,7 +9266,7 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
     <div style="padding:12px 18px 16px;border-top:1px solid #eee;">
       <div style="display:flex;gap:10px;margin-bottom:8px;">
         <button onclick="printScheduleErrors();" style="flex:1;padding:11px;background:var(--black);color:#fff;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">🖨 PRINT ERROR REPORT</button>
-        <button onclick="errorsBypassed=true;document.getElementById('sched-error-modal').style.display='none';window._overrideUnlocked=false;" style="flex:1;padding:11px;background:#eee;color:#333;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">DISMISS & CONTINUE</button>
+        <button onclick="window._dismissedErrorSig=window._currentErrorSig;document.getElementById('sched-error-modal').style.display='none';window._overrideUnlocked=false;" style="flex:1;padding:11px;background:#eee;color:#333;border:none;border-radius:8px;font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em;cursor:pointer;">DISMISS & CONTINUE</button>
       </div>
       <div style="font-size:10.5px;color:#999;text-align:center;">Dismiss to keep using the app — you can print this report at any time from the errors button.</div>
     </div>
