@@ -4412,8 +4412,21 @@ const DRIVERS = {
 const KNOWN_DRIVER_NAMES = Object.keys(DRIVERS);
 // Aliases: short names that may appear on physical schedules → canonical key in DRIVERS
 const DRIVER_ALIASES = { 'jeff z': 'Jeff Zeggebeen', 'jeff zeggeben': 'Jeff Zeggebeen' };
+// Single universal name-correction table, applied to EVERY section every time
+// schedule data loads (not just on upload). Add entries here going forward —
+// this is the one place that needs updating, not scattered per-upload logic.
+const NAME_ALIASES = {
+  'alex': 'Alexis A', 'alex a': 'Alexis A',
+  'nithia': 'Nithia', 'nithia maldonado': 'Nithia',
+  'nick': 'Nick', 'nicholas': 'Nick', 'nicholas urbana': 'Nick',
+  'sio': 'Sio', 'sio mcavoy': 'Sio',
+  'laura': 'Laura Z', 'laura z': 'Laura Z',
+  'eddy': 'Eddie', 'eddie': 'Eddie'
+};
+// Names that should never appear in these sections regardless of what a parse
+// returns — e.g. Rhett is a Driver and must never be planted into FOH sections.
+const SECTION_BLOCKLIST = { SERVERS: ['rhett'], BARTENDERS: ['rhett'], CASHIERS: ['rhett'], HOSTS: ['rhett'] };
 // General staff name aliases: short/alt names on the physical schedule → canonical wage-roster name
-const NAME_ALIASES = { 'alex': 'Alexis A', 'alex a': 'Alexis A' };
 
 // DOM'S NOTES
 const MANAGERS = {
@@ -7663,24 +7676,42 @@ function changeWeek(dir) {
   else if(currentTab === 'private' && document.getElementById('private-content').style.display !== 'none') renderPrivate();
 }
 
-// Strip phone numbers from employee names in any section object
-// e.g. "Abby (630-880-4270)" → "Abby"
-// sectionType: optional hint ('managers', etc.) so section-specific aliases apply correctly
-function cleanNames(obj, sectionType) {
+// Strip phone numbers from employee names in any section object, resolve name
+// aliases universally (Nithia/Nick/Sio/Laura/Eddie, etc.), merge any resulting
+// duplicate keys by day (never silently drop real shifts), and remove anyone on
+// this section's blocklist (e.g. Rhett, a Driver, never belongs in FOH sections).
+// sectionType/sectionKey let 'alex' resolve to the manager only in Managers.
+function cleanNames(obj, sectionType, sectionKey) {
   if(!obj) return obj;
   var cleaned = {};
+  var blocked = (sectionKey && SECTION_BLOCKLIST[sectionKey]) || [];
   Object.keys(obj).forEach(function(name) {
     var cleanKey = name.replace(/\s*\([\d\s\-\.]+\)/g, '').trim();
+    if(blocked.indexOf(cleanKey.toLowerCase()) >= 0) return; // drop entirely
     // Resolve known driver aliases (e.g. "Jeff Z" → "Jeff Zeggebeen")
     var aliasKey = DRIVER_ALIASES[cleanKey.toLowerCase()];
     if(aliasKey) cleanKey = aliasKey;
-    // Resolve general name aliases only in the Managers section
-    // (so "Alex" → "Alexis A" the manager, never the "Alexis" server)
-    if(sectionType === 'managers') {
-      var nameAlias = NAME_ALIASES[cleanKey.toLowerCase()];
-      if(nameAlias) cleanKey = nameAlias;
+    // Resolve general name aliases everywhere EXCEPT letting 'alex' collide with
+    // the FOH server "Alexis" — that one only resolves in the Managers section.
+    var lower = cleanKey.toLowerCase();
+    if(lower === 'alex' || lower === 'alex a') {
+      if(sectionType === 'managers') cleanKey = NAME_ALIASES[lower];
+    } else if(NAME_ALIASES[lower]) {
+      cleanKey = NAME_ALIASES[lower];
     }
-    cleaned[cleanKey] = obj[name];
+    var incoming = obj[name];
+    if(cleaned[cleanKey] === undefined) {
+      cleaned[cleanKey] = incoming;
+    } else {
+      // Merge day-by-day so a duplicate/renamed entry never overwrites real data
+      var existing = cleaned[cleanKey];
+      if(Array.isArray(existing) && Array.isArray(incoming)) {
+        for(var i=0; i<7; i++){
+          var hasExisting = existing[i] !== null && existing[i] !== undefined && String(existing[i]).trim() !== '';
+          if(!hasExisting && incoming[i] !== undefined) existing[i] = incoming[i];
+        }
+      }
+    }
   });
   return cleaned;
 }
@@ -7694,17 +7725,17 @@ function parseWeekData(week) {
     var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
     for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
-    if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers');
-    if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA);
-    if(boh.KITCHEN)  boh.KITCHEN  = cleanNames(boh.KITCHEN);
-    if(boh.PREP)     boh.PREP     = cleanNames(boh.PREP);
-    if(boh.BUS)      boh.BUS      = cleanNames(boh.BUS);
-    if(boh.DISH)     boh.DISH     = cleanNames(boh.DISH);
-    if(foh.SERVERS)    foh.SERVERS    = cleanNames(foh.SERVERS);
-    if(foh.BARTENDERS) foh.BARTENDERS = cleanNames(foh.BARTENDERS);
-    if(foh.CASHIERS)   foh.CASHIERS   = cleanNames(foh.CASHIERS);
-    if(foh.HOSTS)      foh.HOSTS      = cleanNames(foh.HOSTS);
-    if(drv) drv = cleanNames(drv);
+    if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers', 'MANAGERS');
+    if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA, null, 'PIZZA');
+    if(boh.KITCHEN)  boh.KITCHEN  = cleanNames(boh.KITCHEN, null, 'KITCHEN');
+    if(boh.PREP)     boh.PREP     = cleanNames(boh.PREP, null, 'PREP');
+    if(boh.BUS)      boh.BUS      = cleanNames(boh.BUS, null, 'BUS');
+    if(boh.DISH)     boh.DISH     = cleanNames(boh.DISH, null, 'DISH');
+    if(foh.SERVERS)    foh.SERVERS    = cleanNames(foh.SERVERS, null, 'SERVERS');
+    if(foh.BARTENDERS) foh.BARTENDERS = cleanNames(foh.BARTENDERS, null, 'BARTENDERS');
+    if(foh.CASHIERS)   foh.CASHIERS   = cleanNames(foh.CASHIERS, null, 'CASHIERS');
+    if(foh.HOSTS)      foh.HOSTS      = cleanNames(foh.HOSTS, null, 'HOSTS');
+    if(drv) drv = cleanNames(drv, null, 'DRIVERS');
     Object.keys(MANAGERS).forEach(k => delete MANAGERS[k]); if(boh.MANAGERS) Object.assign(MANAGERS, boh.MANAGERS);
     Object.keys(PIZZA).forEach(k => delete PIZZA[k]);       if(boh.PIZZA)    Object.assign(PIZZA, boh.PIZZA);
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
@@ -8791,9 +8822,22 @@ function callVision(base64, mediaType, promptText){
   });
 }
 
+// True if two normalized names are almost certainly the same person — one is a
+// clean word-boundary prefix of the other (e.g. "nithia" vs "nithia maldonado").
+// Deliberately conservative: won't match unrelated names that happen to share letters.
+function namesLikelySame(a, b) {
+  if(!a || !b) return false;
+  if(a === b) return true;
+  return a.indexOf(b + ' ') === 0 || b.indexOf(a + ' ') === 0;
+}
+
 // Merge one section's shift data with a name list. Output follows the name-list
 // order (matches the sheet top-to-bottom) and includes every name from BOTH the
-// shift read and the name read, so a row can never be silently dropped.
+// shift read and the name read, so a row can never be silently dropped. Before
+// treating an unmatched name as a new person, checks whether it's just a fuller
+// or shorter spelling of an existing row (two independent AI reads of the same
+// photo don't always transcribe a name identically) — if so, merges into the
+// existing row instead of creating a duplicate.
 function mergeOrdered(schedSection, nameList){
   schedSection = schedSection || {};
   var byNorm = {};
@@ -8801,9 +8845,22 @@ function mergeOrdered(schedSection, nameList){
   var out = {}, used = {};
   (nameList || []).forEach(function(nm){
     if(nm == null) return;
-    var nn = normName(nm); if(!nn || used[nn]) return; used[nn] = true;
-    if(byNorm[nn]) out[byNorm[nn]] = schedSection[byNorm[nn]];
-    else out[String(nm).trim()] = emptyShiftRow();
+    var nn = normName(nm); if(!nn || used[nn]) return;
+    if(byNorm[nn]) { used[nn] = true; out[byNorm[nn]] = schedSection[byNorm[nn]]; return; }
+    var fuzzyNorm = null;
+    Object.keys(byNorm).forEach(function(existingNorm){
+      if(fuzzyNorm || used[existingNorm]) return;
+      if(namesLikelySame(nn, existingNorm)) fuzzyNorm = existingNorm;
+    });
+    if(fuzzyNorm) {
+      used[fuzzyNorm] = true; used[nn] = true;
+      // Keep the shorter spelling as the display name (first name only, no fabricated last name)
+      var displayName = nn.length <= fuzzyNorm.length ? String(nm).trim() : byNorm[fuzzyNorm];
+      out[displayName] = schedSection[byNorm[fuzzyNorm]];
+      return;
+    }
+    used[nn] = true;
+    out[String(nm).trim()] = emptyShiftRow();
   });
   Object.keys(schedSection).forEach(function(k){
     var nn = normName(k); if(!used[nn]){ used[nn] = true; out[k] = schedSection[k]; }
