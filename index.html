@@ -8215,6 +8215,7 @@ function checkScheduleErrors() {
 
   if(hasBOHData || hasFOHData || hasDriverData)
   for(var di = 0; di < 7; di++) {
+   try {
     var day = dayLabel(di);
 
     // Skip BOH checks if no BOH scheduled today
@@ -8307,10 +8308,12 @@ function checkScheduleErrors() {
       if(kitchenPMCount < 2)
         errors.BOH.push({di:di, day:day, name:'—', dept:'Kitchen', msg:'Only '+kitchenPMCount+' kitchen cook(s) between 4-8PM — need at least 2'});
     }
+   } catch(dayErr) { console.warn('BOH day check failed for day '+di+':', dayErr); }
   }
 
   // DOM'S NOTES
   for(var di = 0; di < 7; di++) {
+   try {
     var day = dayLabel(di);
 
     // Helper: is this FOH entry actually a scheduled shift (not null/empty)
@@ -8436,17 +8439,13 @@ function checkScheduleErrors() {
         errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'Only '+pmServerCount+' PM server(s) starting 3:30PM+ — need at least '+minPM});
     }
   }
-
-  // DOM'S NOTES
-  for(var di = 0; di < 7; di++) {
-    var day = dayLabel(di);
-    } // end hasFOHData
-
+   } catch(dayErr) { console.warn('FOH day check failed for day '+di+':', dayErr); }
   } // end main BOH/FOH day loop
 
   // Separate driver loop - runs regardless of BOH data
   if(hasDriverData) {
     for(var ddi=0; ddi<7; ddi++) {
+     try {
       var dday = dayLabel(ddi);
       var amCount = 0, closerCount = 0;
       Object.values(DRIVERS).forEach(function(days){
@@ -8465,6 +8464,7 @@ function checkScheduleErrors() {
         errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
       if(closerCount > 1)
         errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:closerCount+' driver closers — should be exactly 1'});
+     } catch(ddErr) { console.warn('Driver day check failed for day '+ddi+':', ddErr); }
     }
   }
 
