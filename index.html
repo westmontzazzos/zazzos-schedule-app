@@ -4107,9 +4107,17 @@ document.addEventListener("DOMContentLoaded",function(){
     </div>
 
     <div class="card">
+      <div class="card-header">👔 Manager Rules</div>
+      <div style="font-size:13px;color:var(--gray-800);line-height:1.7;padding-top:4px;">
+        Must have opener (by 9AM) · Must have closer (C)
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-header">🍽️ Bus / Dish Rules</div>
       <div style="font-size:13px;color:var(--gray-800);line-height:1.7;padding-top:4px;">
         Dish must have a closer (C)<br>
+        <b>Both Dish and Bus:</b> must have someone starting between 3–5PM<br>
         AM shifts must have an end time
       </div>
     </div>
@@ -4126,7 +4134,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="card">
       <div class="card-header">💵 Cashier Rules</div>
       <div style="font-size:13px;color:var(--gray-800);line-height:1.7;padding-top:4px;">
-        Must have opener before 11AM<br>
+        Must have opener at or before 10:30AM<br>
         <b>Mon–Thu:</b> Minimum 1 cashier scheduled<br>
         <b>Fri–Sat:</b> Minimum 3 cashiers working between 4–8PM<br>
         AM shifts must have an end time
@@ -4145,6 +4153,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="card">
       <div class="card-header">🍽️ Server Rules</div>
       <div style="font-size:13px;color:var(--gray-800);line-height:1.7;padding-top:4px;">
+        Must have opener at or before 10:30AM, running until at least 4PM<br>
         Must have closer (C) any day servers are scheduled<br>
         <b>Fri &amp; Sat:</b> Minimum 5 servers starting 3:30PM or later<br>
         <b>Sunday:</b> Minimum 4 servers starting 3:30PM or later<br>
@@ -4155,7 +4164,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="card">
       <div class="card-header">🚗 Driver Rules</div>
       <div style="font-size:13px;color:var(--gray-800);line-height:1.7;padding-top:4px;">
-        Exactly 2 AM drivers starting before 11AM — every day<br>
+        Exactly 2 AM drivers starting at or before 10:30AM — every day<br>
         Exactly 1 closer (C) — every day
       </div>
     </div>
@@ -7905,6 +7914,7 @@ function applyWeek(idx) {
   loadScheduleBypasses(_wkLblForBypass).then(function(){
     autoBypassLoggedDays();
     setTimeout(checkScheduleErrors, 300);
+    setTimeout(checkEarlyBOHStarts, 350);
     setTimeout(logUnclearedErrors, 1500);
     // Log if this is a fresh upload (flag set in processSingle)
     if(window._justUploaded) {
@@ -8042,6 +8052,80 @@ function snapToMonday(dateStr) {
 }
 
 // DOM'S NOTES
+// Minimal start-time extractor for the early-start soft-confirm (doesn't need
+// end-time/closer parsing, just "what hour does this shift start").
+function _bohStartHour(raw, di) {
+  if(!raw) return null;
+  var s = String(raw).trim().toLowerCase().replace(/\s+/g, '');
+  if(!s || s==='x' || ['kitchen','pizza','dish','bus','prep','serve','bar','host'].includes(s)) return null;
+  var cm = s.match(/^(.+)-c(?:l(?:ose)?)?$/);
+  var startPart;
+  if(cm) { startPart = cm[1].trim(); }
+  else {
+    var rm = s.match(/^([\d:]+(?:am|pm)?)\s*[-–]\s*([\d:]+(?:am|pm)?)$/i);
+    startPart = rm ? rm[1] : s;
+  }
+  return hitlistHour(startPart, di);
+}
+
+// Soft, non-alarming confirmation for anyone scheduled before 9AM in BOH/Managers.
+// This is NOT an error — early starts are normal sometimes — so it's a one-time
+// "confirm this is intended" popup, not the red SCHEDULE ERRORS banner. Only
+// re-prompts if the specific set of early people/days actually changes.
+function checkEarlyBOHStarts() {
+  var DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  var sections = [
+    {d:MANAGERS,lbl:'Managers'},{d:KITCHEN,lbl:'Kitchen'},{d:PIZZA,lbl:'Pizza'},
+    {d:PREP,lbl:'Prep'},{d:BUS,lbl:'Bus'},{d:DISH,lbl:'Dish'}
+  ];
+  var earlyList = [];
+  for(var di=0; di<7; di++){
+    sections.forEach(function(sec){
+      Object.entries(sec.d).forEach(function(e){
+        var stH = _bohStartHour(e[1][di], di);
+        if(stH !== null && stH < 9) earlyList.push({name:e[0], dept:sec.lbl, day:DAYS_SHORT[di], di:di});
+      });
+    });
+  }
+  if(!earlyList.length) return;
+
+  var sig = earlyList.map(function(e){ return e.name+'|'+e.dept+'|'+e.day; }).sort().join(',');
+  var weekLbl = ((document.getElementById('sched-week-label')||{}).textContent||'').replace(/–/g,'-').replace(/—/g,'-');
+  var storageKey = 'zp_early_boh_confirmed_' + weekLbl;
+  if(localStorage.getItem(storageKey) === sig) return;
+
+  window._pendingEarlyBOH = { list: earlyList, sig: sig, weekLbl: weekLbl };
+  var listEl = document.getElementById('early-boh-confirm-list');
+  listEl.innerHTML = earlyList.map(function(e){
+    return '<div style="padding:8px 10px;border:1px solid #eee;border-radius:8px;margin-bottom:6px;">'
+      + '<div style="font-size:13px;font-weight:700;color:#222;">'+e.name+' — '+e.dept+'</div>'
+      + '<div style="font-size:11px;color:#888;">'+e.day+'</div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('early-boh-confirm-modal').style.display = 'flex';
+}
+
+function confirmEarlyBOHStarts() {
+  var pending = window._pendingEarlyBOH;
+  document.getElementById('early-boh-confirm-modal').style.display = 'none';
+  if(!pending) return;
+  localStorage.setItem('zp_early_boh_confirmed_' + pending.weekLbl, pending.sig);
+  var logEntries = pending.list.map(function(e){
+    return {
+      week_label: pending.weekLbl, day_index: e.di, day_name: e.day, dept: e.dept,
+      msg: e.name + ' scheduled to start before 9AM', who: getCurrentUser(),
+      ack_type: 'confirmed_early_start', logged_at: new Date().toISOString(),
+      note: 'Confirmed intentional early start'
+    };
+  });
+  fetch(SUPABASE_URL + '/rest/v1/override_log', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify(logEntries)
+  }).catch(function(e){ console.log('Early-start confirm log failed:', e.message); });
+  window._pendingEarlyBOH = null;
+}
+
 function checkScheduleErrors() {
   if(errorsBypassed) return;
 
@@ -8166,6 +8250,8 @@ function checkScheduleErrors() {
       errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'No Pizza opener (nobody at or before 9AM)'});
     if(!Object.entries(PREP).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Prep', msg:'No Prep opener (nobody at or before 9AM)'});
+    if(!Object.entries(MANAGERS).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.st<=9; }))
+      errors.BOH.push({di:di, day:day, name:'—', dept:'Managers', msg:'No manager opener (nobody at or before 9AM)'});
 
     // Closers (must have C)
     if(!Object.entries(KITCHEN).concat(Object.entries(MANAGERS)).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
@@ -8174,6 +8260,14 @@ function checkScheduleErrors() {
       errors.BOH.push({di:di, day:day, name:'—', dept:'Pizza', msg:'No Pizza closer (nobody with C)'});
     if(!Object.entries(DISH).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
       errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish closer (nobody with C)'});
+    if(!Object.entries(MANAGERS).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p&&p.hasClose; }))
+      errors.BOH.push({di:di, day:day, name:'—', dept:'Managers', msg:'No manager closer (nobody with C)'});
+
+    // Dish and Bus must have someone starting between 3-5PM
+    if(!Object.entries(DISH).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p && p.st>=15 && p.st<=17; }))
+      errors.BOH.push({di:di, day:day, name:'—', dept:'Dish', msg:'No Dish staff starting between 3-5PM'});
+    if(!Object.entries(BUS).some(function(e){ var p=parseBOHRaw(e[1][di],di); return p && p.st>=15 && p.st<=17; }))
+      errors.BOH.push({di:di, day:day, name:'—', dept:'Bus', msg:'No Bus staff starting between 3-5PM'});
 
     // Pizza staffing minimums
     var _pizzaAll = Object.values(PIZZA).concat(Object.values(MANAGERS));
@@ -8264,13 +8358,35 @@ function checkScheduleErrors() {
         errors.FOH.push({di:di, day:day, name:'—', dept:'Bartenders', msg:'No bartender closer (nobody with C)'});
     }
 
-    // Cashier opener: must have someone in before 11AM
+    // Cashier opener: must have someone in at or before 10:30AM
     if(Object.values(CASHIERS).some(function(d){ return fohHasShift(d[di]); })) {
       if(!Object.values(CASHIERS).some(function(d){
         var p=parseFOHRaw(d[di]); if(!p) return false;
-        var stH=hitlistHour(p.st,di); return stH!==null && stH<11;
+        var stH=hitlistHour(p.st,di); return stH!==null && stH<=10.5;
       }))
-        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashier in before 11AM'});
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Cashiers', msg:'No cashier in at or before 10:30AM'});
+    }
+
+    // Server opener: at or before 10:30AM, and the opening shift must run until at least 4PM
+    if(Object.values(SERVERS).some(function(d){ return fohHasShift(d[di]); })) {
+      var serverOpeners = Object.entries(SERVERS).filter(function(e){
+        var p=parseFOHRaw(e[1][di]); if(!p) return false;
+        var stH=hitlistHour(p.st,di); return stH!==null && stH<=10.5;
+      });
+      if(serverOpeners.length === 0) {
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'No server opener at or before 10:30AM'});
+      } else {
+        var hasCoverageTo4 = serverOpeners.some(function(e){
+          var entry = e[1][di];
+          if(fohEntryIsCloser(entry)) return true;
+          var endVal = Array.isArray(entry) ? entry[1] : null;
+          if(!endVal) return false;
+          var enH = hitlistHour(endVal, di);
+          return enH !== null && enH >= 16;
+        });
+        if(!hasCoverageTo4)
+          errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'Morning server shift does not run until 4PM — coverage gap before evening wave'});
+      }
     }
 
     // Cashier minimums
@@ -8338,14 +8454,14 @@ function checkScheduleErrors() {
         var p = parseBOHRaw(days[ddi], ddi);
         if(!p) return;
         if(p.hasClose) closerCount++;
-        else if(p.st <= 11) amCount++;
+        else if(p.st <= 10.5) amCount++;
       });
       var anyDriverToday = Object.values(DRIVERS).some(function(d){ return d[ddi]; });
       if(!anyDriverToday) continue;
       if(amCount < 2)
-        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) at or before 11AM — need exactly 2'});
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'Only '+amCount+' AM driver(s) at or before 10:30AM — need exactly 2'});
       if(amCount > 2)
-        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:amCount+' AM drivers at or before 11AM — maximum is 2'});
+        errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:amCount+' AM drivers at or before 10:30AM — maximum is 2'});
       if(closerCount === 0)
         errors.Drivers.push({di:ddi, day:dday, name:'—', dept:'Drivers', msg:'No driver closer (nobody with C)'});
       if(closerCount > 1)
@@ -9112,6 +9228,20 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
     <path d="M21 3v6h-6"/>
   </svg>
 </button>
+<!-- ── EARLY BOH START CONFIRM MODAL (soft, not a red alarm) ── -->
+<div id="early-boh-confirm-modal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px;">
+  <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+    <div style="background:#333;border-radius:14px 14px 0 0;padding:16px 18px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;color:#fff;">CONFIRM EARLY START</div>
+      <div style="font-size:12px;color:#ccc;margin-top:2px;">Back of house is normally required in by 9AM</div>
+    </div>
+    <div style="padding:16px 18px;">
+      <div style="font-size:13px;color:#333;margin-bottom:10px;">The following people are scheduled to start before 9AM this week:</div>
+      <div id="early-boh-confirm-list" style="margin-bottom:16px;"></div>
+      <button class="btn btn-primary" style="width:100%;" onclick="confirmEarlyBOHStarts()">Confirm — this is intended</button>
+    </div>
+  </div>
+</div>
 <!-- ── SCHEDULE ERROR MODAL ── -->
 <div id="sched-error-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:16px;">
   <div style="background:#fff;border-radius:14px;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
@@ -9187,6 +9317,7 @@ function showOverrideLog(btn) {
            r.ack_type === 'acknowledged' ? 'Acknowledged' :
            r.ack_type === 'uncleared' ? 'Never cleared' :
            r.ack_type === 'resolved' ? 'Resolved' :
+           r.ack_type === 'confirmed_early_start' ? 'Confirmed early start (before 9AM)' :
            r.ack_type === 'edit' ? 'Run sheet edited' :
            r.ack_type === 'upload' ? 'Schedule uploaded' :
            r.ack_type === 'upload_errors' ? 'Uploaded with errors' :
@@ -9195,6 +9326,7 @@ function showOverrideLog(btn) {
   }
   function eventColor(r) {
     return r.ack_type === 'resolved' ? '#1a7a3c' :
+           r.ack_type === 'confirmed_early_start' ? '#666' :
            r.ack_type === 'intentional' ? '#1a7a3c' :
            r.ack_type === 'edit' ? '#1a7a3c' :
            r.ack_type === 'upload' ? '#1a7a3c' :
