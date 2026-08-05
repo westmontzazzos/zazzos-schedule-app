@@ -4657,11 +4657,27 @@ function fmtFOH(t, di, isClose) {
   return `${dh}${mn?':'+String(mn).padStart(2,'0'):''}${ampm}`;
 }
 
+// Given a raw FOH entry, returns the safe display string for VIEWING (not editing)
+// — e.g. "10:30AM – 12PM", "4PM – C", "9AM". This is the ONLY function that should
+// format a FOH shift for display; both Run Sheets and the Schedule tab call this
+// instead of each keeping their own copy of the same formatting logic. Also the
+// ONLY place that decides how to handle corrupted legacy data (a plain string
+// sitting where an array should be) — returns blank instead of mis-slicing it
+// into meaningless characters.
+function formatShiftForDisplay(entry, di) {
+  if(!entry || !Array.isArray(entry)) return '';
+  var start = entry[0], end = entry[1];
+  var am = fmtFOH(start, di, false);
+  if(!am) return '';
+  var pm = end === 'C' ? 'C' : (end ? fmtFOH(end, di, false) : '');
+  return pm ? am + ' – ' + pm : am;
+}
+
 function getFOHSection(sectionData, di) {
   const result=[];
   Object.entries(sectionData).forEach(([name,days])=>{
-    const e=days[di]; if(!e) return;
-    const [start,end]=e;
+    const e=days[di]; if(!e || !Array.isArray(e)) return;
+    const start=e[0], end=e[1];
     const am=fmtFOH(start,di,false);
     const pm=end==='C'?'C':(end?fmtFOH(end,di,false):'');
     if(am) result.push({n:name,a:am,p:pm});
@@ -6265,9 +6281,7 @@ function renderSchedule() {
             return;
           }
           if(!e){html+='<td></td>';return;}
-          const am=fmtFOH(e[0],di,false);
-          const pm=e[1]==='C'?'C':(e[1]?fmtFOH(e[1],di,false):'');
-          html+=`<td>${pm?am+' – '+pm:am}</td>`;
+          html+=`<td>${formatShiftForDisplay(e, di)}</td>`;
         });
         html+='</tr>';
       });
