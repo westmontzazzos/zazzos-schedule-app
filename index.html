@@ -8620,6 +8620,10 @@ function checkScheduleErrors() {
             if(!raw) return;
             var rs = String(raw).trim();
             if(!rs || rs.toLowerCase()==='x') return;
+            // Requested-off entries have no bearing on a staffing-count shortfall —
+            // they don't count toward the requirement and shouldn't be listed as if
+            // they're part of the problem.
+            if(/^r\/?o$/i.test(rs) || rs.toLowerCase()==='off') return;
             _staffList.push({name:kv[0], raw:rs});
           });
           // Sort by start time
