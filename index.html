@@ -4420,6 +4420,63 @@ const DRIVERS = {
 // Canonical driver roster, captured now before any week's data replaces DRIVERS.
 // Used by the upload repair pass so a known driver can never be silently dropped.
 const KNOWN_DRIVER_NAMES = Object.keys(DRIVERS);
+
+// ===========================================================================
+// UNIVERSAL SHIFT ACCESSORS — the ONLY functions in the app allowed to touch
+// a person's raw stored shift value directly. Everything else — both editors,
+// every render function, the error checker, printing — must go through these.
+//
+// Why this exists: FOH sections (Servers/Bartenders/Cashiers/Hosts) store each
+// day as a two-piece array [start, end]. BOH/Managers/Drivers store each day
+// as one plain string like "9AM-8PM". Nothing about that difference should
+// ever leak into code that just wants to read or write "what time did this
+// person start and end" — that was the exact bug that corrupted Cheeks,
+// Lindsay, Brooke, and Jaime's data: one save function assumed every section
+// used the same shape, and was wrong for FOH. This makes that class of bug
+// structurally impossible: read/write ALWAYS goes through here, so there is
+// only ever one place that needs to know the underlying shape.
+// ===========================================================================
+var FOH_SECTION_NAMES = {SERVERS:1, BARTENDERS:1, CASHIERS:1, HOSTS:1};
+function isFOHSection(sectionLabel) { return !!FOH_SECTION_NAMES[sectionLabel]; }
+
+// Takes whatever a person typed/selected (e.g. "10:30", "10:30-2", "4PM-C", "" )
+// and writes it into secObj[name][di] using the correct shape for that section.
+function setShiftValue(sectionLabel, secObj, name, di, rawInput) {
+  if(!secObj || secObj[name] === undefined) return;
+  var val = (rawInput == null ? '' : String(rawInput)).trim();
+  if(isFOHSection(sectionLabel)) {
+    if(!val) { secObj[name][di] = null; return; }
+    if(val.toLowerCase().match(/[-\/]c(l(ose)?)?$/)) {
+      var parts = val.split(/[-\/]c(l(ose)?)?$/i);
+      secObj[name][di] = [parts[0].trim(), 'C'];
+    } else if(val.includes('-')) {
+      var p = val.split('-');
+      secObj[name][di] = [p[0].trim(), p[1].trim()];
+    } else {
+      secObj[name][di] = [val, null];
+    }
+  } else {
+    secObj[name][di] = val || null;
+  }
+}
+
+// Takes secObj[name][di] (whatever shape it is for that section) and returns a
+// single display string for editing/rendering, e.g. "10:30-12PM", "4PM-C",
+// "9AM-8PM", or "" if nothing scheduled. Tolerates legacy corrupted entries
+// (a bare string in a FOH slot) so old bad data displays sensibly instead of
+// silently mis-parsing into a garbage time via character-indexing.
+function getShiftDisplay(sectionLabel, entry) {
+  if(!entry) return '';
+  if(isFOHSection(sectionLabel)) {
+    if(!Array.isArray(entry)) return String(entry); // legacy corrupted data — show as-is, don't mis-parse
+    var start = entry[0] || '';
+    var end = entry[1];
+    if(end === 'C') return start ? start + '-C' : '';
+    if(end) return start + '-' + end;
+    return start;
+  }
+  return String(entry);
+}
 // Aliases: short names that may appear on physical schedules → canonical key in DRIVERS
 const DRIVER_ALIASES = { 'jeff z': 'Jeff Zeggebeen', 'jeff zeggeben': 'Jeff Zeggebeen' };
 // Single universal name-correction table, applied to EVERY section every time
@@ -6122,9 +6179,8 @@ async function saveSchedInlineEdits() {
     var section = inp.dataset.section;
     var name = inp.dataset.name;
     var di = parseInt(inp.dataset.di);
-    var val = inp.value.trim() || null;
     var secObj = {MANAGERS:MANAGERS,DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
-    if(secObj && secObj[name] !== undefined) secObj[name][di] = val;
+    setShiftValue(section, secObj, name, di, inp.value);
   });
   // Save to Supabase using same format as existing editor
   var weekStart = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx].week_start : null;
@@ -6186,7 +6242,7 @@ function renderSchedule() {
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${raw||''}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           if(!raw){html+='<td></td>';return;}
@@ -6204,7 +6260,7 @@ function renderSchedule() {
         html+=`<tr><td>${name}</td>`;
         days.forEach((e,di)=>{
           if(window._schedEditMode){
-            var rawVal = e ? (Array.isArray(e) ? e.join('-') : e) : '';
+            var rawVal = getShiftDisplay(l, e);
             html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
@@ -6223,7 +6279,7 @@ function renderSchedule() {
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${raw||''}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           const p=parseBOH(raw,di);
@@ -7333,13 +7389,7 @@ async function openEditor(di, focusName) {
     Object.entries(sec.data).forEach(function(entry) {
       var name = entry[0];
       var days = entry[1];
-      var val = '';
-      if(sec.type === 'foh') {
-        var e = days[di];
-        if(e) val = e[1] === 'C' ? e[0]+'-C' : (e[1] ? e[0]+'-'+e[1] : e[0]||'');
-      } else {
-        val = days[di] || '';
-      }
+      var val = getShiftDisplay(sec.label, days[di]);
       editorData.push({section: sec.label, name: name, type: sec.type, idx: idx});
       html += '<div class="edit-row">';
       html += '<div class="edit-name">' + name + '</div>';
@@ -7414,21 +7464,7 @@ async function saveEdits() {
     var val = document.getElementById('edit-'+item.idx).value.trim();
     var data = sectionMaps[item.section];
     if(!data[item.name]) return;
-
-    if(item.type === 'foh') {
-      if(!val) { data[item.name][editorDay] = null; return; }
-      if(val.toLowerCase().includes('/c') || val.toLowerCase().endsWith('-c')) {
-        var parts = val.split(/[-\/]c$/i);
-        data[item.name][editorDay] = [parts[0].trim(), 'C'];
-      } else if(val.includes('-')) {
-        var p = val.split('-');
-        data[item.name][editorDay] = [p[0].trim(), p[1].trim()];
-      } else {
-        data[item.name][editorDay] = [val, null];
-      }
-    } else {
-      data[item.name][editorDay] = val || null;
-    }
+    setShiftValue(item.section, data, item.name, editorDay, val);
   });
 
   // Save to Supabase — patch the currently viewed week
