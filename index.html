@@ -9365,6 +9365,19 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
   loadAllWeeks();
   var _initWeekKey = (document.getElementById('week-label')||{}).textContent||'';
   loadScheduleBypasses(_initWeekKey);
+
+  // As an installed iOS PWA, this app can be silently suspended in the
+  // background and resumed later showing whatever was in memory at the
+  // moment it was backgrounded — with no indication anything is stale.
+  // Force a real refetch every time the app becomes visible again so you're
+  // never looking at old data without knowing it.
+  var _lastVisRefresh = Date.now();
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && Date.now() - _lastVisRefresh > 3000) {
+      _lastVisRefresh = Date.now();
+      if(typeof refreshData === 'function') refreshData();
+    }
+  });
 </script>
 <button id="refresh-fab" onclick="refreshData()" aria-label="Refresh" title="Refresh">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
