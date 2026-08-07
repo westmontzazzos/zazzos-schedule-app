@@ -6212,33 +6212,40 @@ async function saveSchedInlineEdits() {
     var secObj = {MANAGERS:MANAGERS,DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
     setShiftValue(section, secObj, name, di, inp.value);
   });
-  // Save to Supabase using same format as existing editor
-  var weekStart = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx].week_start : null;
-  if(!weekStart) { alert('No week loaded.'); return; }
+  // Save to Supabase — PATCH the existing row by id, same reliable path Run
+  // Sheets' saveEdits() already uses successfully. The previous DELETE+POST
+  // approach could silently fail (e.g. a DELETE blocked by an RLS policy,
+  // or a unique-constraint conflict on re-insert) with no error ever
+  // surfaced, because neither response was checked — "Schedule saved" would
+  // show even when nothing had actually persisted.
+  var weekRecord = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
+  if(!weekRecord || !weekRecord.id) { alert('No week loaded — cannot save.'); return; }
+  var saveBtnEl = document.getElementById('sched-inline-save');
+  var origSaveLabel = saveBtnEl ? saveBtnEl.textContent : null;
+  if(saveBtnEl) { saveBtnEl.disabled = true; saveBtnEl.textContent = 'Saving...'; }
   try {
-    await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart, {
-      method: 'DELETE', headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-    });
-    await fetch(SUPABASE_URL + '/rest/v1/schedules', {
-      method: 'POST',
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
+      method: 'PATCH',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body: JSON.stringify([{
-        week_start: weekStart,
+      body: JSON.stringify({
         boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
         foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
         driver_data: JSON.stringify(DRIVERS),
         event_data: JSON.stringify(WEEK_EVENTS),
         last_edited_by: getCurrentUser(),
         last_edited_at: new Date().toISOString()
-      }])
+      })
     });
+    if(!resp.ok) throw new Error('save failed (' + resp.status + ')');
     window._schedEditMode = false;
     document.getElementById('sched-edit-trigger').style.color = '';
-    var saveBtn = document.getElementById('sched-inline-save');
-    if(saveBtn) saveBtn.style.display = 'none';
+    if(saveBtnEl) { saveBtnEl.style.display = 'none'; saveBtnEl.disabled = false; saveBtnEl.textContent = origSaveLabel; }
     renderSchedule();
     alert('Schedule saved.');
-  } catch(e) { alert('Save failed: ' + e.message); }
+  } catch(e) {
+    alert('Save failed — nothing was recorded. Check your connection and try again: ' + e.message);
+    if(saveBtnEl) { saveBtnEl.disabled = false; saveBtnEl.textContent = origSaveLabel; }
+  }
 }
 
 function renderSchedule() {
@@ -6275,11 +6282,11 @@ function renderSchedule() {
             html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
-          if(!raw){html+='<td></td>';return;}
+          if(!raw){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const t=parseHour(String(raw));
-          if(!t){html+='<td></td>';return;}
+          if(!t){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const d=t.isSlash?t.display:t.close?`${t.display}-C`:t.hasExplicitEnd?`${t.display}–${t.end}`:t.display;
-          html+=`<td>${d}</td>`;
+          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${d}</td>`;
         });
         html+='</tr>';
       });
@@ -6294,8 +6301,8 @@ function renderSchedule() {
             html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
-          if(!e){html+='<td></td>';return;}
-          html+=`<td>${formatShiftForDisplay(e, di)}</td>`;
+          if(!e){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
+          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${formatShiftForDisplay(e, di)}</td>`;
         });
         html+='</tr>';
       });
@@ -6311,8 +6318,8 @@ function renderSchedule() {
             return;
           }
           const p=parseBOH(raw,di);
-          if(!p){html+='<td></td>';return;}
-          html+=`<td>${p.p?p.a+' – '+p.p:p.a}</td>`;
+          if(!p){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
+          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${p.p?p.a+' – '+p.p:p.a}</td>`;
         });
         html+='</tr>';
       });
@@ -6320,6 +6327,34 @@ function renderSchedule() {
   }
   html+='</tbody></table>';
   el.innerHTML=html;
+
+  // Two-finger tap on a name/day cell jumps to that same person, that same
+  // day, on Run Sheets — mirroring the identical gesture Run Sheets already
+  // has for itself, so the two screens are navigable the same way.
+  if(!window._schedEditMode) {
+    el.querySelectorAll('.sched-jump-cell').forEach(function(cell){
+      var twoFinger = false;
+      cell.addEventListener('touchstart', function(e){
+        twoFinger = (e.touches && e.touches.length === 2);
+      }, {passive:true});
+      cell.addEventListener('touchend', function(e){
+        if(twoFinger){
+          e.preventDefault();
+          twoFinger = false;
+          var nm = cell.getAttribute('data-name');
+          var di = parseInt(cell.getAttribute('data-di'), 10);
+          jumpToRunSheetEditor(di, nm);
+        }
+      });
+    });
+  }
+}
+
+function jumpToRunSheetEditor(di, name) {
+  var rsBtn = document.querySelector('.nav-btn[onclick*="runsheets"]');
+  showTab('runsheets', rsBtn);
+  selectDay(di);
+  openEditor(di, name);
 }
 
 // DOM'S NOTES
