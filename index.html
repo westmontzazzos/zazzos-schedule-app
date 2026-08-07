@@ -7688,6 +7688,18 @@ async function loadAllWeeks() {
     var rows = await r.json();
     if(!rows || rows.length === 0) { loadFallback(); return; }
     allWeeks = rows;
+    // Prefer whatever week you were actually looking at last, over today's
+    // date. Without this, closing and reopening the app always snaps back
+    // to "today's week" — which is a completely different week than one
+    // you're actively editing if it's in the future or past — and you'd
+    // have no way to tell you weren't even looking at the week you fixed.
+    var lastViewed = localStorage.getItem('zp_last_viewed_week');
+    var lastViewedIdx = lastViewed ? rows.findIndex(function(w){ return w.week_start === lastViewed; }) : -1;
+    if(lastViewedIdx >= 0) {
+      currentWeekIdx = lastViewedIdx;
+      applyWeek(currentWeekIdx);
+      return;
+    }
     var today = new Date();
     today.setHours(0,0,0,0);
     var currentIdx = rows.findIndex(w => {
@@ -7902,6 +7914,11 @@ function parseWeekData(week) {
 function updateWeekLabels(idx) {
   var week = allWeeks[idx];
   if(!week) return;
+  // Remember which week you're actually looking at, independent of today's
+  // date, so a full app close/reopen returns you here instead of silently
+  // recalculating "today's week" and showing you something else entirely
+  // with no indication the view had changed.
+  localStorage.setItem('zp_last_viewed_week', week.week_start);
   var d = new Date(week.week_start + 'T00:00:00');
   var end = new Date(d); end.setDate(d.getDate() + 6);
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
