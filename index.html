@@ -7756,7 +7756,15 @@ async function refreshData() {
   if(fab) fab.classList.add('refreshing');
   var savedDay = currentDay || 0;
   var savedTab = currentTab;
-  var savedWeekIdx = currentWeekIdx;
+  // Identify the week you were actually viewing by its real id/week_start —
+  // not by array position. Position alone is not reliable across a refetch:
+  // a newly uploaded week, or any duplicate week_start row left over from a
+  // past save bug, can shift everyone's index by one. That silently lands
+  // you on a *different* week that happens to look like your edits reverted,
+  // when really you're just looking at the wrong week.
+  var savedWeek = allWeeks[currentWeekIdx];
+  var savedWeekId = savedWeek ? savedWeek.id : null;
+  var savedWeekStart = savedWeek ? savedWeek.week_start : null;
   try {
     var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,event_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
@@ -7765,8 +7773,10 @@ async function refreshData() {
       var rows = await r.json();
       if(rows && rows.length) {
         allWeeks = rows;
-        // Try to stay on the same week index, clamp if needed
-        var idx = Math.min(savedWeekIdx, rows.length - 1);
+        var idx = -1;
+        if(savedWeekId != null) idx = rows.findIndex(function(w){ return w.id === savedWeekId; });
+        if(idx < 0 && savedWeekStart) idx = rows.findIndex(function(w){ return w.week_start === savedWeekStart; });
+        if(idx < 0) idx = Math.min(currentWeekIdx, rows.length - 1);
         currentWeekIdx = idx;
         // Parse the week data without resetting currentDay or tab
         var wk = rows[idx];
