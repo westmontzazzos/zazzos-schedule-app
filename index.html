@@ -3881,6 +3881,10 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
+<div id="global-user-bar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:5px 14px;background:#f7f7f7;border-bottom:1px solid #eee;font-size:11px;color:#888;">
+  Signed in as <b id="global-user-display" style="color:#333;"></b>
+  <a href="#" onclick="switchUser();return false;" style="color:#c8102e;text-decoration:underline;font-weight:600;">Switch User</a>
+</div>
 
 <!-- RUN SHEETS -->
 <div id="tab-runsheets" class="main">
@@ -3928,9 +3932,13 @@ document.addEventListener("DOMContentLoaded",function(){
   <div id="override-log-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.55);align-items:flex-end;justify-content:center;">
     <div style="background:#fff;border-radius:16px 16px 0 0;width:100%;max-width:500px;padding:20px 18px 36px;max-height:85vh;overflow-y:auto;">
       <div style="width:36px;height:4px;background:#e0e0e0;border-radius:2px;margin:0 auto 16px;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;">Schedule Log</div>
         <button onclick="document.getElementById('override-log-modal').style.display='none';" style="background:none;border:none;font-size:20px;cursor:pointer;color:#888;">✕</button>
+      </div>
+      <div style="text-align:right;margin-bottom:12px;">
+        <span style="font-size:11px;color:#999;">Signed in as <b id="sched-log-user-display" style="color:#555;"></b></span>
+        <a href="#" onclick="switchUser();document.getElementById('sched-log-user-display').textContent=getCurrentUser();return false;" style="font-size:11px;color:#999;text-decoration:underline;margin-left:10px;">Switch User</a>
       </div>
       <div id="override-log-body">Loading...</div>
     </div>
@@ -4199,6 +4207,11 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="report-header">
       <div class="report-title">UPDATE SCHEDULE</div>
       <div class="report-sub">Upload new schedule photos to update the app automatically</div>
+    </div>
+
+    <div style="text-align:right;margin-bottom:8px;">
+      <span style="font-size:11px;color:#999;">Signed in as <b id="current-user-display" style="color:#555;"></b></span>
+      <a href="#" onclick="switchUser();return false;" style="font-size:11px;color:#999;text-decoration:underline;margin-left:12px;">Switch User</a>
     </div>
 
     <div class="summary-card" style="margin-bottom:16px;">
@@ -6316,7 +6329,7 @@ function checkAppLock() {
     var lock = document.getElementById('app-lock');
     if(lock) lock.style.display='none';
     // Force re-identification if version changed
-    var IDENTITY_VERSION = '2';
+    var IDENTITY_VERSION = '3';
     if(localStorage.getItem('zp_identity_version') !== IDENTITY_VERSION) {
       localStorage.removeItem('zp_user_name');
       localStorage.setItem('zp_identity_version', IDENTITY_VERSION);
@@ -6326,6 +6339,7 @@ function checkAppLock() {
       var modal = document.getElementById('identity-modal');
       if(modal) modal.style.display='flex';
     } else {
+      updateGlobalUserDisplay();
       setTimeout(checkDomsNotes, 500);
     }
   } else {
@@ -6344,14 +6358,36 @@ function setIdentityCustom() {
   setIdentity(name);
 }
 function setIdentity(name) {
+  // Snap common case/spacing variants of a known manager's name to the exact
+  // casing used everywhere else (REQUIRED_ACK_MANAGERS, role checks, etc.) —
+  // otherwise a lowercase or mistyped custom entry silently creates a
+  // permanent mismatch where that manager's acknowledgment never registers.
+  var KNOWN_IDENTITIES = ['Ely','Selena','Alex','Dom','Brett','Alexis A'];
+  var trimmed = name.trim();
+  var match = KNOWN_IDENTITIES.filter(function(k){ return k.toLowerCase() === trimmed.toLowerCase(); })[0];
+  if(match) name = match; else name = trimmed;
   localStorage.setItem('zp_user_name', name);
   var modal = document.getElementById('identity-modal');
   if(modal) modal.style.display='none';
+  updateGlobalUserDisplay();
   setTimeout(checkDomsNotes, 500);
+}
+
+function updateGlobalUserDisplay() {
+  var el = document.getElementById('global-user-display');
+  if(el) el.textContent = getCurrentUser();
 }
 
 function getCurrentUser() {
   return localStorage.getItem('zp_user_name') || 'Unknown';
+}
+
+async function switchUser() {
+  var pin = await askPin('Enter PIN to switch user');
+  if(pin === null) return;
+  if(String(pin).trim() !== '9608') { alert('Incorrect PIN.'); return; }
+  localStorage.removeItem('zp_user_name');
+  location.reload();
 }
 
 function checkPin() {
@@ -9363,6 +9399,8 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
 function showOverrideLog(btn) {
   var modal = document.getElementById('override-log-modal');
   modal.style.display = 'flex';
+  var udEl = document.getElementById('sched-log-user-display');
+  if(udEl) udEl.textContent = getCurrentUser();
   var body = document.getElementById('override-log-body');
   body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -9373,7 +9411,8 @@ function showOverrideLog(btn) {
     return dt ? months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+' '+dt.getHours()+':'+String(dt.getMinutes()).padStart(2,'0') : '';
   }
   function eventLabel(r) {
-    return r.ack_type === 'intentional' ? 'Intentional decision' :
+    return r.ack_type === 'reply' ? '💬 "' + (r.reply_text || '') + '"' :
+           r.ack_type === 'intentional' ? 'Intentional decision' :
            r.ack_type === 'mistake' ? 'Mistake — will correct' :
            r.ack_type === 'published' ? 'Published by Dom' :
            r.ack_type === 'printed' ? 'Printed' :
@@ -9388,7 +9427,8 @@ function showOverrideLog(btn) {
            r.note || r.ack_type || '';
   }
   function eventColor(r) {
-    return r.ack_type === 'resolved' ? '#1a7a3c' :
+    return r.ack_type === 'reply' ? '#333' :
+           r.ack_type === 'resolved' ? '#1a7a3c' :
            r.ack_type === 'confirmed_early_start' ? '#666' :
            r.ack_type === 'intentional' ? '#1a7a3c' :
            r.ack_type === 'edit' ? '#1a7a3c' :
@@ -9425,10 +9465,11 @@ function showOverrideLog(btn) {
         logged_at: r.acknowledged_at,
         who: r.acknowledged_by,
         dept: "Dom's Notes",
-        msg: r.action === 'published' ? 'Note published' : r.action === 'printed' ? 'Note printed' : 'Note acknowledged',
+        msg: r.action === 'published' ? 'Note published' : r.action === 'printed' ? 'Note printed' : r.action === 'reply' ? 'Reply' : 'Note acknowledged',
         ack_type: r.action || 'acknowledged',
         day_name: '', week_label: '', note: '',
-        note_id: r.note_id
+        note_id: r.note_id,
+        reply_text: r.reply_text || ''
       };
     });
 
@@ -9470,6 +9511,7 @@ function showOverrideLog(btn) {
         headerSub = preview || '(note text unavailable)';
         var ackedBy = {};
         events.forEach(function(e){ if(e.ack_type === 'acknowledged' || e.ack_type === 'printed') ackedBy[e.who] = true; });
+        var ackedByList = Object.keys(ackedBy);
         var missing = REQUIRED_ACK_MANAGERS.filter(function(m){ return !ackedBy[m]; });
         if(missing.length === 0) { status = 'ACKNOWLEDGED'; statusColor = '#1a7a3c'; }
         else { status = 'PENDING: ' + missing.join(', '); statusColor = '#c8102e'; }
@@ -9489,6 +9531,9 @@ function showOverrideLog(btn) {
           h += '<div style="font-size:10px;font-weight:700;color:'+statusColor+';white-space:nowrap;margin-left:8px;">'+status+'</div>';
           h += '</div>';
           h += '<div style="font-size:12px;color:#c8102e;margin-bottom:8px;">'+headerSub+'</div>';
+          if(isDoms && ackedByList.length) {
+            h += '<div style="font-size:11px;color:#1a7a3c;font-weight:700;margin-bottom:8px;">Acknowledged by: '+ackedByList.join(', ')+'</div>';
+          }
           h += '<div style="border-top:1px solid #f2f2f2;padding-top:6px;">';
           events.forEach(function(e){
             h += '<div style="margin-bottom:6px;padding-left:8px;border-left:2px solid #eee;">';
@@ -9496,7 +9541,17 @@ function showOverrideLog(btn) {
             h += '<div style="font-size:11px;color:#666;">'+(e.who==='SYSTEM'?'<i style="color:#aaa;">Auto-logged</i>':'By: <b>'+(e.who||'—')+'</b>')+' &nbsp;·&nbsp; '+fmtDt(e.logged_at)+'</div>';
             h += '</div>';
           });
-          h += '</div></div>';
+          h += '</div>';
+          if(isDoms) {
+            var _rNoteId = (noteId != null) ? noteId : 'null';
+            h += '<div style="margin-top:6px;padding-top:6px;border-top:1px solid #f2f2f2;">';
+            h += '<a href="#" onclick="event.preventDefault();toggleNoteReplyBox(this);" style="font-size:11px;color:#c8102e;text-decoration:underline;">💬 Reply</a>';
+            h += '<div class="note-reply-box" style="display:none;margin-top:8px;">';
+            h += '<textarea class="note-reply-input" placeholder="Type a reply..." style="width:100%;min-height:60px;padding:8px;border:2px solid #e0e0e0;border-radius:8px;font-size:12px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box;resize:vertical;"></textarea>';
+            h += '<button onclick="submitNoteReply(this,'+_rNoteId+')" style="margin-top:6px;padding:8px 14px;border:none;border-radius:8px;background:#c8102e;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">Send Reply</button>';
+            h += '</div></div>';
+          }
+          h += '</div>';
           return h;
         })()
       };
@@ -9571,6 +9626,8 @@ function handleLockIconTap() {
     var contentEl = document.getElementById('update-content');
     if(lockEl) lockEl.style.display = 'none';
     if(contentEl) contentEl.style.display = 'block';
+    var cud = document.getElementById('current-user-display');
+    if(cud) cud.textContent = getCurrentUser();
     renderAcceptedErrors();
   }
 }
@@ -9626,6 +9683,10 @@ function handleLockIconTap() {
     <div style="background:var(--red);padding:14px 16px;">
       <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Dom's Notes</div>
       <div id="doms-ack-date" style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px;"></div>
+      <div style="margin-top:6px;">
+        <span style="font-size:11px;color:rgba(255,255,255,0.75);">Acknowledging as <b id="doms-ack-user-display" style="color:#fff;"></b></span>
+        <a href="#" onclick="switchUser();document.getElementById('doms-ack-user-display').textContent=getCurrentUser();return false;" style="font-size:11px;color:rgba(255,255,255,0.75);text-decoration:underline;margin-left:10px;">Switch User</a>
+      </div>
     </div>
     <div id="doms-ack-body" style="padding:16px;max-height:60vh;overflow-y:auto;"></div>
     <div style="padding:0 16px 16px;display:flex;gap:10px;" id="doms-ack-buttons"></div>
@@ -9788,85 +9849,38 @@ function showDomsAckModal(note) {
   if(user === 'Dom') return;
   var modal = document.getElementById('doms-ack-modal');
   if(!modal) return;
+  var udEl = document.getElementById('doms-ack-user-display');
+  if(udEl) udEl.textContent = user;
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var d = new Date(note.created_at);
   document.getElementById('doms-ack-date').textContent = months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear() + ' - By: ' + (note.created_by || 'Dom');
-
-  var sections = [
-    {key:'drivers', label:'DRIVERS', text:note.drivers},
-    {key:'foh', label:'FRONT OF HOUSE', text:note.foh},
-    {key:'boh', label:'BACK OF HOUSE', text:note.boh}
-  ].filter(function(s){ return s.text; });
-
+  var body = '';
+  if(note.drivers) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">DRIVERS</div><div style="font-size:13px;white-space:pre-wrap;">'+note.drivers+'</div></div>';
+  if(note.foh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">FRONT OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.foh+'</div></div>';
+  if(note.boh) body += '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">BACK OF HOUSE</div><div style="font-size:13px;white-space:pre-wrap;">'+note.boh+'</div></div>';
+  document.getElementById('doms-ack-body').innerHTML = body;
+  var dismissCount = parseInt(localStorage.getItem('zp_doms_dismiss_count') || '0');
   var btnContainer = document.getElementById('doms-ack-buttons');
   btnContainer.innerHTML = '';
-
   if(user === 'Alex') {
-    document.getElementById('doms-ack-body').innerHTML = sections.map(function(s){
-      return '<div style="margin-bottom:14px;"><div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">'+s.label+'</div><div style="font-size:13px;white-space:pre-wrap;">'+s.text+'</div></div>';
-    }).join('');
     var cb = document.createElement('button');
     cb.textContent = 'Clear';
     cb.style.cssText = 'flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;';
     cb.onclick = function(){ modal.style.display='none'; };
     btnContainer.appendChild(cb);
-    modal.style.display = 'flex';
-    return;
+  } else {
+    var pb = document.createElement('button');
+    pb.textContent = 'Print';
+    pb.style.cssText = 'flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;';
+    pb.onclick = function(){ printDomsNoteFromAck(note, user); };
+    btnContainer.appendChild(pb);
+    var ab = document.createElement('button');
+    ab.textContent = dismissCount >= 2 ? 'ACKNOWLEDGE (Required)' : 'Acknowledge';
+    ab.style.cssText = 'flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-left:8px;';
+    ab.onclick = function(){ acknowledgeDomsNote(note); };
+    btnContainer.appendChild(ab);
   }
-
-  // Each section gets its own checkbox — checking it immediately logs an
-  // acknowledgment for THAT section only, with an auto-generated timestamp.
-  // No PIN, no manual date entry — the checkbox action itself is the record.
-  var body = '';
-  sections.forEach(function(s){
-    body += '<div style="margin-bottom:14px;">';
-    body += '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:4px;">'+s.label+'</div>';
-    body += '<div style="font-size:13px;white-space:pre-wrap;margin-bottom:8px;">'+s.text+'</div>';
-    body += '<label id="doms-ack-row-'+s.key+'" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#222;cursor:pointer;">';
-    body += '<input type="checkbox" id="doms-ack-cb-'+s.key+'" onchange="ackDomsNoteSection('+note.id+',\''+s.key+'\',this)" style="width:18px;height:18px;">';
-    body += '<span id="doms-ack-label-'+s.key+'">I acknowledge this note</span>';
-    body += '</label></div>';
-  });
-  document.getElementById('doms-ack-body').innerHTML = body;
-
-  var pb = document.createElement('button');
-  pb.textContent = 'Print';
-  pb.style.cssText = 'flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;';
-  pb.onclick = function(){ printDomsNoteFromAck(note, user); };
-  btnContainer.appendChild(pb);
-
   modal.style.display = 'flex';
-}
-
-// Acknowledges ONE section of a note. Fires the moment the checkbox is checked —
-// timestamp is generated automatically, never typed in. Once every section present
-// in this note has been checked, the modal closes and the note is marked seen.
-function ackDomsNoteSection(noteId, section, checkboxEl) {
-  if(!checkboxEl.checked) return; // this UI never lets you un-check; ignore stray events
-  checkboxEl.disabled = true;
-  var user = getCurrentUser();
-  var now = new Date();
-  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var stamp = months[now.getMonth()]+' '+now.getDate()+', '+now.getFullYear()+' '+now.getHours()+':'+String(now.getMinutes()).padStart(2,'0');
-  var lbl = document.getElementById('doms-ack-label-'+section);
-  if(lbl) lbl.textContent = 'Acknowledged ' + stamp;
-  var row = document.getElementById('doms-ack-row-'+section);
-  if(row) row.style.color = '#1a7a3c';
-
-  fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-    body: JSON.stringify([{note_id: noteId, acknowledged_by: user, acknowledged_at: now.toISOString(), action: 'acknowledged', section: section}])
-  }).catch(function(){});
-
-  // Check whether every checkbox currently on screen is now checked
-  var allBoxes = document.querySelectorAll('#doms-ack-body input[type="checkbox"]');
-  var allDone = Array.prototype.every.call(allBoxes, function(b){ return b.disabled; });
-  if(allDone) {
-    localStorage.setItem('zp_doms_note_seen_id', String(noteId));
-    localStorage.removeItem('zp_doms_dismiss_count');
-    setTimeout(function(){ document.getElementById('doms-ack-modal').style.display = 'none'; }, 600);
-  }
 }
 
 function printDomsNoteFromAck(note, user) {
@@ -9893,6 +9907,64 @@ function printDomsNoteFromAck(note, user) {
   iframe.contentDocument.write(html);
   iframe.contentDocument.close();
   setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+}
+
+function acknowledgeDomsNote(note) {
+  var now = new Date();
+  var user = getCurrentUser();
+  fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([{note_id: note.id, acknowledged_by: user, acknowledged_at: now.toISOString(), action: 'acknowledged'}])
+  }).catch(function(){});
+  localStorage.setItem('zp_doms_note_seen_id', String(note.id));
+  localStorage.removeItem('zp_doms_dismiss_count');
+  document.getElementById('doms-ack-modal').style.display = 'none';
+}
+
+// Toggles the reply textarea open/closed under a note in the Schedule Log thread.
+function toggleNoteReplyBox(linkEl) {
+  var box = linkEl.nextElementSibling;
+  if(!box) return;
+  var isOpen = box.style.display === 'block';
+  box.style.display = isOpen ? 'none' : 'block';
+  if(!isOpen) {
+    var ta = box.querySelector('.note-reply-input');
+    if(ta) ta.focus();
+  }
+}
+
+// Sends a reply on a Dom's Note thread, logged as its own ack_type:'reply' event
+// (with the actual reply text) so it shows in the thread attributed to whoever
+// sent it, same as any other acknowledgment event.
+async function submitNoteReply(btnEl, noteId) {
+  if(noteId === 'null' || noteId === null || noteId === undefined) {
+    alert('Can\'t send this reply — the original note reference is missing.');
+    return;
+  }
+  var box = btnEl.parentElement;
+  var ta = box.querySelector('.note-reply-input');
+  var text = (ta && ta.value || '').trim();
+  if(!text) { alert('Type a reply first.'); return; }
+  var origLabel = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = 'Sending...';
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/doms_notes_ack', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([{note_id: noteId, acknowledged_by: getCurrentUser(), acknowledged_at: new Date().toISOString(), action: 'reply', reply_text: text}])
+    });
+    if(!resp.ok) throw new Error('save failed');
+    ta.value = '';
+    box.style.display = 'none';
+    var modal = document.getElementById('override-log-modal');
+    if(modal && modal.style.display !== 'none' && typeof showOverrideLog === 'function') showOverrideLog();
+  } catch(err) {
+    alert('Could not send that reply — check your connection and try again. If it keeps failing, the reply_text column may not exist yet on doms_notes_ack.');
+  }
+  btnEl.disabled = false;
+  btnEl.textContent = origLabel;
 }
 
 </script>
