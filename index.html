@@ -7550,6 +7550,18 @@ function renderHeatMapProjection(di, dayGrid, HOURS) {
   (HOURS||[]).forEach(function(h){ if(h > curHour && dayGrid && dayGrid[h]) remainingScheduled += dayGrid[h].cost; });
   var projectedLabor = actualLabor != null ? actualLabor + remainingScheduled : null;
 
+  // Hard sanity cap on the OUTPUT itself, regardless of what produced it: a
+  // real day never lands anywhere near 3x its own historical average. If the
+  // math ever produces something outside plausible range, never display it
+  // as if it were a real number — show it plainly as unreliable instead.
+  var avgSalesForCap = POS_BASELINE[di].avgSales;
+  if(projectedSales != null && avgSalesForCap && projectedSales > avgSalesForCap * 3) {
+    projEl.textContent = 'Not enough data yet to project reliably';
+    if(bannerWrap) bannerWrap.innerHTML = '';
+    setGlobalStatusBar(null);
+    return;
+  }
+
   projEl.textContent = (projectedSales!=null?'$'+projectedSales.toFixed(0):'—') + ' / ' + (projectedLabor!=null?'$'+projectedLabor.toFixed(0):'—');
 
   var avgSales = POS_BASELINE[di].avgSales;
