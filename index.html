@@ -7533,6 +7533,17 @@ function renderHeatMapProjection(di, dayGrid, HOURS) {
   hKeys.forEach(function(h){ if(curHour>=h) pacingHour=h; });
   var pacingPct = SALES_PACING_CUMULATIVE[pacingHour] || 0.05;
 
+  // Before the day's really underway (roughly before 11AM), the pacing % is
+  // so small that dividing by it turns any typed-in number into a wild,
+  // meaningless projection. Rather than show something absurd, say plainly
+  // that it's too early to project yet.
+  if(pacingPct < 0.05) {
+    projEl.textContent = 'Too early to project';
+    if(bannerWrap) bannerWrap.innerHTML = '';
+    setGlobalStatusBar(null);
+    return;
+  }
+
   var projectedSales = actualSales != null ? actualSales/pacingPct : null;
 
   var remainingScheduled = 0;
