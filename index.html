@@ -3881,6 +3881,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
+<div id="global-status-bar" style="display:none;padding:6px 14px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:12px;letter-spacing:0.06em;color:#fff;"></div>
 <div id="global-user-bar" style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:5px 14px;background:#f7f7f7;border-bottom:1px solid #eee;font-size:11px;color:#888;">
   Signed in as <b id="global-user-display" style="color:#333;"></b>
   <a href="#" onclick="switchUser();return false;" style="color:#c8102e;text-decoration:underline;font-weight:600;">Switch User</a>
@@ -4345,6 +4346,31 @@ function pinModalResolve(value) {
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const DATES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const FULL_DATES = ['','','','','','',''];
+
+// 365-Day POS Sales & Labor Baseline (Aug 7 2025 – Aug 6 2026), from actual
+// POS reports — not the app's computed/scheduled labor. Index 0=Monday.
+const POS_BASELINE = [
+  {avgLabor: 2323.91, avgSales: 5280.03},  // Monday
+  {avgLabor: 2316.08, avgSales: 5891.22},  // Tuesday
+  {avgLabor: 2218.82, avgSales: 7088.02},  // Wednesday
+  {avgLabor: 2097.56, avgSales: 6867.40},  // Thursday
+  {avgLabor: 3198.72, avgSales: 14839.68}, // Friday
+  {avgLabor: 3143.18, avgSales: 14434.86}, // Saturday
+  {avgLabor: 2694.22, avgSales: 9573.31}   // Sunday
+];
+const POS_YEARLY_AVG = { labor: 2569.06, sales: 9132.99 };
+
+// Estimated cumulative % of the day's total sales typically done BY this hour
+// (slow open, lunch bump, afternoon lull, big 5-7PM rush, taper to close).
+// This is a modeled estimate, not real hourly POS data — anchored to the
+// pacing points already defined in the uploaded baseline (2PM~27%, 5PM~52%,
+// 7PM~78% of day done). Used only to project where the full day will land
+// based on how much has come in so far.
+const SALES_PACING_CUMULATIVE = {
+  10:0.01, 11:0.05, 12:0.12, 13:0.20, 14:0.27, 15:0.33, 16:0.40,
+  17:0.52, 18:0.68, 19:0.78, 20:0.89, 21:0.96, 22:1.00
+};
+
 var WEEK_EVENTS = [null,null,null,null,null,null,null];
 
 // Close times: Sun-Thu = 10PM, Fri-Sat = 11PM
@@ -7083,48 +7109,63 @@ function renderHitList() {
   html += '<div class="report-header"><div class="report-title">LABOR HEAT MAP</div>';
   html += '<div class="report-sub">' + DAYS[di] + ' — ' + (FULL_DATES[di]||'') + '</div></div>';
 
-  html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;align-items:start;">';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">PEAK HOUR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--red);">'+fmtH(peak.h)+'</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">highest staffing hour</div>';
+  // Compute the exact calendar date for this day, to key the daily_actuals row
+  var _weekObj = allWeeks[currentWeekIdx];
+  var _entryDate = null;
+  if(_weekObj && _weekObj.week_start){
+    var _d = new Date(_weekObj.week_start+'T00:00:00');
+    _d.setDate(_d.getDate()+di);
+    _entryDate = _d.getFullYear()+'-'+String(_d.getMonth()+1).padStart(2,'0')+'-'+String(_d.getDate()).padStart(2,'0');
+  }
+  var _base = POS_BASELINE[di];
+
+  html += '<div class="card" style="margin-bottom:14px;">';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;">';
+  html += '<div class="card-header" style="border-radius:0;justify-content:center;">'+DAYS[di].toUpperCase()+' AVERAGE</div>';
+  html += '<div class="card-header red" style="border-radius:0;justify-content:center;">ACTUAL</div>';
   html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">AVG POS LABOR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+(window._weeklyAvgPOS||posLaborCost).toFixed(0)+'</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">avg wages only per day</div>';
+
+  // Row 1 — Labor
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--gray-100);">';
+  html += '<div style="padding:14px 8px;text-align:center;border-right:1px solid var(--gray-100);">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">LABOR</div>';
+  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+_base.avgLabor.toFixed(0)+'</div>';
   html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">EST. TRUE LABOR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+totalCost.toFixed(0)+'</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">wages+taxes+salary</div>';
+  html += '<div style="padding:14px 8px;text-align:center;">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">LABOR</div>';
+  html += '<input type="number" id="hm-actual-labor" placeholder="$0" oninput="renderHeatMapProjection('+di+', window._hmDayGrid, window._hmHours)" style="width:90%;text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:18px;border:1.5px solid var(--gray-200);border-radius:6px;padding:4px;">';
+  html += '</div></div>';
+
+  // Row 2 — Sales
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--gray-100);">';
+  html += '<div style="padding:14px 8px;text-align:center;border-right:1px solid var(--gray-100);">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">SALES</div>';
+  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+_base.avgSales.toFixed(0)+'</div>';
   html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">AVG TRUE LABOR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+weeklyAvgCost.toFixed(0)+'</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">per day this week</div>';
+  html += '<div style="padding:14px 8px;text-align:center;">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">SALES</div>';
+  html += '<input type="number" id="hm-actual-sales" placeholder="$0" oninput="renderHeatMapProjection('+di+', window._hmDayGrid, window._hmHours)" style="width:90%;text-align:center;font-family:\'Bebas Neue\',sans-serif;font-size:18px;border:1.5px solid var(--gray-200);border-radius:6px;padding:4px;">';
+  html += '</div></div>';
+
+  // Row 3 — Yearly Avg | Projected
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;">';
+  html += '<div style="padding:14px 8px;text-align:center;border-right:1px solid var(--gray-100);">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">YEARLY AVG</div>';
+  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--black);">$'+POS_YEARLY_AVG.sales.toFixed(0)+' / $'+POS_YEARLY_AVG.labor.toFixed(0)+'</div>';
+  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">sales / labor</div>';
   html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">POS SCHEDULED</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);">$'+posLaborCost.toFixed(0)+'</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">wages only, no taxes</div>';
-  html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;cursor:pointer;" onclick="showAdjustedPOS()">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">POS ADJUSTED</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);" id="adjusted-pos-val">TAP</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">enter actual to compare</div>';
-  html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;grid-column:span 2;cursor:pointer;" onclick="showCurrentPOSDetail()">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">CURRENT POS LABOR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);" id="current-pos-val">—</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">running weekly actual vs projected</div>';
-  html += '</div>';
-  html += '<div class="card" style="text-align:center;padding:12px 8px;grid-column:span 2;">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">AVG CURRENT POS LABOR</div>';
-  html += '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:22px;color:var(--black);" id="avg-current-pos-val">—</div>';
-  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">avg actual labor per day entered</div>';
+  html += '<div style="padding:14px 8px;text-align:center;">';
+  html += '<div style="font-size:10px;font-weight:600;color:var(--gray-400);letter-spacing:0.06em;margin-bottom:4px;">PROJECTED</div>';
+  html += '<div id="hm-projected-val" style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;color:var(--black);">—</div>';
+  html += '<div style="font-size:9px;color:var(--gray-400);margin-top:2px;">sales / labor</div>';
+  html += '</div></div>';
+
+  html += '<div style="padding:10px;text-align:center;border-top:1px solid var(--gray-100);">';
+  html += '<button onclick="saveDailyActual('+di+',\''+(_entryDate||'')+'\')" style="padding:9px 20px;background:var(--black);color:#fff;border:none;border-radius:8px;font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:0.06em;cursor:pointer;">💾 SAVE ACTUALS</button>';
   html += '</div>';
   html += '</div>';
+
+  html += '<div id="hm-status-banner-wrap"></div>';
 
   // DOM'S NOTES
   if(fohFlags.length > 0){
@@ -7414,14 +7455,137 @@ function renderHitList() {
   var _wkLbl2=(document.getElementById('hitlist-week-label')||{}).textContent||'';
   loadPOSAdjusted(_wkLbl2, di);
   loadCurrentPOSLabor(_wkLbl2);
+  loadDailyActual(di, dayGrid, HOURS, _entryDate);
 }
 
-// DOM'S NOTES
-// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES// DOM'S NOTES
+// Loads any already-saved actual sales/labor for this exact calendar date,
+// populates the input fields, and triggers the projection/status render.
+async function loadDailyActual(di, dayGrid, HOURS, entryDate) {
+  window._hmDayGrid = dayGrid;
+  window._hmHours = HOURS;
+  if(!entryDate) { renderHeatMapProjection(di, dayGrid, HOURS); return; }
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/daily_actuals?entry_date=eq.' + entryDate + '&select=*', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(r.ok) {
+      var rows = await r.json();
+      if(rows && rows.length) {
+        var row = rows[0];
+        var laborEl = document.getElementById('hm-actual-labor');
+        var salesEl = document.getElementById('hm-actual-sales');
+        if(laborEl && row.actual_labor != null) laborEl.value = row.actual_labor;
+        if(salesEl && row.actual_sales != null) salesEl.value = row.actual_sales;
+      }
+    }
+  } catch(e) { /* silent — inputs just stay blank */ }
+  renderHeatMapProjection(di, dayGrid, HOURS);
+}
+
+// Saves the typed actual sales/labor for this exact date (upsert by
+// entry_date), then recomputes the projection and status.
+async function saveDailyActual(di, entryDate) {
+  if(!entryDate) { alert('No date available for this day — cannot save.'); return; }
+  var laborEl = document.getElementById('hm-actual-labor');
+  var salesEl = document.getElementById('hm-actual-sales');
+  var actualLabor = laborEl && laborEl.value !== '' ? parseFloat(laborEl.value) : null;
+  var actualSales = salesEl && salesEl.value !== '' ? parseFloat(salesEl.value) : null;
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/daily_actuals', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{entry_date: entryDate, actual_labor: actualLabor, actual_sales: actualSales, entered_by: getCurrentUser(), entered_at: new Date().toISOString()}])
+    });
+    if(!resp.ok) throw new Error('save failed (' + resp.status + ')');
+  } catch(e) {
+    alert('Could not save — nothing was recorded. Check your connection and try again: ' + e.message);
+    return;
+  }
+  renderHeatMapProjection(di, window._hmDayGrid, window._hmHours);
+}
+
+// Projects the full day's sales (estimated pacing curve — no real hourly
+// POS data exists) and full day's labor (actual entered so far + the REAL
+// remaining scheduled labor for the hours left today, since that's known
+// exactly, not guessed). Renders the Projected cell, the status banner, and
+// tints the global status strip so it's visible from every tab.
+function renderHeatMapProjection(di, dayGrid, HOURS) {
+  var laborEl = document.getElementById('hm-actual-labor');
+  var salesEl = document.getElementById('hm-actual-sales');
+  var projEl = document.getElementById('hm-projected-val');
+  var bannerWrap = document.getElementById('hm-status-banner-wrap');
+  if(!projEl) return;
+
+  var actualLabor = laborEl && laborEl.value !== '' ? parseFloat(laborEl.value) : null;
+  var actualSales = salesEl && salesEl.value !== '' ? parseFloat(salesEl.value) : null;
+
+  if(actualSales == null && actualLabor == null) {
+    projEl.textContent = '—';
+    if(bannerWrap) bannerWrap.innerHTML = '';
+    setGlobalStatusBar(null);
+    return;
+  }
+
+  var now = new Date();
+  var curHour = now.getHours();
+  var hKeys = Object.keys(SALES_PACING_CUMULATIVE).map(Number).sort(function(a,b){return a-b;});
+  var pacingHour = hKeys[0];
+  hKeys.forEach(function(h){ if(curHour>=h) pacingHour=h; });
+  var pacingPct = SALES_PACING_CUMULATIVE[pacingHour] || 0.05;
+
+  var projectedSales = actualSales != null ? actualSales/pacingPct : null;
+
+  var remainingScheduled = 0;
+  (HOURS||[]).forEach(function(h){ if(h > curHour && dayGrid && dayGrid[h]) remainingScheduled += dayGrid[h].cost; });
+  var projectedLabor = actualLabor != null ? actualLabor + remainingScheduled : null;
+
+  projEl.textContent = (projectedSales!=null?'$'+projectedSales.toFixed(0):'—') + ' / ' + (projectedLabor!=null?'$'+projectedLabor.toFixed(0):'—');
+
+  var avgSales = POS_BASELINE[di].avgSales;
+  var status = null;
+  if(projectedSales != null && avgSales) {
+    var pct = projectedSales/avgSales;
+    if(pct >= 0.95) status = {level:'green', color:'#27AE60', label:'ON PACE', msg:'Projected to hit '+DAYS[di]+"'s average — no action needed."};
+    else if(pct >= 0.80) status = {level:'yellow', color:'#C98A00', label:'JUST SHORT', msg:'Projected to land short of average — watch staffing and sales pace.'};
+    else status = {level:'red', color:'#E31010', label:'EXCESSIVELY UNDER', msg:'Projected well under average — consider cutting labor where practical.'};
+  }
+
+  if(bannerWrap) {
+    if(status) {
+      bannerWrap.innerHTML =
+        '<div style="margin-bottom:14px;">' +
+        '<div style="width:100%;padding:13px 16px;background:'+status.color+';color:#fff;border-radius:10px;' +
+        'font-family:\'Bebas Neue\',sans-serif;font-size:16px;letter-spacing:0.07em;text-align:center;' +
+        'box-shadow:0 3px 12px rgba(0,0,0,0.15);">' +
+        (status.level==='green'?'✅':'⚠️')+' PROJECTED '+status.label+' — $'+projectedSales.toFixed(0)+' vs $'+avgSales.toFixed(0)+' avg' +
+        '</div>' +
+        '<div style="margin-top:6px;font-size:11px;color:'+status.color+';text-align:center;">'+status.msg+'</div>' +
+        '</div>';
+    } else {
+      bannerWrap.innerHTML = '';
+    }
+  }
+
+  setGlobalStatusBar(status);
+}
+
+// Tints the thin status strip beneath the nav so today's projected
+// performance is visible from any tab, not just Heat Map.
+function setGlobalStatusBar(status) {
+  var bar = document.getElementById('global-status-bar');
+  if(!bar) return;
+  if(!status) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  bar.style.background = status.color;
+  bar.textContent = (status.level==='green'?'✅':'⚠️') + ' TODAY PROJECTED ' + status.label;
+}
+
 var editorDay = 0;
 var currentHitlistDay = 0;
 
 function selectHitlistDay(di) {
+
+
   currentHitlistDay = di;
   var tabs = document.querySelectorAll('#hitlist-day-tabs .day-tab');
   tabs.forEach(function(t, i) {
