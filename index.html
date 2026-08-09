@@ -5745,7 +5745,7 @@ function printWageRoster() {
   function subRow(lbl,ann){pb(rH+2);rect(p,M,y,PW-2*M,rH,[0.93,0.93,0.91]);text(p,M+4,y+10,lbl+' Subtotal',8,true,[0.35,0.35,0.35]);rtext(p,CA,y+10,'~$'+Math.round(ann).toLocaleString()+' / yr',8.5,true);y+=rH+3;}
   var sections=[
     {l:'Owners',r:[['Dom',true,60000],['Ely Calero',true,100000],['Lisa Barraco',true,40000]]},
-    {l:'Managers',r:[['Alexis A',false,22],['Brett',true,10000],['Selena Gonzales',true,40292]]},
+    {l:'Managers',r:[['Alexis A',true,60000],['Brett',true,10000],['Selena Gonzales',true,40292]]},
     {l:'Pizza',r:[['Laura Z',false,19],['Arturo Viveros',false,21],['Carlos Jr',false,17.5],['Carlos Mora',false,19.25],['Eddie Cruz',false,19],['Gonzo',false,17],['Jesus Murillo',false,21],['Leo',false,17.5],['Luis Perez',false,20],['Luis Soto',false,19],['Monico Esparza',false,20],['Oscar Velazquez',false,19],['Victor Cruz',false,20.5]]},
     {l:'Kitchen',r:[['Laura Z',false,19],['Nithia Maldonado',false,17.50],['Nicholas Urbana',false,20]]},
     {l:'Prep / Utility',r:[['Sylvia',false,15]]},
@@ -6512,10 +6512,10 @@ function renderPrivate() {
     {n:'Lisa Barraco',s:40000,role:'Owner'},
     {n:'Dom',s:60000,role:'Owner'},
     {n:'Selena Gonzales',s:40292,role:'Manager'},
-    {n:'Brett',s:10000,role:'Manager'}
+    {n:'Brett',s:10000,role:'Manager'},
+    {n:'Alexis A',s:60000,role:'Manager'}
   ];
   var HLY=[
-    {n:'Alexis A',r:22,role:'Manager',src:function(){return [MANAGERS['Alexis A']]},type:'b'},
     {n:'Laura Z',r:19,role:'Kitchen/Pizza',src:function(){return [KITCHEN['Laura Z'],PIZZA['Laura Z']]},type:'b'},
     {n:'Nithia Maldonado',r:17.50,role:'Kitchen Cook',src:function(){return [KITCHEN['Nithia Maldonado']]},type:'b'},
     {n:'Arturo Viveros',r:21,role:'Kitchen/Pizza',src:function(){return [PIZZA['Arturo'],KITCHEN['Arturo']]},type:'b'},
@@ -6885,7 +6885,7 @@ function renderHitList() {
     // Schedule short-names mapped to pay-schedule wages (work schedule uses short names)
     'Carlos':19.25,'Eddie':19,'Eddy':19,'Eddie Cruz':19,'Jesus':21,'Luis':20,'Soto':19,'Monico':20,'Oscar':19,
     'Victor':20.50,'Arturo':21,'Jose B':23,'Nick':20,'Armani':16,'Marco':16,
-    'Alexis A':22,'Nithia Maldonado':17.50,'Arturo Viveros':21,'Jesus Murillo':21,'Derek':19,
+    'Nithia Maldonado':17.50,'Arturo Viveros':21,'Jesus Murillo':21,'Derek':19,
     'Carlos Mora':19.25,'Nicholas Urbana':20,'Luis Perez':20,'Victor Cruz':20.50,
     'Monico Esparza':20,'Oscar Velazquez':19,'Luis Soto':19,'Gonzo':17,
     'Carlos Jr':17.50,'Leo':17.50,'Ever':17.50,'Sylvia':15,
@@ -6917,7 +6917,7 @@ function renderHitList() {
   HOURS.forEach(function(h){ dayGrid[h] = {count:0, cost:0}; });
 
   // Salaried staff — excluded from the hourly heat map (like drivers). Alexis A is hourly, so not here.
-  var SALARIED = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1};
+  var SALARIED = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1,'Alexis A':1};
 
   var bohSections = [
     {d:MANAGERS,names:{}},{d:PIZZA,names:{}},{d:KITCHEN,names:{}},
