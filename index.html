@@ -5493,6 +5493,9 @@ function printWageRoster() {
 // ---------------------------------------------------------------------------
 var DRAWER_REGISTERS = ['5','8','3','12','9'];
 var DRAWER_STARTING_BALANCE = 250;
+function getDrawerStartingBalance(reg) {
+  return reg === '3' ? 300 : DRAWER_STARTING_BALANCE;
+}
 var DRAWER_ITEMS = {
   coins: [
     {id:'penny',   label:'Penny',   value:0.01},
@@ -5537,7 +5540,7 @@ function selectDrawerRegister(reg) {
     b.classList.toggle('btn-secondary', b.getAttribute('data-reg') !== reg);
   });
   document.getElementById('drawer-count-form').style.display = 'block';
-  document.getElementById('drawer-opening-amount').value = DRAWER_STARTING_BALANCE;
+  document.getElementById('drawer-opening-amount').value = getDrawerStartingBalance(reg);
   document.getElementById('drawer-cashier-name').value = '';
   var dateInput = document.getElementById('drawer-count-date');
   if(!dateInput.value) {
@@ -5594,7 +5597,7 @@ function recalcDrawerTotal() {
     return total;
   }
   var openingEl = document.getElementById('drawer-opening-amount');
-  var openingAmt = openingEl ? (parseFloat(openingEl.value) || 0) : DRAWER_STARTING_BALANCE;
+  var openingAmt = openingEl ? (parseFloat(openingEl.value) || 0) : getDrawerStartingBalance(_drawerSelectedRegister);
   var diff = total - openingAmt;
   if(Math.abs(diff) < 0.005) {
     pullLine.textContent = 'Even — no pull needed';
@@ -5678,7 +5681,7 @@ function renderDrawerCountRows(rows, list) {
         : (Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2)));
       var t = new Date(r.counted_at);
       var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
-      var openedNote = (!isSpotCheck && r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
+      var openedNote = (!isSpotCheck && r.starting_balance != null && Math.abs(r.starting_balance - getDrawerStartingBalance(r.register)) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
         + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+' — '+typeLabel+(r.cashier_name?' — '+r.cashier_name:'')+'</div>'
         + '<div style="font-size:11px;color:#888;">Counted by '+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+openedNote+'</div></div>'
