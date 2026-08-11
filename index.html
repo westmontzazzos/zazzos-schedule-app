@@ -8406,18 +8406,23 @@ function checkScheduleErrors() {
         errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'No server closer (nobody with C)'});
     }
 
-    // PM server minimums: Fri(4)/Sat(5) need 5, Sun(6) needs 4, starting 3:30PM or later
+    // PM server minimums: Fri(4)/Sat(5) need 5, Sun(6) needs 4 — counts anyone
+    // actually working during the 3:30PM+ window, whether they start then or
+    // opened earlier and are still on through it.
     if(di === 4 || di === 5 || di === 6) {
       var pmServerCount = 0;
       Object.values(SERVERS).forEach(function(days){
         var e = days[di];
         if(!e || !e[0]) return;
         var st = hitlistHour(e[0], di);
-        if(st !== null && st >= 15.5) pmServerCount++;
+        if(st === null) return;
+        var en = e[1] ? hitlistHour(e[1], di) : null;
+        var workingThroughWindow = (st >= 15.5) || (en !== null && en >= 15.5);
+        if(workingThroughWindow) pmServerCount++;
       });
       var minPM = (di === 6) ? 4 : 5;
       if(pmServerCount < minPM)
-        errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'Only '+pmServerCount+' PM server(s) starting 3:30PM+ — need at least '+minPM});
+        errors.FOH.push({di:di, day:day, name:'—', dept:'Servers', msg:'Only '+pmServerCount+' PM server(s) working 3:30PM+ — need at least '+minPM});
     }
   }
    } catch(dayErr) { console.warn('FOH day check failed for day '+di+':', dayErr); }
