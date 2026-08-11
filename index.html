@@ -5208,7 +5208,7 @@ function acceptError(di, dept, msg) {
   // Who buttons
   var whoRow = document.createElement('div');
   whoRow.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;';
-  ['Selena','Alex','Ely'].forEach(function(name){
+  ['Selena','Alexis A','Ely'].forEach(function(name){
     var b = document.createElement('button');
     b.className = 'zp-who-btn';
     b.style.cssText = 'flex:1;padding:10px;border:2px solid #e0e0e0;border-radius:8px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;';
@@ -6130,7 +6130,7 @@ function setIdentity(name) {
   // casing used everywhere else (REQUIRED_ACK_MANAGERS, role checks, etc.) —
   // otherwise a lowercase or mistyped custom entry silently creates a
   // permanent mismatch where that manager's acknowledgment never registers.
-  var KNOWN_IDENTITIES = ['Ely','Selena','Alex','Dom','Brett','Alexis A'];
+  var KNOWN_IDENTITIES = ['Ely','Selena','Dom','Brett','Alexis A'];
   var trimmed = name.trim();
   var match = KNOWN_IDENTITIES.filter(function(k){ return k.toLowerCase() === trimmed.toLowerCase(); })[0];
   if(match) name = match; else name = trimmed;
@@ -6272,6 +6272,7 @@ function renderPrivate() {
     {n:'Gonzalo',r:17,role:'Bus/Dish',src:function(){return [BUS['Gonzalo'],DISH['Gonzalo']]},type:'b'},
     {n:'Eric',r:15,role:'Bus/Dish',src:function(){return [BUS['Eric'],DISH['Eric']]},type:'b'},
     {n:'Jaxon',r:15,role:'Bus/Dish',src:function(){return [BUS['Jaxon'],DISH['Jaxon']]},type:'b'},
+    {n:'Matt',r:15,role:'Dish',src:function(){return [DISH['Matt']]},type:'b'},
     {n:'Sio McAvoy',r:17,role:'Cashier/Server',src:function(){return [CASHIERS['Sio'],SERVERS['Sio']]},type:'f',role2:'cashiers'},
     {n:'Sio McAvoy (Bar)',r:9,role:'Bartender',src:function(){return [BARTENDERS['Sio']]},type:'f',role2:'bartenders'},
     {n:'Mike Henie',r:15,role:'Cashier',src:function(){return [CASHIERS['Mike']]},type:'f',role2:'cashiers'},
@@ -6343,7 +6344,7 @@ function renderPrivate() {
   // never returned by any src() is invisible to this wage report.
   var coveredArrs = new Set();
   HLY.forEach(function(e){ e.src().forEach(function(a){ if(a) coveredArrs.add(a); }); });
-  var SAL_NAMES = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1};
+  var SAL_NAMES = SALARIED_EMPLOYEES;
   var unmatched = [];
   [
     {d:MANAGERS,label:'Managers',type:'b'},{d:PIZZA,label:'Pizza',type:'b'},
@@ -6608,6 +6609,14 @@ function parseFOHHours(entry, di, role) {
   return {st: st, en: en, flag: flag, flagMsg: flagMsg, isClose: !!isClose};
 }
 
+// Single source of truth for who's salaried. Every place in the app that
+// needs to exclude someone from hourly cost math, or knows not to flag them
+// as "not in wage roster," reads from this ONE list — not a separate copy.
+// This exists because two different hardcoded copies of this same list
+// (one here, one in the Private tab report) drifted out of sync and caused
+// a correctly-salaried employee to wrongly show as unmatched.
+const SALARIED_EMPLOYEES = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1,'Alexis A':1};
+
 function renderHitList() {
   var el = document.getElementById('hitlist-content');
   var HOURS = [10,11,12,13,14,15,16,17,18,19,20,21,22];
@@ -6650,7 +6659,7 @@ function renderHitList() {
   HOURS.forEach(function(h){ dayGrid[h] = {count:0, cost:0}; });
 
   // Salaried staff — excluded from the hourly heat map (like drivers). Alexis A is hourly, so not here.
-  var SALARIED = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1,'Alexis A':1};
+  var SALARIED = SALARIED_EMPLOYEES;
 
   var bohSections = [
     {d:MANAGERS,names:{}},{d:PIZZA,names:{}},{d:KITCHEN,names:{}},
@@ -9591,7 +9600,7 @@ function handleLockIconTap() {
     <div style="display:flex;flex-direction:column;gap:10px;">
       <button onclick="setIdentity('Ely')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Ely</button>
       <button onclick="setIdentity('Selena')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Selena</button>
-      <button onclick="setIdentity('Alex')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alex</button>
+      <button onclick="setIdentity('Alexis A')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alexis A</button>
       <button onclick="setIdentity('Dom')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Dom</button>
       <button onclick="showIdentityInput()" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;color:#888;">Add / Not Listed</button>
       <div id="identity-input-wrap" style="display:none;">
@@ -9820,7 +9829,7 @@ function showDomsAckModal(note) {
   var dismissCount = parseInt(localStorage.getItem('zp_doms_dismiss_count') || '0');
   var btnContainer = document.getElementById('doms-ack-buttons');
   btnContainer.innerHTML = '';
-  if(user === 'Alex') {
+  if(user === 'Alexis A') {
     var cb = document.createElement('button');
     cb.textContent = 'Clear';
     cb.style.cssText = 'flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;';
