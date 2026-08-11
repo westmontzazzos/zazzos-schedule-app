@@ -3996,6 +3996,12 @@ document.addEventListener("DOMContentLoaded",function(){
   <div id="drawer-register-picker" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"></div>
 
   <div id="drawer-count-form" style="display:none;">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="drawer-type-picker">
+      <button class="btn btn-secondary drawer-type-btn" data-type="opener" onclick="selectDrawerType('opener')" style="flex:1;min-width:80px;">Opener</button>
+      <button class="btn btn-secondary drawer-type-btn" data-type="shift_change" onclick="selectDrawerType('shift_change')" style="flex:1;min-width:80px;">Shift Change</button>
+      <button class="btn btn-secondary drawer-type-btn" data-type="closer" onclick="selectDrawerType('closer')" style="flex:1;min-width:80px;">Closer</button>
+      <button class="btn btn-secondary drawer-type-btn" data-type="spot_check" onclick="selectDrawerType('spot_check')" style="flex:1;min-width:80px;">Spot Check</button>
+    </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
       <label style="font-size:12px;color:#666;font-weight:700;">Who was on this drawer?</label>
       <input type="text" id="drawer-cashier-name" placeholder="Name" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">
@@ -5510,6 +5516,7 @@ var DRAWER_ITEMS = {
   ]
 };
 var _drawerSelectedRegister = null;
+var _drawerSelectedType = null;
 
 function renderDrawerTab() {
   var picker = document.getElementById('drawer-register-picker');
@@ -5521,6 +5528,10 @@ function renderDrawerTab() {
 
 function selectDrawerRegister(reg) {
   _drawerSelectedRegister = reg;
+  _drawerSelectedType = null;
+  document.querySelectorAll('.drawer-type-btn').forEach(function(b){
+    b.classList.remove('btn-primary'); b.classList.add('btn-secondary');
+  });
   document.querySelectorAll('.drawer-reg-btn').forEach(function(b){
     b.classList.toggle('btn-primary', b.getAttribute('data-reg') === reg);
     b.classList.toggle('btn-secondary', b.getAttribute('data-reg') !== reg);
@@ -5551,9 +5562,18 @@ function selectDrawerRegister(reg) {
 
 function cancelDrawerCount() {
   _drawerSelectedRegister = null;
+  _drawerSelectedType = null;
   document.getElementById('drawer-count-form').style.display = 'none';
   document.querySelectorAll('.drawer-reg-btn').forEach(function(b){
     b.classList.remove('btn-primary'); b.classList.add('btn-secondary');
+  });
+}
+
+function selectDrawerType(type) {
+  _drawerSelectedType = type;
+  document.querySelectorAll('.drawer-type-btn').forEach(function(b){
+    b.classList.toggle('btn-primary', b.getAttribute('data-type') === type);
+    b.classList.toggle('btn-secondary', b.getAttribute('data-type') !== type);
   });
 }
 
@@ -5568,6 +5588,11 @@ function recalcDrawerTotal() {
   });
   document.getElementById('drawer-total-amount').textContent = '$' + total.toFixed(2);
   var pullLine = document.getElementById('drawer-pull-line');
+  if(_drawerSelectedType === 'spot_check') {
+    pullLine.textContent = 'Spot check only — counted for reference, no pull';
+    pullLine.style.color = '#666';
+    return total;
+  }
   var openingEl = document.getElementById('drawer-opening-amount');
   var openingAmt = openingEl ? (parseFloat(openingEl.value) || 0) : DRAWER_STARTING_BALANCE;
   var diff = total - openingAmt;
@@ -5586,6 +5611,7 @@ function recalcDrawerTotal() {
 
 function saveDrawerCount() {
   if(!_drawerSelectedRegister) { alert('Select a register first.'); return; }
+  if(!_drawerSelectedType) { alert('Select Opener, Shift Change, Closer, or Spot Check first.'); return; }
   var dateVal = document.getElementById('drawer-count-date').value;
   if(!dateVal) { alert('Please set the count date.'); return; }
   var cashierName = document.getElementById('drawer-cashier-name').value.trim();
@@ -5600,9 +5626,12 @@ function saveDrawerCount() {
   });
   var total = recalcDrawerTotal();
   var openingAmt = parseFloat(document.getElementById('drawer-opening-amount').value) || 0;
-  var pull = total - openingAmt;
+  // Spot checks are informational only — verifying what's in the drawer,
+  // never a handoff — so there's no pull amount to compute or act on.
+  var pull = (_drawerSelectedType === 'spot_check') ? null : (total - openingAmt);
   var entry = {
     register: _drawerSelectedRegister,
+    count_type: _drawerSelectedType,
     count_date: dateVal,
     cashier_name: cashierName,
     counted_by: getCurrentUser(),
@@ -5610,7 +5639,7 @@ function saveDrawerCount() {
     counts_json: JSON.stringify(breakdown),
     total: Math.round(total * 100) / 100,
     starting_balance: Math.round(openingAmt * 100) / 100,
-    pull_amount: Math.round(pull * 100) / 100
+    pull_amount: pull != null ? Math.round(pull * 100) / 100 : null
   };
   fetch(SUPABASE_URL + '/rest/v1/drawer_counts', {
     method: 'POST',
@@ -5641,15 +5670,19 @@ function renderDrawerCountRows(rows, list) {
     var dt = new Date(d + 'T12:00:00');
     html += '<div style="font-size:12px;font-weight:700;color:#666;margin:10px 0 4px;">'+months[dt.getMonth()]+' '+dt.getDate()+', '+dt.getFullYear()+'</div>';
     byDate[d].sort(function(a,b){ return a.register.localeCompare(b.register, undefined, {numeric:true}) || new Date(a.counted_at)-new Date(b.counted_at); }).forEach(function(r){
-      var isShort = r.pull_amount < -0.005;
-      var pullLabel = Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2));
+      var TYPE_LABELS = {opener:'Opener', shift_change:'Shift Change', closer:'Closer', spot_check:'Spot Check'};
+      var typeLabel = TYPE_LABELS[r.count_type] || 'Opener';
+      var isSpotCheck = r.count_type === 'spot_check';
+      var isShort = !isSpotCheck && r.pull_amount < -0.005;
+      var pullLabel = isSpotCheck ? 'Counted $'+Number(r.total).toFixed(2)
+        : (Math.abs(r.pull_amount) < 0.005 ? 'Even' : (isShort ? 'SHORT $'+Math.abs(r.pull_amount).toFixed(2) : 'Pull $'+r.pull_amount.toFixed(2)));
       var t = new Date(r.counted_at);
       var timeStr = ((t.getHours()%12)||12) + ':' + String(t.getMinutes()).padStart(2,'0') + (t.getHours()>=12?'PM':'AM');
-      var openedNote = (r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
+      var openedNote = (!isSpotCheck && r.starting_balance != null && Math.abs(r.starting_balance - DRAWER_STARTING_BALANCE) > 0.005) ? ' &middot; Opened $'+Number(r.starting_balance).toFixed(2) : '';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid '+(isShort?'#f3c2c9':'#eee')+';background:'+(isShort?'#fff5f6':'#fff')+';border-radius:8px;margin-bottom:6px;">'
-        + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+(r.cashier_name?' — '+r.cashier_name:'')+'</div>'
+        + '<div><div style="font-size:13px;font-weight:700;color:#222;">Register '+r.register+' — '+typeLabel+(r.cashier_name?' — '+r.cashier_name:'')+'</div>'
         + '<div style="font-size:11px;color:#888;">Counted by '+(r.counted_by||'—')+' &middot; '+timeStr+' &middot; Total $'+Number(r.total).toFixed(2)+openedNote+'</div></div>'
-        + '<div style="font-size:13px;font-weight:700;color:'+(isShort?'#c8102e':'#1a7a3c')+';">'+pullLabel+'</div>'
+        + '<div style="font-size:13px;font-weight:700;color:'+(isSpotCheck?'#666':(isShort?'#c8102e':'#1a7a3c'))+';">'+pullLabel+'</div>'
         + '</div>';
     });
   });
