@@ -10272,6 +10272,7 @@ async function submitNoteReply(btnEl, noteId) {
   <button onclick="schedPrintSelect('drivers')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Drivers</button>
   <button onclick="schedPrintSelect('foh')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Front of House</button>
   <button onclick="schedPrintSelect('boh')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Back of House</button>
+  <button onclick="schedPrintSelect('all')" class="sched-print-opt" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:700;cursor:pointer;color:#c8102e;border-top:1px solid #eee;margin-top:2px;">All Sections</button>
   <div id="sched-print-range" style="display:none;border-top:1px solid #eee;margin-top:4px;">
     <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;padding:8px 16px 4px;">RANGE</div>
     <button onclick="printSchedSection('week')" style="display:block;width:100%;padding:9px 16px;background:none;border:none;text-align:left;font-size:13px;font-weight:600;cursor:pointer;color:#222;">Full Week</button>
@@ -10327,7 +10328,7 @@ function printSchedSection(range) {
 
   // Build rows to print
   var rows = '';
-  var title = view === 'drivers' ? 'Drivers' : view === 'foh' ? 'Front of House' : 'Back of House';
+  var title = view === 'drivers' ? 'Drivers' : view === 'foh' ? 'Front of House' : view === 'all' ? 'Full Schedule — All Sections' : 'Back of House';
 
   var daysToShow = range === 'day' ? [currentDay] : [0,1,2,3,4,5,6];
 
@@ -10340,6 +10341,7 @@ function printSchedSection(range) {
   var sections = [];
   if(view === 'drivers') sections = [['Drivers', DRIVERS]];
   else if(view === 'foh') sections = [['Servers', SERVERS],['Bartenders', BARTENDERS],['Cashiers', CASHIERS],['Hosts', HOSTS]];
+  else if(view === 'all') sections = [['Drivers', DRIVERS],['Managers', MANAGERS],['Pizza', PIZZA],['Kitchen', KITCHEN],['Prep', PREP],['Bus', BUS],['Dish', DISH],['Servers', SERVERS],['Bartenders', BARTENDERS],['Cashiers', CASHIERS],['Hosts', HOSTS]];
   else sections = [['Managers', MANAGERS],['Pizza', PIZZA],['Kitchen', KITCHEN],['Prep', PREP],['Bus', BUS],['Dish', DISH]];
 
   sections.forEach(function(sec){
