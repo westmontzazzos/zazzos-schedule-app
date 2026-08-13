@@ -6206,10 +6206,62 @@ var _schedTitleTapTimer = null;
 function handleSchedTitleTap() {
   _schedTitleTapCount++;
   if(_schedTitleTapTimer) clearTimeout(_schedTitleTapTimer);
-  _schedTitleTapTimer = setTimeout(function(){ _schedTitleTapCount = 0; }, 1500);
-  if(_schedTitleTapCount >= 4) {
+  if(_schedTitleTapCount === 5) {
     _schedTitleTapCount = 0;
-    toggleSchedEditMode();
+    showUploadHistoryLog();
+    return;
+  }
+  _schedTitleTapTimer = setTimeout(function(){
+    if(_schedTitleTapCount === 4) toggleSchedEditMode();
+    _schedTitleTapCount = 0;
+  }, 500);
+}
+
+// Hidden upload history — 5 taps on the Schedule title. Shows who uploaded
+// each section (BOH/FOH/Drivers) and when, per week. Only tracks uploads
+// going forward from when this was added — the app never recorded this
+// per-section detail before, so older weeks show "not tracked" rather than
+// a guessed or fabricated answer.
+async function showUploadHistoryLog() {
+  var modal = document.getElementById('upload-history-modal');
+  var body = document.getElementById('upload-history-body');
+  if(!modal || !body) return;
+  body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">Loading...</div>';
+  modal.style.display = 'flex';
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=15&select=week_start,boh_uploaded_by,boh_uploaded_at,foh_uploaded_by,foh_uploaded_at,driver_uploaded_by,driver_uploaded_at', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(!r.ok) throw new Error('fetch failed');
+    var rows = await r.json();
+    if(!rows.length) { body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No weeks found.</div>'; return; }
+    var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function fmtWhen(iso) {
+      if(!iso) return null;
+      var d = new Date(iso);
+      var h = d.getHours(), m = String(d.getMinutes()).padStart(2,'0');
+      var ap = h>=12?'PM':'AM'; h = h%12 || 12;
+      return months[d.getMonth()]+' '+d.getDate()+', '+h+':'+m+ap;
+    }
+    function sectionLine(label, by, at) {
+      var when = fmtWhen(at);
+      if(!by && !when) return '<div style="font-size:12px;color:#bbb;padding:3px 0;">'+label+': not tracked (uploaded before this log existed)</div>';
+      return '<div style="font-size:12px;color:#333;padding:3px 0;"><b>'+label+':</b> '+(by||'—')+(when?' — '+when:'')+'</div>';
+    }
+    var html = rows.map(function(w){
+      var start = new Date(w.week_start+'T00:00:00');
+      var end = new Date(start); end.setDate(start.getDate()+6);
+      var label = months[start.getMonth()]+' '+start.getDate()+' – '+months[end.getMonth()]+' '+end.getDate()+', '+end.getFullYear();
+      return '<div style="border:1px solid #eee;border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="font-family:\'Bebas Neue\',sans-serif;font-size:14px;letter-spacing:0.05em;margin-bottom:4px;">'+label+'</div>'
+        + sectionLine('Back of House', w.boh_uploaded_by, w.boh_uploaded_at)
+        + sectionLine('Front of House', w.foh_uploaded_by, w.foh_uploaded_at)
+        + sectionLine('Drivers', w.driver_uploaded_by, w.driver_uploaded_at)
+        + '</div>';
+    }).join('');
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div style="color:#c8102e;font-size:13px;text-align:center;padding:20px;">Could not load upload history.</div>';
   }
 }
 
@@ -9070,9 +9122,9 @@ async function processSingle(type) {
     if(existing) {
       // Patch just this section, preserve everything else
       var patch = {};
-      if(type==='boh') patch.boh_data = JSON.stringify(data);
-      if(type==='foh') patch.foh_data = JSON.stringify(data);
-      if(type==='drv') patch.driver_data = JSON.stringify(data);
+      if(type==='boh') { patch.boh_data = JSON.stringify(data); patch.boh_uploaded_by = getCurrentUser(); patch.boh_uploaded_at = new Date().toISOString(); }
+      if(type==='foh') { patch.foh_data = JSON.stringify(data); patch.foh_uploaded_by = getCurrentUser(); patch.foh_uploaded_at = new Date().toISOString(); }
+      if(type==='drv') { patch.driver_data = JSON.stringify(data); patch.driver_uploaded_by = getCurrentUser(); patch.driver_uploaded_at = new Date().toISOString(); }
       if(evPatch) patch.event_data = JSON.stringify(evPatch);
 
       await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + existing.id, {
@@ -9098,6 +9150,9 @@ async function processSingle(type) {
         driver_data: type==='drv' ? JSON.stringify(data) : emptyDRV,
         created_at: new Date().toISOString()
       };
+      if(type==='boh') { newRecord.boh_uploaded_by = getCurrentUser(); newRecord.boh_uploaded_at = newRecord.created_at; }
+      if(type==='foh') { newRecord.foh_uploaded_by = getCurrentUser(); newRecord.foh_uploaded_at = newRecord.created_at; }
+      if(type==='drv') { newRecord.driver_uploaded_by = getCurrentUser(); newRecord.driver_uploaded_at = newRecord.created_at; }
       if(evPatch) newRecord.event_data = JSON.stringify(evPatch);
 
       await fetch(SUPABASE_URL + '/rest/v1/schedules', {
@@ -9528,7 +9583,10 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
     boh_data: JSON.stringify(bohData),
     foh_data: JSON.stringify(fohData),
     driver_data: JSON.stringify(drvData),
-    event_data: JSON.stringify(eventData || [null,null,null,null,null,null,null])
+    event_data: JSON.stringify(eventData || [null,null,null,null,null,null,null]),
+    boh_uploaded_by: getCurrentUser(), boh_uploaded_at: new Date().toISOString(),
+    foh_uploaded_by: getCurrentUser(), foh_uploaded_at: new Date().toISOString(),
+    driver_uploaded_by: getCurrentUser(), driver_uploaded_at: new Date().toISOString()
   };
   var response;
   if(existing) {
@@ -10382,6 +10440,17 @@ function printSchedSection(range) {
 
 
 <!-- Outstanding errors notification -->
+<!-- Upload History — hidden, 5 taps on the Schedule title -->
+<div id="upload-history-modal" style="display:none;position:fixed;inset:0;z-index:10003;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;display:flex;flex-direction:column;max-height:85vh;">
+    <div style="background:var(--black);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Upload History</div>
+      <button onclick="document.getElementById('upload-history-modal').style.display='none';" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;line-height:1;flex-shrink:0;">✕</button>
+    </div>
+    <div id="upload-history-body" style="padding:14px 16px;overflow-y:auto;flex:1;"></div>
+  </div>
+</div>
+
 <div id="outstanding-errors-modal" style="display:none;position:fixed;inset:0;z-index:10003;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;">
     <div style="background:var(--red);padding:16px;">
