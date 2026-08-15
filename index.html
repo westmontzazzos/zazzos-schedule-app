@@ -9191,6 +9191,13 @@ async function processSingle(type) {
     } catch(e2) {}
     window._justUploaded = type==='boh'?'Back of House':type==='foh'?'Front of House':'Drivers';
     localStorage.setItem('zp_last_uploader', getCurrentUser());
+    if(type === 'boh' && window._rejectedManagerNames && window._rejectedManagerNames.length) {
+      var rejectedList = window._rejectedManagerNames.slice();
+      window._rejectedManagerNames = null;
+      setTimeout(function(){
+        alert('Heads up: "' + rejectedList.join('", "') + '" showed up under Managers in this photo but ' + (rejectedList.length===1?'isn\'t':'aren\'t') + ' one of the 5 approved managers (Selena, Dom, Ely, Alexis A, Brett), so ' + (rejectedList.length===1?'it was':'they were') + ' left off. If this was a typo for a real manager, fix it directly in the Schedule tab editor.');
+      }, 400);
+    }
     await loadAllWeeks();
     // Jump to the newly saved week
     var newIdx = allWeeks.findIndex(w => w.week_start === weekStart);
@@ -9496,6 +9503,33 @@ async function readScheduleImage(dataUrl, type) {
           }
         });
       });
+      // HARD RULE — only these 5 people can ever be a manager, full stop.
+      // The AI reading a photo is never the final authority on who's allowed
+      // in this section; anyone it reads that isn't one of these 5 (after
+      // resolving known nicknames/aliases) gets removed before anything is
+      // saved, and reported so nothing silently vanishes without a trace.
+      if(sched.MANAGERS) {
+        var MANAGER_ALLOWLIST = ['Selena','Dom','Ely','Alexis A','Brett'];
+        var managerAliasResolve = {'selena':'Selena','dom':'Dom','dominic':'Dom','ely':'Ely','elly':'Ely',
+          'alexis a':'Alexis A','alex':'Alexis A','alex a':'Alexis A','alexis acosta':'Alexis A','alex acosta':'Alexis A',
+          'brett':'Brett'};
+        var rejectedManagers = [];
+        Object.keys(sched.MANAGERS).forEach(function(name){
+          var resolved = managerAliasResolve[name.toLowerCase()];
+          if(resolved && MANAGER_ALLOWLIST.indexOf(resolved) !== -1) {
+            if(resolved !== name) {
+              sched.MANAGERS[resolved] = sched.MANAGERS[name];
+              delete sched.MANAGERS[name];
+            }
+          } else {
+            rejectedManagers.push(name);
+            delete sched.MANAGERS[name];
+          }
+        });
+        if(rejectedManagers.length) {
+          window._rejectedManagerNames = rejectedManagers;
+        }
+      }
     } else if(type === 'FOH') {
       var fohNames = await callVision(base64, mediaType, 'Look at this photo of a Front of House schedule. Read ONLY the employee names in the left column, grouped under their section headers. Do not read any day or shift columns. Include EVERY name in every section, even rows that look mostly blank. Ignore phone numbers or digits in parentheses. Return ONLY a JSON object, no markdown and no explanation, with exactly this structure: {"SERVERS":[],"BARTENDERS":[],"CASHIERS":[],"HOSTS":[]} — put each name as a string in its section array, and use an empty array for any section that has no names.');
       sched = reconcileSectioned(sched, fohNames, ['SERVERS','BARTENDERS','CASHIERS','HOSTS']);
