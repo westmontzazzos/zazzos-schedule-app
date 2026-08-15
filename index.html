@@ -4514,7 +4514,7 @@ const DRIVER_ALIASES = { 'jeff z': 'Jeff Zeggebeen', 'jeff zeggeben': 'Jeff Zegg
 // this is the one place that needs updating, not scattered per-upload logic.
 const NAME_ALIASES = {
   'alex': 'Alexis A', 'alex a': 'Alexis A',
-  'nithia': 'Nithia', 'nithia maldonado': 'Nithia',
+  'nithia': 'Nithia', 'nithia maldonado': 'Nithia', 'lithia': 'Nithia',
   'nick': 'Nick', 'nicholas': 'Nick', 'nicholas urbana': 'Nick',
   'sio': 'Sio', 'sio mcavoy': 'Sio',
   'laura': 'Laura Z', 'laura z': 'Laura Z',
@@ -8862,23 +8862,24 @@ function checkScheduleErrors() {
     'Leo':['Pizza'],'Luis':['Pizza'],'Luis Perez':['Pizza'],'Luis Soto':['Pizza'],
     'Monico':['Pizza'],'Monico Esparza':['Pizza'],'Soto':['Pizza'],
     'Oscar':['Pizza'],'Oscar Velazquez':['Pizza'],'Victor':['Pizza'],'Victor Cruz':['Pizza'],
-    'Nick':['Prep','Kitchen'],'Nicholas Urbana':['Prep','Kitchen'],'Sylvia':['Prep'],
+    'Nick':['Prep','Kitchen'],'Nicholas Urbana':['Prep','Kitchen'],'Sylvia':['Prep'],'Laura Z':['Kitchen','Pizza'],
     'Marco':['Pizza','Dish','Bus'],'Marco Sanchez':['Pizza','Dish','Bus'],
     'Armani':['Dish','Bus'],'Armani Finley':['Dish','Bus'],
     'Jaxon':['Dish','Bus'],'Eric':['Dish','Bus'],'Matt':['Dish'],'Raul':['Dish','Bus'],
     'Abby':['Servers','Cashiers','Hosts'],'Alexis':['Servers'],'Bridget':['Servers'],
     'Claudia':['Servers'],'Dorris':['Servers'],
-    'Hannah':['Servers'],'Hannah M':['Servers'],'Hannah Z':['Servers'],'Hannah Z.':['Servers'],
+    'Hannah':['Servers'],'Hannah M':['Servers'],'Hannah M.':['Servers'],'Hannah Z':['Servers'],'Hannah Z.':['Servers'],
     'Jaime':['Servers','Bartenders'],'Kelly':['Servers','Bartenders'],
     'Sio':['Servers','Cashiers','Bartenders'],'Sio McAvoy':['Servers','Cashiers','Bartenders'],
     'Annaka':['Servers'],'Allie':['Servers'],
     'Courtney':['Servers'],'Kamini':['Servers'],
     'Justin':['Servers','Bartenders'],'Julia':['Servers'],
     'Lindsay':['Bartenders'],'Brooke':['Bartenders'],'Cheeks':['Bartenders'],
-    'Danielle':['Bartenders'],'Mary':['Bartenders'],'Lea':['Bartenders'],
-    'Jack':['Cashiers'],'Jack Ruane':['Cashiers'],'Natalie':['Cashiers','Hosts'],'Presley':['Cashiers','Hosts'],
+    'Danielle':['Bartenders'],'Mary':['Bartenders'],'Lea':['Bartenders'],'Carrie':['Bartenders'],
+    'Jack':['Cashiers'],'Jack Ruane':['Cashiers'],'Mike':['Cashiers'],'Natalie':['Cashiers','Hosts'],'Presley':['Cashiers','Hosts'],
     'Tia':['Cashiers','Hosts'],'Emilie':['Cashiers','Hosts'],'Ellianna':['Cashiers','Hosts'],
-    'Keegan':['Cashiers','Hosts'],'Molly':['Cashiers','Hosts'],'Charlie':['Cashiers','Hosts']
+    'Keegan':['Cashiers','Hosts'],'Molly':['Cashiers','Hosts'],'Charlie':['Cashiers','Hosts'],
+    'Claudia G':['Servers'],'Claudia G.':['Servers']
   };
   var ALL_SECS = [
     {obj:KITCHEN,lbl:'Kitchen'},{obj:PIZZA,lbl:'Pizza'},{obj:PREP,lbl:'Prep'},
@@ -9494,7 +9495,7 @@ async function readScheduleImage(dataUrl, type) {
           }
         });
         // Normalize short names to full names
-        var kitchenAliases = {'nithia': 'Nithia', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
+        var kitchenAliases = {'nithia': 'Nithia', 'lithia': 'Nithia', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
         Object.keys(sched.KITCHEN).forEach(function(name){
           var alias = kitchenAliases[name.toLowerCase()];
           if(alias && alias !== name) {
