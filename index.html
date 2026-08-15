@@ -4575,9 +4575,57 @@ const DISH = {
 };
 
 // Canonical BOH roster per section, captured before any week's data replaces these.
+// Single source of truth for which section(s) each person actually belongs
+// to. Used both to flag role violations in already-saved schedules AND to
+// keep the upload pipeline from ever treating someone as a "known name" for
+// a section their role doesn't allow — that second use is what actually
+// stops a person's name from persistently contaminating a section they
+// don't belong to, once and for all, rather than just catching it after
+// the fact every single time.
+const ROLE_MAP = {
+  'Arturo':['Kitchen','Pizza'],'Arturo Viveros':['Kitchen','Pizza'],
+  'Carlos':['Kitchen','Pizza'],'Carlos Mora':['Kitchen','Pizza'],
+  'Jesus':['Kitchen','Pizza'],'Jesus Murillo':['Kitchen','Pizza'],
+  'Jose B':['Kitchen'],'Derek':['Kitchen'],'Nithia Maldonado':['Kitchen'],'Nithia':['Kitchen'],
+  'Ever':['Kitchen','Pizza'],'Carlos Jr':['Pizza'],'Eddie':['Pizza'],'Eddie Cruz':['Pizza'],'Eddy':['Pizza'],
+  'Gonzo':['Pizza','Dish','Bus'],'Gonzalo':['Pizza','Dish','Bus'],
+  'Leo':['Pizza'],'Luis':['Pizza'],'Luis Perez':['Pizza'],'Luis Soto':['Pizza'],
+  'Monico':['Pizza'],'Monico Esparza':['Pizza'],'Soto':['Pizza'],
+  'Oscar':['Pizza'],'Oscar Velazquez':['Pizza'],'Victor':['Pizza'],'Victor Cruz':['Pizza'],
+  'Nick':['Prep','Kitchen'],'Nicholas Urbana':['Prep','Kitchen'],'Sylvia':['Prep'],'Laura Z':['Kitchen','Pizza'],
+  'Marco':['Pizza','Dish','Bus'],'Marco Sanchez':['Pizza','Dish','Bus'],
+  'Armani':['Dish','Bus'],'Armani Finley':['Dish','Bus'],
+  'Jaxon':['Dish','Bus'],'Eric':['Dish','Bus'],'Matt':['Dish'],'Raul':['Dish','Bus'],
+  'Abby':['Servers','Cashiers','Hosts'],'Alexis':['Servers'],'Bridget':['Servers'],
+  'Claudia':['Servers'],'Dorris':['Servers'],
+  'Hannah':['Servers'],'Hannah M':['Servers'],'Hannah M.':['Servers'],'Hannah Z':['Servers'],'Hannah Z.':['Servers'],
+  'Jaime':['Servers','Bartenders'],'Kelly':['Servers','Bartenders'],
+  'Sio':['Servers','Cashiers','Bartenders'],'Sio McAvoy':['Servers','Cashiers','Bartenders'],
+  'Annaka':['Servers'],'Allie':['Servers'],
+  'Courtney':['Servers'],'Kamini':['Servers'],
+  'Justin':['Servers','Bartenders'],'Julia':['Servers'],'Brianna':['Servers'],'Erika':['Servers'],'Elena':['Servers'],
+  'Lindsay':['Bartenders'],'Brooke':['Bartenders'],'Cheeks':['Bartenders'],
+  'Danielle':['Bartenders'],'Mary':['Bartenders'],'Lea':['Bartenders'],'Carrie':['Bartenders'],
+  'Jack':['Cashiers'],'Jack Ruane':['Cashiers'],'Mike':['Cashiers'],'Natalie':['Cashiers','Hosts'],'Presley':['Cashiers','Hosts'],
+  'Tia':['Cashiers','Hosts'],'Emilie':['Cashiers','Hosts'],'Ellianna':['Cashiers','Hosts'],
+  'Keegan':['Cashiers','Hosts'],'Molly':['Cashiers','Hosts'],'Charlie':['Cashiers','Hosts'],
+  'Claudia G':['Servers'],'Claudia G.':['Servers']
+};
+
+function filterByRole(names, sectionLabel) {
+  return names.filter(function(n){
+    var allowed = ROLE_MAP[n];
+    return !allowed || allowed.indexOf(sectionLabel) !== -1;
+  });
+}
+
 const KNOWN_BOH = {
-  MANAGERS: Object.keys(MANAGERS), PIZZA: Object.keys(PIZZA), KITCHEN: Object.keys(KITCHEN),
-  PREP: Object.keys(PREP), BUS: Object.keys(BUS), DISH: Object.keys(DISH)
+  MANAGERS: Object.keys(MANAGERS),
+  PIZZA: filterByRole(Object.keys(PIZZA), 'Pizza'),
+  KITCHEN: filterByRole(Object.keys(KITCHEN), 'Kitchen'),
+  PREP: filterByRole(Object.keys(PREP), 'Prep'),
+  BUS: filterByRole(Object.keys(BUS), 'Bus'),
+  DISH: filterByRole(Object.keys(DISH), 'Dish')
 };
 
 function parseBOH(raw, di) {
@@ -4671,8 +4719,10 @@ const HOSTS = {
 
 // Canonical FOH roster per section, captured before any week's data replaces these.
 const KNOWN_FOH = {
-  SERVERS: Object.keys(SERVERS), BARTENDERS: Object.keys(BARTENDERS),
-  CASHIERS: Object.keys(CASHIERS), HOSTS: Object.keys(HOSTS)
+  SERVERS: filterByRole(Object.keys(SERVERS), 'Servers'),
+  BARTENDERS: filterByRole(Object.keys(BARTENDERS), 'Bartenders'),
+  CASHIERS: filterByRole(Object.keys(CASHIERS), 'Cashiers'),
+  HOSTS: filterByRole(Object.keys(HOSTS), 'Hosts')
 };
 
 function fmtFOH(t, di, isClose) {
@@ -8854,35 +8904,6 @@ function checkScheduleErrors() {
 
   // DOM'S NOTES
   // Role violation checker
-  var ROLE_MAP = {
-    'Arturo':['Kitchen','Pizza'],'Arturo Viveros':['Kitchen','Pizza'],
-    'Carlos':['Kitchen','Pizza'],'Carlos Mora':['Kitchen','Pizza'],
-    'Jesus':['Kitchen','Pizza'],'Jesus Murillo':['Kitchen','Pizza'],
-    'Jose B':['Kitchen'],'Derek':['Kitchen'],'Nithia Maldonado':['Kitchen'],'Nithia':['Kitchen'],
-    'Ever':['Kitchen','Pizza'],'Carlos Jr':['Pizza'],'Eddie':['Pizza'],'Eddie Cruz':['Pizza'],'Eddy':['Pizza'],
-    'Gonzo':['Pizza','Dish','Bus'],'Gonzalo':['Pizza','Dish','Bus'],
-    'Leo':['Pizza'],'Luis':['Pizza'],'Luis Perez':['Pizza'],'Luis Soto':['Pizza'],
-    'Monico':['Pizza'],'Monico Esparza':['Pizza'],'Soto':['Pizza'],
-    'Oscar':['Pizza'],'Oscar Velazquez':['Pizza'],'Victor':['Pizza'],'Victor Cruz':['Pizza'],
-    'Nick':['Prep','Kitchen'],'Nicholas Urbana':['Prep','Kitchen'],'Sylvia':['Prep'],'Laura Z':['Kitchen','Pizza'],
-    'Marco':['Pizza','Dish','Bus'],'Marco Sanchez':['Pizza','Dish','Bus'],
-    'Armani':['Dish','Bus'],'Armani Finley':['Dish','Bus'],
-    'Jaxon':['Dish','Bus'],'Eric':['Dish','Bus'],'Matt':['Dish'],'Raul':['Dish','Bus'],
-    'Abby':['Servers','Cashiers','Hosts'],'Alexis':['Servers'],'Bridget':['Servers'],
-    'Claudia':['Servers'],'Dorris':['Servers'],
-    'Hannah':['Servers'],'Hannah M':['Servers'],'Hannah M.':['Servers'],'Hannah Z':['Servers'],'Hannah Z.':['Servers'],
-    'Jaime':['Servers','Bartenders'],'Kelly':['Servers','Bartenders'],
-    'Sio':['Servers','Cashiers','Bartenders'],'Sio McAvoy':['Servers','Cashiers','Bartenders'],
-    'Annaka':['Servers'],'Allie':['Servers'],
-    'Courtney':['Servers'],'Kamini':['Servers'],
-    'Justin':['Servers','Bartenders'],'Julia':['Servers'],'Brianna':['Servers'],'Erika':['Servers'],'Elena':['Servers'],
-    'Lindsay':['Bartenders'],'Brooke':['Bartenders'],'Cheeks':['Bartenders'],
-    'Danielle':['Bartenders'],'Mary':['Bartenders'],'Lea':['Bartenders'],'Carrie':['Bartenders'],
-    'Jack':['Cashiers'],'Jack Ruane':['Cashiers'],'Mike':['Cashiers'],'Natalie':['Cashiers','Hosts'],'Presley':['Cashiers','Hosts'],
-    'Tia':['Cashiers','Hosts'],'Emilie':['Cashiers','Hosts'],'Ellianna':['Cashiers','Hosts'],
-    'Keegan':['Cashiers','Hosts'],'Molly':['Cashiers','Hosts'],'Charlie':['Cashiers','Hosts'],
-    'Claudia G':['Servers'],'Claudia G.':['Servers']
-  };
   var ALL_SECS = [
     {obj:KITCHEN,lbl:'Kitchen'},{obj:PIZZA,lbl:'Pizza'},{obj:PREP,lbl:'Prep'},
     {obj:DISH,lbl:'Dish'},{obj:BUS,lbl:'Bus'},
