@@ -8886,11 +8886,17 @@ function checkScheduleErrors() {
     Object.keys(sec.obj).forEach(function(name) {
       if(_managerNames.indexOf(name) !== -1) return; // managers can work any section
       var allowed = ROLE_MAP[name];
-      if(!allowed) return;
-      if(allowed.indexOf(sec.lbl) !== -1) return;
+      // No entry in ROLE_MAP means this person has no defined role at all —
+      // that is not a pass, it's the strongest possible violation. Role
+      // controls placement, never name or spelling; an unrecognized name
+      // has no valid section anywhere and must always be flagged.
+      if(allowed && allowed.indexOf(sec.lbl) !== -1) return;
       for(var d=0; d<7; d++) {
         if(sec.obj[name][d] && String(sec.obj[name][d]).trim().toLowerCase() !== 'x') {
-          var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.lbl, msg:name+' added to '+sec.lbl+' — approve this role addition?'};
+          var msg = allowed
+            ? name+' added to '+sec.lbl+' — approve this role addition?'
+            : name+' is not a recognized employee and has no defined role — appearing in '+sec.lbl+'. Remove or add them to the roster with a real role first.';
+          var errObj = {di:d, day:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][d], name:name, dept:sec.lbl, msg:msg};
           if(BOH_SECS.indexOf(sec.lbl) !== -1) errors.BOH.push(errObj);
           else errors.FOH.push(errObj);
         }
