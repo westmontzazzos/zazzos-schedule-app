@@ -6361,6 +6361,10 @@ async function saveSchedInlineEdits() {
     var secObj = {MANAGERS:MANAGERS,DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
     setShiftValue(section, secObj, name, di, inp.value);
   });
+  document.querySelectorAll('.sched-event-input').forEach(function(inp){
+    var di = parseInt(inp.dataset.di);
+    WEEK_EVENTS[di] = inp.value.trim() || null;
+  });
   // Save to Supabase — PATCH the existing row by id, same reliable path Run
   // Sheets' saveEdits() already uses successfully. The previous DELETE+POST
   // approach could silently fail (e.g. a DELETE blocked by an RLS policy,
@@ -6416,6 +6420,10 @@ function renderSchedule() {
   }
   var schedHeaderCells = dh.map(function(d,i){
     var evText = WEEK_EVENTS[i] ? WEEK_EVENTS[i] : '';
+    if(window._schedEditMode) {
+      var ev = '<input class="sched-event-input" data-di="'+i+'" type="text" value="'+evText+'" placeholder="Event" style="width:70px;font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.04em;margin-top:2px;border:1px solid #ddd;border-radius:4px;padding:2px 3px;text-align:center;background:#fff;">';
+      return '<th>'+d+'<br>'+ev+'</th>';
+    }
     var evColor = evText ? 'color:var(--red);' : 'color:transparent;';
     var ev = '<div style="font-size:9px;font-weight:700;'+evColor+'letter-spacing:0.06em;margin-top:2px;line-height:1.2;">'+(evText||'&nbsp;')+'</div>';
     return '<th>'+d+ev+'</th>';
@@ -8210,6 +8218,36 @@ function cleanNames(obj, sectionType, sectionKey) {
 }
 
 // Parses schedule data from a week record into the global data objects
+// Converts a dot-decimal time like "10.3" or "10.5" (both meaning :30, per
+// this app's established convention) into proper colon format "10:30",
+// leaving everything else in the string untouched. Handles a time
+// anywhere in a range like "9am-2.5pm" -> "9am-2:30pm".
+function normalizeDotTimes(raw) {
+  if(raw == null) return raw;
+  return String(raw).replace(/(\d+)\.([35])(am|pm)?/gi, function(m, h, frac, ap){
+    return h + ':30' + (ap || '');
+  });
+}
+
+// Runs normalizeDotTimes across every day for every person in a section.
+// isFOH sections store each day as [start,end]; everyone else stores a
+// single plain string per day.
+function normalizeSectionDotTimes(obj, isFOH) {
+  Object.keys(obj).forEach(function(name){
+    var days = obj[name];
+    if(!days) return;
+    for(var i=0; i<7; i++){
+      var v = days[i];
+      if(v == null) continue;
+      if(isFOH && Array.isArray(v)) {
+        days[i] = [v[0] != null ? normalizeDotTimes(v[0]) : v[0], v[1] != null ? normalizeDotTimes(v[1]) : v[1]];
+      } else if(!isFOH && typeof v !== 'object') {
+        days[i] = normalizeDotTimes(v);
+      }
+    }
+  });
+}
+
 function parseWeekData(week) {
   try {
     var boh = week.boh_data ? JSON.parse(week.boh_data) : {};
@@ -8247,6 +8285,14 @@ function parseWeekData(week) {
     if(BARTENDERS['Allie']) { SERVERS['Allie'] = BARTENDERS['Allie']; delete BARTENDERS['Allie']; }
     Object.keys(HOSTS).forEach(k => delete HOSTS[k]);           if(foh.HOSTS)      Object.assign(HOSTS, foh.HOSTS);
     Object.keys(DRIVERS).forEach(k => delete DRIVERS[k]);       if(drv)            Object.assign(DRIVERS, drv);
+
+    // Auto-correct dot-decimal times (e.g. "10.3" or "10.5") to proper
+    // colon format ("10:30") everywhere, every time data loads — not just
+    // on upload. This catches both brand-new photo reads AND any older
+    // already-saved data still sitting with the old format.
+    [MANAGERS, PIZZA, KITCHEN, PREP, BUS, DISH, DRIVERS].forEach(function(sec){ normalizeSectionDotTimes(sec, false); });
+    [SERVERS, BARTENDERS, CASHIERS, HOSTS].forEach(function(sec){ normalizeSectionDotTimes(sec, true); });
+    for(var ndi=0; ndi<7; ndi++) if(DISPATCH[ndi]) DISPATCH[ndi] = normalizeDotTimes(DISPATCH[ndi]);
   } catch(e) {
     console.log('parseWeekData error:', e.message);
   }
