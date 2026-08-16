@@ -3877,16 +3877,18 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="report-title">RUN SHEETS</div>
     <div class="report-sub">Daily staff run sheets</div>
   </div>
-  <div id="week-selector-bar" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;position:sticky;top:var(--nav-h);z-index:95;background:var(--off-white);padding:10px 0 8px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(1)">‹</button>
-      <div id="week-label" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.08em;color:var(--black);white-space:nowrap;">Loading...</div>
-      <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(-1)">›</button>
+  <div id="rs-sticky-nav" style="position:sticky;top:calc(var(--nav-h) + env(safe-area-inset-top, 0px));z-index:95;background:var(--off-white);">
+    <div id="week-selector-bar" style="display:flex;align-items:center;justify-content:space-between;padding:10px 0 8px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(1)">‹</button>
+        <div id="week-label" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.08em;color:var(--black);white-space:nowrap;">Loading...</div>
+        <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(-1)">›</button>
+      </div>
+      <button class="btn btn-primary no-print" onclick="printRunSheet()">🖨 Print / PDF</button>
+      <button class="btn btn-secondary no-print" onclick="openPrintPickerModal()">🖨 Print Run Sheets</button>
     </div>
-    <button class="btn btn-primary no-print" onclick="printRunSheet()">🖨 Print / PDF</button>
-    <button class="btn btn-secondary no-print" onclick="openPrintPickerModal()">🖨 Print Run Sheets</button>
+    <div class="day-tabs" id="day-tabs" style="position:static;top:auto;padding-top:0;margin-bottom:8px;"></div>
   </div>
-  <div class="day-tabs" id="day-tabs" style="top:calc(var(--nav-h) + 52px);"></div>
   <div id="run-sheet-display"></div>
 </div>
 
