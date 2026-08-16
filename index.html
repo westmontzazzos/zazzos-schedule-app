@@ -4377,6 +4377,19 @@ var WEEK_EVENTS = [null,null,null,null,null,null,null];
 // as it already works — you said that one's fine as-is).
 var EVENTS_LIST = [[],[],[],[],[],[],[]];
 
+// WEEK_EVENTS is not a separate thing you fill in twice — it's a derived
+// summary of EVENTS_LIST, recomputed every time EVENTS_LIST changes (on
+// load, and whenever the Events page is saved). Editing the quick header
+// box on the Schedule tab writes into EVENTS_LIST directly (as that day's
+// first/only entry if it's the only one there), so there is exactly one
+// place events actually live, no matter which screen you edit from.
+function syncWeekEventsFromList() {
+  for(var i=0; i<7; i++) {
+    var names = (EVENTS_LIST[i]||[]).map(function(e){ return e && e.name; }).filter(Boolean);
+    WEEK_EVENTS[i] = names.length ? names.join(', ') : null;
+  }
+}
+
 // Close times: Sun-Thu = 10PM, Fri-Sat = 11PM
 // Time parsing rules:
 // 7-11 = AM, 12-6 = PM
@@ -6374,8 +6387,15 @@ async function saveSchedInlineEdits() {
   });
   document.querySelectorAll('.sched-event-input').forEach(function(inp){
     var di = parseInt(inp.dataset.di);
-    WEEK_EVENTS[di] = inp.value.trim() || null;
+    var val = inp.value.trim();
+    if(!val) { EVENTS_LIST[di] = []; return; }
+    if(EVENTS_LIST[di] && EVENTS_LIST[di].length === 1) {
+      EVENTS_LIST[di][0].name = val; // preserve any time/servers already set
+    } else {
+      EVENTS_LIST[di] = [{name: val, time: '', servers: ''}];
+    }
   });
+  syncWeekEventsFromList();
   // Save to Supabase — PATCH the existing row by id, same reliable path Run
   // Sheets' saveEdits() already uses successfully. The previous DELETE+POST
   // approach could silently fail (e.g. a DELETE blocked by an RLS policy,
@@ -6432,8 +6452,13 @@ function renderSchedule() {
   }
   var schedHeaderCells = dh.map(function(d,i){
     var evText = WEEK_EVENTS[i] ? WEEK_EVENTS[i] : '';
+    var dayEventCount = (EVENTS_LIST[i]||[]).length;
     if(window._schedEditMode) {
-      var ev = '<input class="sched-event-input" data-di="'+i+'" type="text" value="'+evText+'" placeholder="Event" style="width:70px;font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.04em;margin-top:2px;border:1px solid #ddd;border-radius:4px;padding:2px 3px;text-align:center;background:#fff;">';
+      if(dayEventCount <= 1) {
+        var ev = '<input class="sched-event-input" data-di="'+i+'" type="text" value="'+evText+'" placeholder="Event" style="width:70px;font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.04em;margin-top:2px;border:1px solid #ddd;border-radius:4px;padding:2px 3px;text-align:center;background:#fff;">';
+      } else {
+        var ev = '<div style="font-size:8px;color:var(--red);margin-top:2px;line-height:1.2;">'+dayEventCount+' events — edit on Events page</div>';
+      }
       return '<th>'+d+'<br>'+ev+'</th>';
     }
     var evColor = evText ? 'color:var(--red);' : 'color:transparent;';
@@ -8265,13 +8290,14 @@ function parseWeekData(week) {
   try {
     var boh = week.boh_data ? JSON.parse(week.boh_data) : {};
     var foh = week.foh_data ? JSON.parse(week.foh_data) : {};
-    // Load events
-    var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
-    for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
+    // Load events — EVENTS_LIST is the single source of truth; WEEK_EVENTS
+    // (the quick header label) is always derived from it, never loaded
+    // independently, so the two screens can never disagree.
     var eventsListArr = week.events_list_data ? JSON.parse(week.events_list_data) : [[],[],[],[],[],[],[]];
     for(var eli=0;eli<7;eli++) {
       EVENTS_LIST[eli] = (Array.isArray(eventsListArr) && Array.isArray(eventsListArr[eli])) ? eventsListArr[eli] : [];
     }
+    syncWeekEventsFromList();
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
     for(var dpi=0; dpi<7; dpi++) DISPATCH[dpi] = (Array.isArray(dispatchArr) && dispatchArr[dpi]) ? dispatchArr[dpi] : null;
