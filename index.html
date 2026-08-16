@@ -3912,6 +3912,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn" onclick="switchSched('foh',this)">Front of House</button>
     <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
     <button class="sub-btn" onclick="showSchedPrintMenu(this)">🖨 Print</button>
+    <button class="sub-btn" onclick="showEventsSummary()">🎉 Events</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Schedule Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
@@ -4365,6 +4366,12 @@ const SALES_PACING_CUMULATIVE = {
 };
 
 var WEEK_EVENTS = [null,null,null,null,null,null,null];
+// Additional detail for the Events Summary page only — the main event label
+// (WEEK_EVENTS) stays exactly as it already works everywhere else. These
+// two are purely manual notes: what time the event is, and which servers
+// are assigned to it, so nothing about the existing schedule flow changes.
+var EVENT_TIME = [null,null,null,null,null,null,null];
+var EVENT_SERVERS = [null,null,null,null,null,null,null];
 
 // Close times: Sun-Thu = 10PM, Fri-Sat = 11PM
 // Time parsing rules:
@@ -6386,6 +6393,8 @@ async function saveSchedInlineEdits() {
         driver_data: JSON.stringify(DRIVERS),
         dispatch_data: JSON.stringify(DISPATCH),
         event_data: JSON.stringify(WEEK_EVENTS),
+        event_time_data: JSON.stringify(EVENT_TIME),
+        event_servers_data: JSON.stringify(EVENT_SERVERS),
         last_edited_by: getCurrentUser(),
         last_edited_at: new Date().toISOString()
       })
@@ -7936,6 +7945,8 @@ async function saveEdits() {
           driver_data: JSON.stringify(DRIVERS),
           dispatch_data: JSON.stringify(DISPATCH),
           event_data: JSON.stringify(WEEK_EVENTS),
+          event_time_data: JSON.stringify(EVENT_TIME),
+          event_servers_data: JSON.stringify(EVENT_SERVERS),
           last_edited_by: getCurrentUser(),
           last_edited_at: new Date().toISOString()
         })
@@ -8039,7 +8050,7 @@ async function loadAllWeeks() {
   }, 8000);
 
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,event_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     clearTimeout(timeoutId);
@@ -8126,7 +8137,7 @@ async function refreshData() {
   var savedWeekId = savedWeek ? savedWeek.id : null;
   var savedWeekStart = savedWeek ? savedWeek.week_start : null;
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,event_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     if(r.ok) {
@@ -8255,6 +8266,12 @@ function parseWeekData(week) {
     // Load events
     var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
     for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
+    var evTimeArr = week.event_time_data ? JSON.parse(week.event_time_data) : [null,null,null,null,null,null,null];
+    var evServersArr = week.event_servers_data ? JSON.parse(week.event_servers_data) : [null,null,null,null,null,null,null];
+    for(var eti=0;eti<7;eti++) {
+      EVENT_TIME[eti] = (Array.isArray(evTimeArr) && evTimeArr[eti]) ? evTimeArr[eti] : null;
+      EVENT_SERVERS[eti] = (Array.isArray(evServersArr) && evServersArr[eti]) ? evServersArr[eti] : null;
+    }
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
     for(var dpi=0; dpi<7; dpi++) DISPATCH[dpi] = (Array.isArray(dispatchArr) && dispatchArr[dpi]) ? dispatchArr[dpi] : null;
@@ -9402,7 +9419,7 @@ async function clearWeekRecord() {
 
 async function getWeekRecord(weekStart) {
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=id,boh_data,foh_data,driver_data,event_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=id,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     var rows = await r.json();
@@ -9883,6 +9900,61 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
 </script>
 
 <script>
+// Events Summary — a separate reference table (Day / Event / Time /
+// Servers) so event detail doesn't have to live inside the main Schedule
+// tab flow. Event stays in sync with WEEK_EVENTS (same field shown
+// everywhere else); Time and Servers are additional manual notes specific
+// to this page.
+function showEventsSummary() {
+  var modal = document.getElementById('events-summary-modal');
+  var table = document.getElementById('events-summary-table');
+  if(!modal || !table) return;
+  var rows = '<tr style="background:#000;color:#fff;"><th style="padding:6px 8px;text-align:left;font-size:11px;">Day</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Event</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Time</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Servers</th></tr>';
+  for(var di=0; di<7; di++) {
+    var dayLabel = (DAYS[di]||'') + (FULL_DATES[di] ? ' ('+FULL_DATES[di]+')' : '');
+    rows += '<tr style="border-bottom:1px solid #eee;">'
+      + '<td style="padding:6px 8px;font-weight:700;white-space:nowrap;">'+dayLabel+'</td>'
+      + '<td style="padding:4px;"><input class="events-summary-input" data-field="event" data-di="'+di+'" type="text" value="'+(WEEK_EVENTS[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+      + '<td style="padding:4px;"><input class="events-summary-input" data-field="time" data-di="'+di+'" type="text" value="'+(EVENT_TIME[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+      + '<td style="padding:4px;"><input class="events-summary-input" data-field="servers" data-di="'+di+'" type="text" value="'+(EVENT_SERVERS[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+      + '</tr>';
+  }
+  table.innerHTML = rows;
+  modal.style.display = 'flex';
+}
+
+async function saveEventsSummary() {
+  document.querySelectorAll('.events-summary-input').forEach(function(inp){
+    var di = parseInt(inp.dataset.di);
+    var field = inp.dataset.field;
+    var val = inp.value.trim() || null;
+    if(field === 'event') WEEK_EVENTS[di] = val;
+    else if(field === 'time') EVENT_TIME[di] = val;
+    else if(field === 'servers') EVENT_SERVERS[di] = val;
+  });
+  var weekRecord = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
+  if(!weekRecord || !weekRecord.id) { alert('No week loaded — cannot save.'); return; }
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify({
+        event_data: JSON.stringify(WEEK_EVENTS),
+        event_time_data: JSON.stringify(EVENT_TIME),
+        event_servers_data: JSON.stringify(EVENT_SERVERS),
+        last_edited_by: getCurrentUser(),
+        last_edited_at: new Date().toISOString()
+      })
+    });
+    if(!resp.ok) throw new Error('save failed (' + resp.status + ')');
+    if(typeof renderSchedule === 'function' && currentTab === 'schedule') renderSchedule();
+    alert('Events saved.');
+    document.getElementById('events-summary-modal').style.display = 'none';
+  } catch(e) {
+    alert('Save failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
 function showOverrideLog(btn) {
   var modal = document.getElementById('override-log-modal');
   modal.style.display = 'flex';
@@ -10628,6 +10700,23 @@ function printSchedSection(range) {
 
 <!-- Outstanding errors notification -->
 <!-- Upload History — hidden, 5 taps on the Schedule title -->
+<!-- Events Summary — Day / Event / Time / Servers, separate from the main schedule flow -->
+<div id="events-summary-modal" style="display:none;position:fixed;inset:0;z-index:10003;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:94%;max-width:600px;overflow:hidden;display:flex;flex-direction:column;max-height:85vh;">
+    <div style="background:var(--red);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Events This Week</div>
+      <button onclick="document.getElementById('events-summary-modal').style.display='none';" style="background:rgba(255,255,255,0.2);border:none;color:#fff;font-size:18px;width:30px;height:30px;border-radius:50%;cursor:pointer;line-height:1;flex-shrink:0;">✕</button>
+    </div>
+    <div style="padding:8px 16px;overflow-y:auto;flex:1;">
+      <div style="font-size:11px;color:#888;margin-bottom:10px;">Event and Time/Servers can be edited here — everyone's saved together when you tap Save.</div>
+      <table id="events-summary-table" style="width:100%;border-collapse:collapse;font-size:12px;"></table>
+    </div>
+    <div style="padding:12px 16px 16px;flex-shrink:0;">
+      <button class="btn btn-primary" style="width:100%;" onclick="saveEventsSummary()">💾 Save Events</button>
+    </div>
+  </div>
+</div>
+
 <div id="upload-history-modal" style="display:none;position:fixed;inset:0;z-index:10003;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;display:flex;flex-direction:column;max-height:85vh;">
     <div style="background:var(--black);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
