@@ -6892,9 +6892,24 @@ function hitlistHour(t, di) {
   var s = String(t).trim().toLowerCase();
   if(s === '') return null;
   if(s === 'c' || s === 'cl' || s === 'close') return (di===4||di===5) ? 23.25 : 22.25;
-  var m = s.match(/^(\d+)(?::(\d+))?\s*(am|pm)?$/);
+  // Accept both colon minutes ("10:30") and dot-decimal shorthand ("10.3"
+  // or "10.5", both meaning :30 — same convention fmtDrv already uses
+  // elsewhere in this file). Previously only colon format matched, so a
+  // dot-format time silently returned null and dropped that person out of
+  // every rule check entirely — including the AM driver count — with no
+  // error or indication anything was wrong.
+  var m = s.match(/^(\d+)(?:[:.](\d+))?\s*(am|pm)?$/);
   if(!m) return null;
-  var h = parseInt(m[1],10), mn = parseInt(m[2]||0,10);
+  var h = parseInt(m[1],10);
+  var mn;
+  if(m[2] === undefined) {
+    mn = 0;
+  } else if(s.indexOf(':') !== -1) {
+    mn = parseInt(m[2],10);
+  } else {
+    var frac = parseFloat('0.' + m[2]);
+    mn = (Math.abs(frac-0.3)<0.001 || Math.abs(frac-0.5)<0.001) ? 30 : Math.round(frac*60);
+  }
   var ap = m[3] ? m[3] : (h>=7 && h<=11 ? 'am' : 'pm');
   if(ap === 'pm' && h !== 12) h += 12;
   if(ap === 'am' && h === 12) h = 0;
