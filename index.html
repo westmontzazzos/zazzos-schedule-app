@@ -10515,12 +10515,25 @@ function printSchedSection(range) {
     + '<\/body><\/html>';
 
   var iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;';
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1200px;height:900px;border:none;';
   document.body.appendChild(iframe);
   iframe.contentDocument.open();
   iframe.contentDocument.write(html);
   iframe.contentDocument.close();
-  setTimeout(function(){ iframe.contentWindow.focus(); iframe.contentWindow.print(); }, 400);
+  setTimeout(function(){
+    var doc = iframe.contentDocument;
+    var body = doc.body;
+    var maxH = 760, maxW = 1030;
+    var contentH = body.scrollHeight, contentW = body.scrollWidth;
+    var scale = Math.min(1, maxH / contentH, maxW / contentW);
+    if(scale < 1) {
+      body.style.transform = 'scale(' + scale + ')';
+      body.style.transformOrigin = 'top left';
+      body.style.width = (100 / scale) + '%';
+    }
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }, 400);
 }
 </script>
 
