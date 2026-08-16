@@ -4370,8 +4370,12 @@ var WEEK_EVENTS = [null,null,null,null,null,null,null];
 // (WEEK_EVENTS) stays exactly as it already works everywhere else. These
 // two are purely manual notes: what time the event is, and which servers
 // are assigned to it, so nothing about the existing schedule flow changes.
-var EVENT_TIME = [null,null,null,null,null,null,null];
-var EVENT_SERVERS = [null,null,null,null,null,null,null];
+// Events Summary supports any number of events per day. Each day is an
+// array of {name, time, servers} objects — empty array means no events
+// that day. This is fully separate from WEEK_EVENTS (the single quick-
+// glance label shown in headers/Run Sheets/prints, which stays exactly
+// as it already works — you said that one's fine as-is).
+var EVENTS_LIST = [[],[],[],[],[],[],[]];
 
 // Close times: Sun-Thu = 10PM, Fri-Sat = 11PM
 // Time parsing rules:
@@ -6393,8 +6397,7 @@ async function saveSchedInlineEdits() {
         driver_data: JSON.stringify(DRIVERS),
         dispatch_data: JSON.stringify(DISPATCH),
         event_data: JSON.stringify(WEEK_EVENTS),
-        event_time_data: JSON.stringify(EVENT_TIME),
-        event_servers_data: JSON.stringify(EVENT_SERVERS),
+        events_list_data: JSON.stringify(EVENTS_LIST),
         last_edited_by: getCurrentUser(),
         last_edited_at: new Date().toISOString()
       })
@@ -7945,8 +7948,7 @@ async function saveEdits() {
           driver_data: JSON.stringify(DRIVERS),
           dispatch_data: JSON.stringify(DISPATCH),
           event_data: JSON.stringify(WEEK_EVENTS),
-          event_time_data: JSON.stringify(EVENT_TIME),
-          event_servers_data: JSON.stringify(EVENT_SERVERS),
+          events_list_data: JSON.stringify(EVENTS_LIST),
           last_edited_by: getCurrentUser(),
           last_edited_at: new Date().toISOString()
         })
@@ -8266,11 +8268,9 @@ function parseWeekData(week) {
     // Load events
     var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
     for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
-    var evTimeArr = week.event_time_data ? JSON.parse(week.event_time_data) : [null,null,null,null,null,null,null];
-    var evServersArr = week.event_servers_data ? JSON.parse(week.event_servers_data) : [null,null,null,null,null,null,null];
-    for(var eti=0;eti<7;eti++) {
-      EVENT_TIME[eti] = (Array.isArray(evTimeArr) && evTimeArr[eti]) ? evTimeArr[eti] : null;
-      EVENT_SERVERS[eti] = (Array.isArray(evServersArr) && evServersArr[eti]) ? evServersArr[eti] : null;
+    var eventsListArr = week.events_list_data ? JSON.parse(week.events_list_data) : [[],[],[],[],[],[],[]];
+    for(var eli=0;eli<7;eli++) {
+      EVENTS_LIST[eli] = (Array.isArray(eventsListArr) && Array.isArray(eventsListArr[eli])) ? eventsListArr[eli] : [];
     }
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
@@ -9905,33 +9905,63 @@ async function saveToSupabase(weekStart, bohData, fohData, drvData, eventData) {
 // tab flow. Event stays in sync with WEEK_EVENTS (same field shown
 // everywhere else); Time and Servers are additional manual notes specific
 // to this page.
-function showEventsSummary() {
-  var modal = document.getElementById('events-summary-modal');
+function renderEventsSummaryTable() {
   var table = document.getElementById('events-summary-table');
-  if(!modal || !table) return;
-  var rows = '<tr style="background:#000;color:#fff;"><th style="padding:6px 8px;text-align:left;font-size:11px;">Day</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Event</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Time</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Servers</th></tr>';
+  if(!table) return;
+  var rows = '<tr style="background:#000;color:#fff;"><th style="padding:6px 8px;text-align:left;font-size:11px;">Day</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Event</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Time</th><th style="padding:6px 8px;text-align:left;font-size:11px;">Servers</th><th style="width:26px;"></th></tr>';
   for(var di=0; di<7; di++) {
     var dayLabel = (DAYS[di]||'') + (FULL_DATES[di] ? ' ('+FULL_DATES[di]+')' : '');
-    rows += '<tr style="border-bottom:1px solid #eee;">'
-      + '<td style="padding:6px 8px;font-weight:700;white-space:nowrap;">'+dayLabel+'</td>'
-      + '<td style="padding:4px;"><input class="events-summary-input" data-field="event" data-di="'+di+'" type="text" value="'+(WEEK_EVENTS[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
-      + '<td style="padding:4px;"><input class="events-summary-input" data-field="time" data-di="'+di+'" type="text" value="'+(EVENT_TIME[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
-      + '<td style="padding:4px;"><input class="events-summary-input" data-field="servers" data-di="'+di+'" type="text" value="'+(EVENT_SERVERS[di]||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
-      + '</tr>';
+    var dayEvents = EVENTS_LIST[di] && EVENTS_LIST[di].length ? EVENTS_LIST[di] : [{name:'',time:'',servers:''}];
+    dayEvents.forEach(function(ev, evi){
+      rows += '<tr style="border-bottom:1px solid #eee;">'
+        + (evi===0 ? '<td rowspan="'+dayEvents.length+'" style="padding:6px 8px;font-weight:700;white-space:nowrap;vertical-align:top;">'+dayLabel+'</td>' : '')
+        + '<td style="padding:4px;"><input class="events-summary-input" data-field="name" data-di="'+di+'" data-evi="'+evi+'" type="text" value="'+(ev.name||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+        + '<td style="padding:4px;"><input class="events-summary-input" data-field="time" data-di="'+di+'" data-evi="'+evi+'" type="text" value="'+(ev.time||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+        + '<td style="padding:4px;"><input class="events-summary-input" data-field="servers" data-di="'+di+'" data-evi="'+evi+'" type="text" value="'+(ev.servers||'')+'" placeholder="—" style="width:100%;border:1px solid #ddd;border-radius:6px;padding:5px 6px;font-size:12px;box-sizing:border-box;"></td>'
+        + '<td style="padding:4px;text-align:center;">'+(dayEvents.length>1 || ev.name || ev.time || ev.servers ? '<a href="#" onclick="removeEventRow('+di+','+evi+');return false;" style="color:#c8102e;font-size:16px;text-decoration:none;">×</a>' : '')+'</td>'
+        + '</tr>';
+    });
+    rows += '<tr style="border-bottom:2px solid #ddd;"><td></td><td colspan="4" style="padding:2px 4px 8px;"><a href="#" onclick="addEventRow('+di+');return false;" style="font-size:11px;color:#c8102e;text-decoration:none;font-weight:600;">+ Add another event</a></td></tr>';
   }
   table.innerHTML = rows;
+}
+
+function showEventsSummary() {
+  var modal = document.getElementById('events-summary-modal');
+  if(!modal) return;
+  renderEventsSummaryTable();
   modal.style.display = 'flex';
 }
 
-async function saveEventsSummary() {
+// Collects whatever's currently in the inputs back into EVENTS_LIST before
+// re-rendering, so adding/removing a row never loses what's already typed.
+function collectEventsSummaryInputs() {
+  var byDay = [[],[],[],[],[],[],[]];
   document.querySelectorAll('.events-summary-input').forEach(function(inp){
-    var di = parseInt(inp.dataset.di);
-    var field = inp.dataset.field;
-    var val = inp.value.trim() || null;
-    if(field === 'event') WEEK_EVENTS[di] = val;
-    else if(field === 'time') EVENT_TIME[di] = val;
-    else if(field === 'servers') EVENT_SERVERS[di] = val;
+    var di = parseInt(inp.dataset.di), evi = parseInt(inp.dataset.evi), field = inp.dataset.field;
+    if(!byDay[di][evi]) byDay[di][evi] = {name:'', time:'', servers:''};
+    byDay[di][evi][field] = inp.value.trim();
   });
+  for(var di=0; di<7; di++) {
+    EVENTS_LIST[di] = byDay[di].filter(function(ev){ return ev && (ev.name || ev.time || ev.servers); });
+  }
+}
+
+function addEventRow(di) {
+  collectEventsSummaryInputs();
+  if(!EVENTS_LIST[di]) EVENTS_LIST[di] = [];
+  EVENTS_LIST[di].push({name:'', time:'', servers:''});
+  renderEventsSummaryTable();
+}
+
+function removeEventRow(di, evi) {
+  collectEventsSummaryInputs();
+  if(EVENTS_LIST[di]) EVENTS_LIST[di].splice(evi, 1);
+  renderEventsSummaryTable();
+}
+
+async function saveEventsSummary() {
+  collectEventsSummaryInputs();
   var weekRecord = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
   if(!weekRecord || !weekRecord.id) { alert('No week loaded — cannot save.'); return; }
   try {
@@ -9939,9 +9969,7 @@ async function saveEventsSummary() {
       method: 'PATCH',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
       body: JSON.stringify({
-        event_data: JSON.stringify(WEEK_EVENTS),
-        event_time_data: JSON.stringify(EVENT_TIME),
-        event_servers_data: JSON.stringify(EVENT_SERVERS),
+        events_list_data: JSON.stringify(EVENTS_LIST),
         last_edited_by: getCurrentUser(),
         last_edited_at: new Date().toISOString()
       })
@@ -10668,13 +10696,14 @@ function printSchedSection(range) {
 
   // Page 2: Events Summary — only added if there's at least one event this
   // week, so a schedule with no events doesn't print a pointless blank page.
-  var hasAnyEvent = WEEK_EVENTS.some(function(v){ return v; }) || EVENT_TIME.some(function(v){ return v; }) || EVENT_SERVERS.some(function(v){ return v; });
+  var hasAnyEvent = EVENTS_LIST.some(function(dayEvs){ return dayEvs && dayEvs.length > 0; });
   var page2 = '';
   if(hasAnyEvent) {
     var evRows = '<tr><th>Day</th><th>Event</th><th>Time</th><th>Servers</th></tr>';
     for(var evdi=0; evdi<7; evdi++) {
-      if(!WEEK_EVENTS[evdi] && !EVENT_TIME[evdi] && !EVENT_SERVERS[evdi]) continue;
-      evRows += '<tr><td>'+DAYS_FULL[evdi]+' '+(FULL_DATES[evdi]||'')+'</td><td>'+(WEEK_EVENTS[evdi]||'—')+'</td><td>'+(EVENT_TIME[evdi]||'—')+'</td><td>'+(EVENT_SERVERS[evdi]||'—')+'</td></tr>';
+      (EVENTS_LIST[evdi]||[]).forEach(function(ev){
+        evRows += '<tr><td>'+DAYS_FULL[evdi]+' '+(FULL_DATES[evdi]||'')+'</td><td>'+(ev.name||'—')+'</td><td>'+(ev.time||'—')+'</td><td>'+(ev.servers||'—')+'</td></tr>';
+      });
     }
     page2 = '<div id="print-page2" style="page-break-before:always;padding-top:8px;">'
       + '<h1>Events This Week</h1>'
