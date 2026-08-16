@@ -8050,7 +8050,7 @@ async function loadAllWeeks() {
   }, 8000);
 
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=*', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     clearTimeout(timeoutId);
@@ -8137,7 +8137,7 @@ async function refreshData() {
   var savedWeekId = savedWeek ? savedWeek.id : null;
   var savedWeekStart = savedWeek ? savedWeek.week_start : null;
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=id,week_start,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?order=week_start.desc&limit=10&select=*', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     if(r.ok) {
@@ -9419,7 +9419,7 @@ async function clearWeekRecord() {
 
 async function getWeekRecord(weekStart) {
   try {
-    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=id,boh_data,foh_data,driver_data,dispatch_data,event_data,event_time_data,event_servers_data', {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + weekStart + '&select=*', {
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
     });
     var rows = await r.json();
