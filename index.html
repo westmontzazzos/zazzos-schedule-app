@@ -7193,26 +7193,46 @@ async function saveSchedInlineEdits() {
   var origSaveLabel = saveBtnEl ? saveBtnEl.textContent : null;
   if(saveBtnEl) { saveBtnEl.disabled = true; saveBtnEl.textContent = 'Saving...'; }
   try {
+    var fullPayload = {
+      boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
+      foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
+      driver_data: JSON.stringify(DRIVERS),
+      dispatch_data: JSON.stringify(DISPATCH),
+      event_data: JSON.stringify(WEEK_EVENTS),
+      events_list_data: JSON.stringify(EVENTS_LIST),
+      last_edited_by: getCurrentUser(),
+      last_edited_at: new Date().toISOString()
+    };
     var resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body: JSON.stringify({
-        boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
-        foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
-        driver_data: JSON.stringify(DRIVERS),
-        dispatch_data: JSON.stringify(DISPATCH),
-        event_data: JSON.stringify(WEEK_EVENTS),
-        events_list_data: JSON.stringify(EVENTS_LIST),
-        last_edited_by: getCurrentUser(),
-        last_edited_at: new Date().toISOString()
-      })
+      body: JSON.stringify(fullPayload)
     });
-    if(!resp.ok) throw new Error('save failed (' + resp.status + ')');
+    if(!resp.ok) {
+      // The full save can fail if a newer column (dispatch/events) doesn't
+      // exist in the database yet. That must never block the actual
+      // schedule time edits from saving — retry with just the core fields
+      // that have always existed, so the real edit always goes through.
+      var corePayload = {
+        boh_data: fullPayload.boh_data,
+        foh_data: fullPayload.foh_data,
+        driver_data: fullPayload.driver_data,
+        last_edited_by: fullPayload.last_edited_by,
+        last_edited_at: fullPayload.last_edited_at
+      };
+      var retryResp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify(corePayload)
+      });
+      if(!retryResp.ok) throw new Error('save failed (' + retryResp.status + ')');
+      alert('Note: Dispatch/Event details didn\'t save (a database column may still need to be added) — but your schedule time changes saved successfully.');
+    }
     window._schedEditMode = false;
     document.getElementById('sched-edit-trigger').style.color = '';
     if(saveBtnEl) { saveBtnEl.style.display = 'none'; saveBtnEl.disabled = false; saveBtnEl.textContent = origSaveLabel; }
     renderSchedule();
-    alert('Schedule saved.');
+    if(resp.ok) alert('Schedule saved.');
   } catch(e) {
     alert('Save failed — nothing was recorded. Check your connection and try again: ' + e.message);
     if(saveBtnEl) { saveBtnEl.disabled = false; saveBtnEl.textContent = origSaveLabel; }
@@ -8741,10 +8761,22 @@ async function saveEdits() {
   });
 
   // Save to Supabase — patch the currently viewed week
+  var _saveOk = true;
+  var _saveErrMsg = '';
   try {
     var weekRecord = allWeeks[currentWeekIdx];
     if(weekRecord) {
-      await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
+      var fullPayload = {
+        boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
+        foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
+        driver_data: JSON.stringify(DRIVERS),
+        dispatch_data: JSON.stringify(DISPATCH),
+        event_data: JSON.stringify(WEEK_EVENTS),
+        events_list_data: JSON.stringify(EVENTS_LIST),
+        last_edited_by: getCurrentUser(),
+        last_edited_at: new Date().toISOString()
+      };
+      var resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -8752,20 +8784,45 @@ async function saveEdits() {
           'Authorization': 'Bearer ' + SUPABASE_KEY,
           'Prefer': 'return=minimal'
         },
-        body: JSON.stringify({
-          boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
-          foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
-          driver_data: JSON.stringify(DRIVERS),
-          dispatch_data: JSON.stringify(DISPATCH),
-          event_data: JSON.stringify(WEEK_EVENTS),
-          events_list_data: JSON.stringify(EVENTS_LIST),
-          last_edited_by: getCurrentUser(),
-          last_edited_at: new Date().toISOString()
-        })
+        body: JSON.stringify(fullPayload)
       });
+      if(!resp.ok) {
+        // Same principle as the Schedule tab: a newer column (dispatch/
+        // events) not existing yet must never block the actual time edit
+        // from saving. Retry with just the core fields that have always
+        // existed.
+        var corePayload = {
+          boh_data: fullPayload.boh_data,
+          foh_data: fullPayload.foh_data,
+          driver_data: fullPayload.driver_data,
+          last_edited_by: fullPayload.last_edited_by,
+          last_edited_at: fullPayload.last_edited_at
+        };
+        var retryResp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + weekRecord.id, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify(corePayload)
+        });
+        if(!retryResp.ok) { _saveOk = false; _saveErrMsg = 'save failed (' + retryResp.status + ')'; }
+      }
+    } else {
+      _saveOk = false;
+      _saveErrMsg = 'no week loaded';
     }
   } catch(e) {
-    console.log('Could not sync edit to Supabase:', e.message);
+    _saveOk = false;
+    _saveErrMsg = e.message;
+  }
+  if(!_saveOk) {
+    alert('Save failed — nothing was recorded. Check your connection and try again: ' + _saveErrMsg);
+    btn.textContent = 'Save';
+    btn.disabled = false;
+    return;
   }
 
   // Log the edit
