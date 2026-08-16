@@ -4449,6 +4449,13 @@ const DRIVERS = {
   'Rick': [null,null,null,null,null,null,null],
 };
 
+// Dispatch is manual, per-day only — it's not tied to any fixed employee,
+// since whoever dispatches can differ day to day. Each day is either null
+// or a free-text string like "Selena 9am-2pm" that you type directly, on
+// either Run Sheets or the Schedule tab. Always shown as the first line
+// under Drivers, regardless of what time it holds.
+var DISPATCH = [null,null,null,null,null,null,null];
+
 // Canonical driver roster, captured now before any week's data replaces DRIVERS.
 // Used by the upload repair pass so a known driver can never be silently dropped.
 const KNOWN_DRIVER_NAMES = Object.keys(DRIVERS);
@@ -4795,6 +4802,10 @@ function drvMin(raw) {
 // DOM'S NOTES
 function getDriversForDay(di) {
   const res = [];
+  const dispatchVal = (typeof DISPATCH !== 'undefined' && DISPATCH[di]) ? DISPATCH[di] : null;
+  if(dispatchVal) {
+    res.push({name: 'Dispatch', am: dispatchVal, pm: '', startH: -1});
+  }
   Object.entries(DRIVERS).forEach(([name, shifts]) => {
     const raw = shifts[di];
     if(!raw) return;
@@ -6343,6 +6354,10 @@ async function saveSchedInlineEdits() {
     var section = inp.dataset.section;
     var name = inp.dataset.name;
     var di = parseInt(inp.dataset.di);
+    if(section === 'DISPATCH') {
+      DISPATCH[di] = inp.value.trim() || null;
+      return;
+    }
     var secObj = {MANAGERS:MANAGERS,DRIVERS:DRIVERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH,SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}[section];
     setShiftValue(section, secObj, name, di, inp.value);
   });
@@ -6365,6 +6380,7 @@ async function saveSchedInlineEdits() {
         boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
         foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
         driver_data: JSON.stringify(DRIVERS),
+        dispatch_data: JSON.stringify(DISPATCH),
         event_data: JSON.stringify(WEEK_EVENTS),
         last_edited_by: getCurrentUser(),
         last_edited_at: new Date().toISOString()
@@ -6407,6 +6423,15 @@ function renderSchedule() {
   let html = '<table class="sched-table"><thead><tr><th>Name</th>'+schedHeaderCells+'</tr></thead><tbody>';
 
   if(currentSchedView==='drivers') {
+    html+='<tr><td>Dispatch</td>';
+    for(var dpi2=0; dpi2<7; dpi2++){
+      if(window._schedEditMode){
+        html+=`<td><input class="sched-inline-input" data-section="DISPATCH" data-name="Dispatch" data-di="${dpi2}" value="${DISPATCH[dpi2]||''}" placeholder="Name + time" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+      } else {
+        html+=`<td class="sched-jump-cell" data-name="Dispatch" data-di="${dpi2}">${DISPATCH[dpi2]||''}</td>`;
+      }
+    }
+    html+='</tr>';
     schedSort(Object.entries(DRIVERS),'drv')
       .filter(([n,d])=>d.some(v=>v))
       .forEach(([name,days])=>{
@@ -7791,6 +7816,15 @@ async function openEditor(di, focusName) {
   var idx = 0;
   sections.forEach(function(sec) {
     html += '<div class="edit-section-hdr">' + sec.label + '</div>';
+    if(sec.label === 'DRIVERS') {
+      var dispatchVal = DISPATCH[di] || '';
+      editorData.push({section: 'DISPATCH', name: 'Dispatch', type: 'drv', idx: idx});
+      html += '<div class="edit-row">';
+      html += '<div class="edit-name">Dispatch</div>';
+      html += '<div style="text-align:center"><input class="edit-input" id="edit-'+idx+'" type="text" value="'+dispatchVal+'" placeholder="Name + time, e.g. Selena 9am-2pm"><div class="edit-label">who\'s dispatching + time</div></div>';
+      html += '</div>';
+      idx++;
+    }
     Object.entries(sec.data).forEach(function(entry) {
       var name = entry[0];
       var days = entry[1];
@@ -7867,6 +7901,10 @@ async function saveEdits() {
 
   editorData.forEach(function(item) {
     var val = document.getElementById('edit-'+item.idx).value.trim();
+    if(item.section === 'DISPATCH') {
+      DISPATCH[editorDay] = val || null;
+      return;
+    }
     var data = sectionMaps[item.section];
     if(!data[item.name]) return;
     setShiftValue(item.section, data, item.name, editorDay, val);
@@ -7888,6 +7926,7 @@ async function saveEdits() {
           boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
           foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
           driver_data: JSON.stringify(DRIVERS),
+          dispatch_data: JSON.stringify(DISPATCH),
           event_data: JSON.stringify(WEEK_EVENTS),
           last_edited_by: getCurrentUser(),
           last_edited_at: new Date().toISOString()
@@ -8179,6 +8218,8 @@ function parseWeekData(week) {
     var evArr = week.event_data ? JSON.parse(week.event_data) : [null,null,null,null,null,null,null];
     for(var ei=0;ei<7;ei++) WEEK_EVENTS[ei] = (Array.isArray(evArr) && evArr[ei]) ? evArr[ei] : null;
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
+    var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
+    for(var dpi=0; dpi<7; dpi++) DISPATCH[dpi] = (Array.isArray(dispatchArr) && dispatchArr[dpi]) ? dispatchArr[dpi] : null;
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers', 'MANAGERS');
     if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA, null, 'PIZZA');
     if(boh.KITCHEN)  boh.KITCHEN  = cleanNames(boh.KITCHEN, null, 'KITCHEN');
