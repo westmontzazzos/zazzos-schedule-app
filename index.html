@@ -11126,8 +11126,8 @@ function handleLockIconTap() {
     <div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#888;margin-bottom:6px;">BACK OF HOUSE</div>
     <textarea id="doms-note-boh" placeholder="Notes for back of house..." style="width:100%;height:80px;padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:'DM Sans',sans-serif;resize:none;box-sizing:border-box;margin-bottom:16px;"></textarea>
     <div style="display:flex;gap:10px;">
-      <button onclick="printDomsNotes()" style="flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Print</button>
-      <button onclick="saveDomsNote()" style="flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Save & Publish</button>
+      <button onclick="printDomsNotes()" style="flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">🖨 Print</button>
+      <button onclick="saveDomsNote()" style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Save & Publish</button>
     </div>
   </div>
 </div>
@@ -11357,12 +11357,12 @@ function showDomsAckModal(note) {
   } else {
     var pb = document.createElement('button');
     pb.textContent = 'Print';
-    pb.style.cssText = 'flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;';
+    pb.style.cssText = 'flex:1;padding:12px;background:#222;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;';
     pb.onclick = function(){ printDomsNoteFromAck(note, user); };
     btnContainer.appendChild(pb);
     var ab = document.createElement('button');
     ab.textContent = dismissCount >= 2 ? 'ACKNOWLEDGE (Required)' : 'Acknowledge';
-    ab.style.cssText = 'flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-left:8px;';
+    ab.style.cssText = 'flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-left:8px;';
     ab.onclick = function(){ acknowledgeDomsNote(note, ab); };
     btnContainer.appendChild(ab);
   }
@@ -11652,8 +11652,8 @@ function printSchedSection(range) {
     </div>
     <div id="outstanding-errors-body" style="padding:16px;max-height:50vh;overflow-y:auto;"></div>
     <div style="padding:0 16px 16px;display:flex;gap:10px;">
-      <button onclick="bypassOutstandingErrors()" style="flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">Bypass For Now</button>
-      <button onclick="fixOutstandingErrors()" style="flex:2;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Fix Now</button>
+      <button onclick="bypassOutstandingErrors()" style="flex:1;padding:12px;background:#f0efed;color:#333;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;">Bypass For Now</button>
+      <button onclick="fixOutstandingErrors()" style="flex:1;padding:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">Fix Now</button>
     </div>
   </div>
 </div>
