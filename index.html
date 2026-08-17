@@ -4746,7 +4746,66 @@ document.addEventListener("DOMContentLoaded",function(){
     <div style="padding:0 16px 8px;">
       <button onclick="printWageRoster()" class="btn btn-secondary" style="width:100%;">Print Wage Roster -- By Job</button>
     </div>
+    <div style="padding:0 16px 8px;">
+      <button onclick="openManageRosterModal()" class="btn btn-secondary" style="width:100%;">👥 Manage Roster -- Add / Remove / Edit Staff</button>
+    </div>
     <div id="private-data"></div>
+  </div>
+</div>
+
+<!-- MANAGE ROSTER MODAL -->
+<div id="manage-roster-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;">
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--white);overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--gray-100);position:sticky;top:0;background:var(--white);z-index:2;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.06em;">Manage Roster</div>
+      <button onclick="document.getElementById('manage-roster-modal').style.display='none';" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;">✕</button>
+    </div>
+    <div style="padding:16px;">
+
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Add New Employee</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;">
+        <input type="text" id="roster-add-name" placeholder="Full name (as it'll appear on schedules)" style="border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
+        <div style="font-size:12px;color:#666;font-weight:700;">Role(s) — check all that apply if they work multiple sections:</div>
+        <div id="roster-add-roles" style="display:flex;flex-wrap:wrap;gap:8px;">
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Driver"> Driver</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Manager"> Manager</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Server"> Server</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bartender"> Bartender</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Cashier"> Cashier</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Host"> Host</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Pizza"> Pizza</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Kitchen"> Kitchen</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Dish"> Dish</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Prep"> Prep</label>
+          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bus"> Bus</label>
+        </div>
+        <input type="number" inputmode="decimal" step="0.01" id="roster-add-rate" placeholder="Rate/hr (same rate applies to all their roles)" style="border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
+        <div style="font-size:11.5px;color:#999;">If they work multiple roles, overtime is still calculated correctly on their combined hours across all of them — not per role.</div>
+        <button class="btn btn-primary" onclick="addRosterEmployee()">+ Add Employee</button>
+      </div>
+
+      <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
+
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Current Roster</div>
+      <div style="font-size:12px;color:#999;margin-bottom:8px;">✎ Edit lets you change a name and/or hourly rate. ✕ Remove stops them appearing going forward -- past pay history is unaffected.</div>
+      <div id="roster-current-list" style="font-size:13px;color:#aaa;">Loading...</div>
+
+      <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
+
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Removed Employees</div>
+      <div id="roster-removed-list" style="font-size:13px;color:#aaa;">Loading...</div>
+
+      <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
+
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Name Aliases</div>
+      <div style="font-size:12px;color:#999;margin-bottom:8px;">If schedules get typed with a nickname or misspelling, add it here so their hours match the right person automatically going forward.</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input type="text" id="alias-add-alias" placeholder="Nickname/typo" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
+        <input type="text" id="alias-add-canonical" placeholder="Correct name" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="addNameAlias()">+ Add Alias</button>
+      <div id="roster-alias-list" style="font-size:13px;color:#aaa;">Loading...</div>
+    </div>
   </div>
 </div>
 
@@ -5533,6 +5592,26 @@ const HOSTS = {
   'Molly': [null,null,null,null,null,null,null],
   'Charlie': [null,null,null,null,null,null,null],
   'Ellianna': [null,null,null,null,null,null,null],
+};
+
+// Lookup map so custom-roster entries (added via the Private tab Manage
+// Roster panel) can reference a section by its string name, since these are
+// top-level `const` declarations and are not reachable via window['SERVERS'].
+const SECTION_ARRAYS = {
+  DRIVERS, MANAGERS, PIZZA, KITCHEN, DISH, PREP, BUS, SERVERS, BARTENDERS, CASHIERS, HOSTS
+};
+const CUSTOM_ROLE_MAP = {
+  'Driver':    {arr:'DRIVERS',    type:'f', role2:'drivers'},
+  'Manager':   {arr:'MANAGERS',   type:'f', role2:'managers'},
+  'Server':    {arr:'SERVERS',    type:'f', role2:'servers'},
+  'Bartender': {arr:'BARTENDERS', type:'f', role2:'bartenders'},
+  'Cashier':   {arr:'CASHIERS',   type:'f', role2:'cashiers'},
+  'Host':      {arr:'HOSTS',      type:'f', role2:'hosts'},
+  'Pizza':     {arr:'PIZZA',      type:'b'},
+  'Kitchen':   {arr:'KITCHEN',    type:'b'},
+  'Dish':      {arr:'DISH',       type:'b'},
+  'Prep':      {arr:'PREP',       type:'b'},
+  'Bus':       {arr:'BUS',        type:'b'}
 };
 
 // Canonical FOH roster per section, captured before any week's data replaces these.
@@ -7440,10 +7519,232 @@ function checkPin() {
     document.getElementById('pin-screen').style.display='none';
     document.getElementById('private-content').style.display='block';
     renderPrivate();
+    loadCustomRosterThenRender();
   } else {
     document.getElementById('pin-error').style.display='block';
     document.getElementById('pin-input').value='';
   }
+}
+
+// CUSTOM ROSTER (Manage Roster panel) -- lets Ely add/remove/edit staff
+// from the app itself, no code push required.
+// -----------------------------------------------------------------
+var CUSTOM_ROSTER = [];          // [{id, name, roles_json, rate, added_by, added_at}]
+var CUSTOM_ROSTER_REMOVED = [];  // [{id, name, removed_by, removed_at}]
+var CUSTOM_ROSTER_RENAMES = [];  // [{id, original_name, display_name, renamed_by, renamed_at}]
+var CUSTOM_ROSTER_RATES = [];    // [{id, original_name, rate, updated_by, updated_at}]
+var CUSTOM_ALIASES_LIST = [];    // [{id, alias, canonical_name, added_by, added_at}]
+var FULL_ROSTER_NAMES = [];      // [{n, role, origName, rate}] -- every hourly employee, regardless of hours this week
+
+function loadCustomRosterThenRender() {
+  Promise.all([
+    fetch(SUPABASE_URL + '/rest/v1/roster_additions?order=added_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/roster_removed?order=removed_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/roster_renames?order=renamed_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/roster_rates?order=updated_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/name_aliases?order=added_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
+  ]).then(function(results){
+    CUSTOM_ROSTER = results[0] || [];
+    CUSTOM_ROSTER_REMOVED = results[1] || [];
+    CUSTOM_ROSTER_RENAMES = results[2] || [];
+    CUSTOM_ROSTER_RATES = results[3] || [];
+    CUSTOM_ALIASES_LIST = results[4] || [];
+    if(document.getElementById('private-content').style.display !== 'none') renderPrivate();
+    if(document.getElementById('manage-roster-modal').style.display !== 'none') renderManageRosterLists();
+  });
+}
+
+function loadCustomAliasesIntoMap() {
+  fetch(SUPABASE_URL + '/rest/v1/name_aliases', {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){
+    (rows||[]).forEach(function(row){ NAME_ALIASES[row.alias.toLowerCase()] = row.canonical_name; });
+  }).catch(function(){ /* non-fatal -- uploads still work with the built-in alias list */ });
+}
+
+function openManageRosterModal() {
+  document.getElementById('manage-roster-modal').style.display = 'block';
+  renderManageRosterLists();
+}
+
+function renderManageRosterLists() {
+  var curList = document.getElementById('roster-current-list');
+  var remList = document.getElementById('roster-removed-list');
+
+  // Current roster = everyone in the live HLY array (hardcoded + custom
+  // additions), regardless of hours worked this week -- so someone with 0
+  // hours (just added, or between shifts) can still be seen and removed here.
+  var current = FULL_ROSTER_NAMES;
+  if(!current.length) {
+    curList.innerHTML = '<div style="color:#aaa;">Open the wage roster once to load current staff.</div>';
+  } else {
+    curList.innerHTML = current.map(function(e){
+      var isCustom = CUSTOM_ROSTER.some(function(c){ return c.name === e.origName; });
+      var origEsc = e.origName.replace(/'/g,"\\'");
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
+        + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; $'+Number(e.rate).toFixed(2)+'/hr'+(isCustom?' &middot; added via app':'')+'</div></div>'
+        + '<div style="display:flex;gap:6px;">'
+        + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✎ Edit</button>'
+        + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  if(!CUSTOM_ROSTER_REMOVED.length) {
+    remList.innerHTML = '<div style="color:#aaa;">No one currently removed.</div>';
+  } else {
+    remList.innerHTML = CUSTOM_ROSTER_REMOVED.map(function(r){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
+        + '<div>'+r.name+'</div>'
+        + '<button onclick="restoreRosterEmployee('+r.id+')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">↺ Restore</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  var aliasList = document.getElementById('roster-alias-list');
+  if(!CUSTOM_ALIASES_LIST.length) {
+    aliasList.innerHTML = '<div style="color:#aaa;">No custom aliases added yet.</div>';
+  } else {
+    aliasList.innerHTML = CUSTOM_ALIASES_LIST.map(function(a){
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
+        + '<div>"'+a.alias+'" &rarr; '+a.canonical_name+'</div>'
+        + '<button onclick="removeNameAlias('+a.id+',\''+a.alias.replace(/'/g,"\\'")+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
+        + '</div>';
+    }).join('');
+  }
+}
+
+function addRosterEmployee() {
+  var name = document.getElementById('roster-add-name').value.trim();
+  var checked = Array.from(document.querySelectorAll('#roster-add-roles input[type=checkbox]:checked')).map(function(c){return c.value;});
+  var rate = parseFloat(document.getElementById('roster-add-rate').value);
+  if(!name) { alert('Enter a name.'); return; }
+  if(!checked.length) { alert('Select at least one role.'); return; }
+  if(!rate || rate <= 0) { alert('Enter a valid hourly rate.'); return; }
+  var entry = {
+    name: name,
+    roles_json: JSON.stringify(checked),
+    rate: rate,
+    added_by: getCurrentUser(),
+    added_at: new Date().toISOString()
+  };
+  fetch(SUPABASE_URL + '/rest/v1/roster_additions', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([entry])
+  }).then(function(r){
+    if(!r.ok) throw new Error('Save failed');
+    document.getElementById('roster-add-name').value = '';
+    document.querySelectorAll('#roster-add-roles input[type=checkbox]').forEach(function(c){c.checked=false;});
+    document.getElementById('roster-add-rate').value = '';
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to add: ' + e.message); });
+}
+
+function removeRosterEmployee(name) {
+  if(!confirm('Remove ' + name + ' from the wage roster? Their past pay history is unaffected -- this just stops them showing going forward.')) return;
+  var addition = CUSTOM_ROSTER.find(function(c){ return c.name === name; });
+  var doDelete = addition
+    ? fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + addition.id, {
+        method: 'DELETE',
+        headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+      })
+    : fetch(SUPABASE_URL + '/rest/v1/roster_removed', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify([{name: name, removed_by: getCurrentUser(), removed_at: new Date().toISOString()}])
+      });
+  doDelete.then(function(r){
+    if(!r.ok) throw new Error('Failed');
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to remove: ' + e.message); });
+}
+
+function restoreRosterEmployee(id) {
+  fetch(SUPABASE_URL + '/rest/v1/roster_removed?id=eq.' + id, {
+    method: 'DELETE',
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){
+    if(!r.ok) throw new Error('Failed');
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to restore: ' + e.message); });
+}
+
+function editRosterEmployee(origName) {
+  var nameOverride = CUSTOM_ROSTER_RENAMES.find(function(r){ return r.original_name === origName; });
+  var rateOverride = CUSTOM_ROSTER_RATES.find(function(r){ return r.original_name === origName; });
+  var currentDisplayName = nameOverride ? nameOverride.display_name : origName;
+  var currentRate = rateOverride ? rateOverride.rate : (FULL_ROSTER_NAMES.find(function(p){return p.origName===origName;}) || {}).rate;
+
+  var newName = prompt('Name for this person:', currentDisplayName);
+  if(newName === null) return;
+  newName = newName.trim();
+  if(!newName) { alert('Name cannot be blank.'); return; }
+
+  var newRateStr = prompt('Hourly rate for ' + newName + ':', currentRate != null ? String(currentRate) : '');
+  if(newRateStr === null) return;
+  var newRate = parseFloat(newRateStr);
+  if(!newRate || newRate <= 0) { alert('Enter a valid hourly rate.'); return; }
+
+  var requests = [];
+  if(newName !== origName || nameOverride) {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_renames?on_conflict=original_name', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{original_name: origName, display_name: newName, renamed_by: getCurrentUser(), renamed_at: new Date().toISOString()}])
+    }));
+  }
+  if(newRate !== currentRate) {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_rates?on_conflict=original_name', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{original_name: origName, rate: newRate, updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
+    }));
+  }
+  if(!requests.length) return;
+  Promise.all(requests).then(function(responses){
+    if(responses.some(function(r){return !r.ok;})) throw new Error('One or more updates failed');
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to save changes: ' + e.message); });
+}
+
+function addNameAlias() {
+  var alias = document.getElementById('alias-add-alias').value.trim();
+  var canonical = document.getElementById('alias-add-canonical').value.trim();
+  if(!alias || !canonical) { alert('Enter both the nickname/typo and the correct name.'); return; }
+  fetch(SUPABASE_URL + '/rest/v1/name_aliases?on_conflict=alias', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify([{alias: alias.toLowerCase(), canonical_name: canonical, added_by: getCurrentUser(), added_at: new Date().toISOString()}])
+  }).then(function(r){
+    if(!r.ok) throw new Error('Save failed');
+    NAME_ALIASES[alias.toLowerCase()] = canonical;
+    document.getElementById('alias-add-alias').value = '';
+    document.getElementById('alias-add-canonical').value = '';
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to add alias: ' + e.message); });
+}
+
+function removeNameAlias(id, alias) {
+  if(!confirm('Remove the alias "' + alias + '"? Future schedule uploads using that spelling will show as unmatched again.')) return;
+  fetch(SUPABASE_URL + '/rest/v1/name_aliases?id=eq.' + id, {
+    method: 'DELETE',
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){
+    if(!r.ok) throw new Error('Failed');
+    delete NAME_ALIASES[alias.toLowerCase()];
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to remove: ' + e.message); });
 }
 
 var LAST_PAYROLL = null;
@@ -7587,13 +7888,83 @@ function renderPrivate() {
     {n:'Molly',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Molly'],HOSTS['Molly']]},type:'f',role2:'cashiers'},
     {n:'Lea',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lea']]},type:'f',role2:'bartenders'},
   ];
-  // Compute wh (weekly hours) dynamically now that data is loaded
+  // Merge in staff added via the Private tab "Manage Roster" panel, and drop
+  // anyone removed there. Lets Ely add/remove/edit staff without a code push.
+  if(typeof CUSTOM_ROSTER_REMOVED !== 'undefined' && CUSTOM_ROSTER_REMOVED.length) {
+    var removedNames = CUSTOM_ROSTER_REMOVED.map(function(r){return r.name;});
+    HLY = HLY.filter(function(e){ return removedNames.indexOf(e.n) === -1; });
+  }
+  if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
+    CUSTOM_ROSTER.forEach(function(person){
+      var roles = [];
+      try { roles = JSON.parse(person.roles_json || '[]'); } catch(e) { roles = []; }
+      var maps = roles.map(function(r){ return {label:r, map:CUSTOM_ROLE_MAP[r]}; }).filter(function(x){ return !!x.map; });
+      if(!maps.length) return; // no recognized roles, skip safely rather than crash
+
+      // Overall entry type: 'b' only if every role is BOH; otherwise 'f'.
+      // Mixed BOH+FOH people are tagged 'b' historically but each breakdown
+      // item carries its own real type, which is what actually matters.
+      var allBOH = maps.every(function(x){ return x.map.type === 'b'; });
+      var primaryType = allBOH ? 'b' : 'f';
+      var primaryRole2 = !allBOH ? (maps.find(function(x){return x.map.type==='f';}).map.role2) : undefined;
+
+      var entry = {
+        n: person.name,
+        r: person.rate,
+        role: maps.map(function(x){return x.label;}).join('/'),
+        type: primaryType,
+        src: function(){ return maps.map(function(x){ return SECTION_ARRAYS[x.map.arr][person.name]; }); }
+      };
+      if(primaryRole2) entry.role2 = primaryRole2;
+      if(maps.length > 1) {
+        entry.roleBreakdown = function(){
+          return maps.map(function(x){
+            return {label:x.label, arr:SECTION_ARRAYS[x.map.arr][person.name], type:x.map.type, role2:x.map.role2};
+          });
+        };
+      }
+      HLY.push(entry);
+    });
+  }
+  // Rename/rate overlay: lets a name or rate be corrected for display without
+  // changing the underlying key used to pull hours from schedule data.
+  // _origName is preserved on every entry so Remove/Edit always target the
+  // stable identity, never a possibly-already-renamed display name.
+  HLY.forEach(function(e){ e._origName = e.n; });
+  if(typeof CUSTOM_ROSTER_RENAMES !== 'undefined' && CUSTOM_ROSTER_RENAMES.length) {
+    var renameMap = {};
+    CUSTOM_ROSTER_RENAMES.forEach(function(r){ renameMap[r.original_name] = r.display_name; });
+    HLY.forEach(function(e){ if(renameMap[e._origName]) e.n = renameMap[e._origName]; });
+  }
+  if(typeof CUSTOM_ROSTER_RATES !== 'undefined' && CUSTOM_ROSTER_RATES.length) {
+    var rateMap = {};
+    CUSTOM_ROSTER_RATES.forEach(function(r){ rateMap[r.original_name] = r.rate; });
+    HLY.forEach(function(e){ if(rateMap[e._origName] != null) e.r = rateMap[e._origName]; });
+  }
+  FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r}; });
+  // Compute wh (weekly hours) dynamically now that data is loaded. Entries
+  // with roleBreakdown are computed by summing each role's OWN type-correct
+  // calculation (weekHrsB for BOH-format data, weekHrsF for FOH-format data)
+  // -- this matters for anyone mixing BOH and FOH roles.
   HLY.forEach(function(e){
-    var arrs = e.src();
-    if(e.type==='b') {
+    if(e.roleBreakdown) {
+      var items = e.roleBreakdown();
+      e.wh = items.reduce(function(t,it){
+        var typ = it.type || e.type;
+        return t + (typ==='b' ? weekHrsB(it.arr) : weekHrsF(it.arr, it.role2));
+      }, 0);
+      e.dh = function(di){
+        return e.roleBreakdown().reduce(function(t,it){
+          var typ = it.type || e.type;
+          return t + (typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2));
+        }, 0);
+      };
+    } else if(e.type==='b') {
+      var arrs = e.src();
       e.wh = arrs.reduce(function(t,a){return t+weekHrsB(a);},0);
       e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsB(a,di);},0); };
     } else {
+      var arrs = e.src();
       e.wh = arrs.reduce(function(t,a){return t+weekHrsF(a,e.role2);},0);
       e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsF(a,di,e.role2);},0); };
     }
@@ -7742,7 +8113,16 @@ function renderPrivate() {
     var rP=rH*e.r, oP=oH*e.r*1.5, wg=rP+oP;
     var tx=wg*SS+wg*MED+FUTA+SUTA, tc=wg+tx;
     var otStyle=oH>0?'style="color:var(--red);font-weight:700"':'';
-    html+='<tr><td><strong>'+e.n+'</strong></td><td>'+e.role+'</td>';
+    var roleCell = e.role;
+    if(e.roleBreakdown) {
+      var parts = e.roleBreakdown().map(function(rb){
+        var rbType = rb.type || e.type;
+        var h = rbType==='b' ? weekHrsB(rb.arr) : weekHrsF(rb.arr, rb.role2);
+        return rb.label+': '+h.toFixed(1)+'h';
+      });
+      roleCell = e.role + '<div style="font-size:10.5px;color:var(--gray-400);margin-top:2px;">'+parts.join(' · ')+'</div>';
+    }
+    html+='<tr><td><strong>'+e.n+'</strong></td><td>'+roleCell+'</td>';
     html+='<td>'+rH.toFixed(1)+'h</td>';
     html+='<td '+otStyle+'>'+(oH>0?oH.toFixed(1)+'h':'—')+'</td>';
     html+='<td>'+fmt$(wg)+'</td><td>'+fmt$(tx)+'</td><td><strong>'+fmt$(tc)+'</strong></td></tr>';
@@ -9455,6 +9835,7 @@ document.addEventListener('DOMContentLoaded', function(){
     var snapped = snapToMonday(this.value);
     if(snapped && snapped !== this.value) this.value = snapped;
   });
+  loadCustomAliasesIntoMap();
 });
 
 function snapToMonday(dateStr) {
