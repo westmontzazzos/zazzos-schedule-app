@@ -7913,8 +7913,13 @@ function renderPrivate() {
     {n:'Jaxon',r:15,role:'Bus/Dish',src:function(){return [BUS['Jaxon'],DISH['Jaxon']]},type:'b'},
     {n:'Matt',r:15,role:'Dish',src:function(){return [DISH['Matt']]},type:'b'},
     {n:'Raul',r:15,role:'Bus/Dish',src:function(){return [BUS['Raul'],DISH['Raul']]},type:'b'},
-    {n:'Sio McAvoy',r:17,role:'Cashier/Server',src:function(){return [CASHIERS['Sio'],SERVERS['Sio']]},type:'f',role2:'cashiers'},
-    {n:'Sio McAvoy (Bar)',r:9,role:'Bartender',src:function(){return [BARTENDERS['Sio']]},type:'f',role2:'bartenders'},
+    {n:'Sio McAvoy',r:17,role:'Cashier/Server/Bartender',
+      src:function(){return [CASHIERS['Sio'],SERVERS['Sio'],BARTENDERS['Sio']]},type:'f',role2:'cashiers',
+      roleBreakdown:function(){return [
+        {label:'Cashier',arr:CASHIERS['Sio'],type:'f',role2:'cashiers',rate:17},
+        {label:'Server',arr:SERVERS['Sio'],type:'f',role2:'servers',rate:17},
+        {label:'Bartender',arr:BARTENDERS['Sio'],type:'f',role2:'bartenders',rate:9}
+      ];}},
     {n:'Mike Henie',r:15,role:'Cashier',src:function(){return [CASHIERS['Mike']]},type:'f',role2:'cashiers'},
     {n:'Brianna',r:9,role:'Server',src:function(){return [SERVERS['Brianna']]},type:'f',role2:'servers'},
     {n:'Erika',r:9,role:'Server',src:function(){return [SERVERS['Erika']]},type:'f',role2:'servers'},
@@ -8018,26 +8023,32 @@ function renderPrivate() {
   }
   FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r, salaried:false}; })
     .concat(SAL.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.s, salaried:true}; }));
-  // Compute wh (weekly hours) dynamically now that data is loaded. Entries
-  // with roleBreakdown are computed by summing each role's OWN type-correct
-  // calculation (weekHrsB for BOH-format data, weekHrsF for FOH-format data)
-  // -- this matters for anyone mixing BOH and FOH roles.
+  // Compute wh (weekly hours), trainingHrs (for display), and _straightBase
+  // (actual $ owed before OT premium) day-by-day. This is the general path:
+  // it correctly handles people whose different roles pay different rates
+  // (e.g. Sio McAvoy: $17/hr as Cashier/Server, $9/hr as Bartender) AND
+  // training-marked days (always $15/hr), together, for anyone. A
+  // roleBreakdown item can carry its own `rate`; if it doesn't, it falls
+  // back to the person's base rate `e.r`. This reduces to the exact original
+  // single-flat-rate formula when there's no rate variation and no training,
+  // so nobody else's pay changes even fractionally.
   HLY.forEach(function(e){
     if(e.roleBreakdown) {
       var items = e.roleBreakdown();
-      e.wh = items.reduce(function(t,it){
+      e.wh = 0; e.trainingHrs = 0; e._straightBase = 0;
+      items.forEach(function(it){
         var typ = it.type || e.type;
-        return t + (typ==='b' ? weekHrsB(it.arr) : weekHrsF(it.arr, it.role2));
-      }, 0);
-      e.trainingHrs = items.reduce(function(t,it){
-        var typ = it.type || e.type;
-        var sum = 0;
+        var itemRate = (it.rate != null) ? it.rate : e.r;
         for(var di=0; di<7; di++){
+          var h = typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2);
+          if(!h) continue;
           var isTrain = typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
-          if(isTrain) sum += typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2);
+          var rate = isTrain ? TRAINING_RATE : itemRate;
+          e.wh += h;
+          e._straightBase += h*rate;
+          if(isTrain) e.trainingHrs += h;
         }
-        return t + sum;
-      }, 0);
+      });
       e.dh = function(di){
         return e.roleBreakdown().reduce(function(t,it){
           var typ = it.type || e.type;
@@ -8050,47 +8061,38 @@ function renderPrivate() {
           return typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
         });
       };
-    } else if(e.type==='b') {
-      var arrs = e.src();
-      e.wh = arrs.reduce(function(t,a){return t+weekHrsB(a);},0);
-      e.trainingHrs = arrs.reduce(function(t,a){
-        var sum = 0;
-        for(var di=0; di<7; di++){ if(dayIsTrainingB(a,di)) sum += dayHrsB(a,di); }
-        return t + sum;
-      }, 0);
-      e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsB(a,di);},0); };
-      e.dTrain = function(di){ return e.src().some(function(a){return dayIsTrainingB(a,di);}); };
     } else {
       var arrs = e.src();
-      e.wh = arrs.reduce(function(t,a){return t+weekHrsF(a,e.role2);},0);
-      e.trainingHrs = arrs.reduce(function(t,a){
-        var sum = 0;
-        for(var di=0; di<7; di++){ if(dayIsTrainingF(a,di)) sum += dayHrsF(a,di,e.role2); }
-        return t + sum;
-      }, 0);
-      e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsF(a,di,e.role2);},0); };
-      e.dTrain = function(di){ return e.src().some(function(a){return dayIsTrainingF(a,di);}); };
+      e.wh = 0; e.trainingHrs = 0; e._straightBase = 0;
+      arrs.forEach(function(a){
+        for(var di=0; di<7; di++){
+          var h = e.type==='b' ? dayHrsB(a,di) : dayHrsF(a,di,e.role2);
+          if(!h) continue;
+          var isTrain = e.type==='b' ? dayIsTrainingB(a,di) : dayIsTrainingF(a,di);
+          var rate = isTrain ? TRAINING_RATE : e.r;
+          e.wh += h;
+          e._straightBase += h*rate;
+          if(isTrain) e.trainingHrs += h;
+        }
+      });
+      e.dh = function(di){ return e.src().reduce(function(t,a){return t+(e.type==='b'?dayHrsB(a,di):dayHrsF(a,di,e.role2));},0); };
+      e.dTrain = function(di){ return e.src().some(function(a){return e.type==='b'?dayIsTrainingB(a,di):dayIsTrainingF(a,di);}); };
     }
   });
 
-  // Blended-rate wage calculation: when part of someone's week was training
-  // (paid at $15/hr) and part was their normal rate, overtime uses the FLSA
-  // "weighted average" method rather than one flat rate -- straight-time pay
-  // for all hours at whichever rate applied that day, then a 0.5x premium on
-  // hours over 40 at the weighted-average rate. This reduces to the exact
-  // original flat-rate formula when trainingHrs is 0, so nobody else's pay
-  // changes even fractionally.
+  // OT premium uses the FLSA "weighted average" method: straight-time pay for
+  // all hours at whichever rate actually applied (already summed above as
+  // _straightBase), then a 0.5x premium on hours over 40 at the resulting
+  // weighted-average rate.
   function wageFor(e) {
     var wh = e.wh || 0;
-    var trainHrs = Math.min(e.trainingHrs || 0, wh);
-    var normalHrs = wh - trainHrs;
-    var straightBase = normalHrs*e.r + trainHrs*TRAINING_RATE;
+    var straightBase = e._straightBase || 0;
     var avgRate = wh > 0 ? straightBase/wh : e.r;
     var rH = Math.min(wh,40), oH = Math.max(0,wh-40);
     var oP = oH*avgRate*0.5;
     var wg = straightBase + oP;
     var rP = wg - oP;
-    return {rH:rH, oH:oH, wg:wg, rP:rP, oP:oP, avgRate:avgRate, trainHrs:trainHrs};
+    return {rH:rH, oH:oH, wg:wg, rP:rP, oP:oP, avgRate:avgRate, trainHrs:e.trainingHrs||0};
   }
 
   // Compute weekly wages
@@ -8247,7 +8249,8 @@ function renderPrivate() {
       var parts = e.roleBreakdown().map(function(rb){
         var rbType = rb.type || e.type;
         var h = rbType==='b' ? weekHrsB(rb.arr) : weekHrsF(rb.arr, rb.role2);
-        return rb.label+': '+h.toFixed(1)+'h';
+        var rateNote = (rb.rate != null && rb.rate !== e.r) ? ' @ $'+rb.rate.toFixed(2)+'/hr' : '';
+        return rb.label+': '+h.toFixed(1)+'h'+rateNote;
       });
       roleCell += '<div style="font-size:10.5px;color:var(--gray-400);margin-top:2px;">'+parts.join(' · ')+'</div>';
     }
