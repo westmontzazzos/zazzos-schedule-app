@@ -7649,7 +7649,7 @@ function addRosterEmployee() {
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
       body: JSON.stringify([salEntry])
     }).then(function(r){
-      if(!r.ok) throw new Error('Save failed');
+      if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+': '+t); });
       document.getElementById('roster-add-name').value = '';
       document.getElementById('roster-add-salaried-role').value = '';
       document.getElementById('roster-add-salary').value = '';
@@ -7675,7 +7675,7 @@ function addRosterEmployee() {
     headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
     body: JSON.stringify([entry])
   }).then(function(r){
-    if(!r.ok) throw new Error('Save failed');
+    if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+': '+t); });
     document.getElementById('roster-add-name').value = '';
     document.querySelectorAll('#roster-add-roles input[type=checkbox]').forEach(function(c){c.checked=false;});
     document.getElementById('roster-add-rate').value = '';
