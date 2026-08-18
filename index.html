@@ -7593,6 +7593,29 @@ function seedCustomRosterIntoSections() {
   });
 }
 
+// KNOWN_FOH/KNOWN_BOH/KNOWN_DRIVER_NAMES are frozen snapshots taken once at
+// page load, before Manage Roster additions ever load -- so they never
+// include anyone added later. They're used as a safety-net list during
+// photo uploads (a second AI pass that double-checks anyone whose row came
+// back blank on the first read). This returns the current Manage-Roster
+// names that belong in a given section array, so upload call sites can
+// merge them in live instead of relying on the frozen list alone.
+function customNamesForSection(sectionArrName) {
+  if(typeof CUSTOM_ROSTER === 'undefined' || !CUSTOM_ROSTER.length) return [];
+  var names = [];
+  CUSTOM_ROSTER.forEach(function(p){
+    if(p.is_salaried) return;
+    var roles = [];
+    try { roles = JSON.parse(p.roles_json || '[]'); } catch(e) { roles = []; }
+    var belongs = roles.some(function(r){
+      var map = CUSTOM_ROLE_MAP[r];
+      return map && map.arr === sectionArrName;
+    });
+    if(belongs) names.push(p.name);
+  });
+  return names;
+}
+
 // Load custom roster additions as early as possible (page load), not just
 // when the Private tab's PIN is entered -- someone added via Manage Roster
 // needs to show up on the Schedule tab even if Private was never opened.
@@ -10461,10 +10484,29 @@ function checkScheduleErrors() {
   ];
   var BOH_SECS = ['Kitchen','Pizza','Prep','Dish','Bus'];
   var _managerNames = Object.keys(MANAGERS);
+  // The roster controls the schedule: anyone added via the Private tab's
+  // Manage Roster panel is just as recognized as a hardcoded ROLE_MAP entry.
+  // Being on the roster with a real role is what makes someone allowed to
+  // appear on the schedule -- this map translates their Manage Roster
+  // role(s) into the same section-label vocabulary ROLE_MAP already uses.
+  var CUSTOM_ROLE_TO_SECLBL = {
+    'Server':'Servers','Bartender':'Bartenders','Cashier':'Cashiers','Host':'Hosts',
+    'Pizza':'Pizza','Kitchen':'Kitchen','Dish':'Dish','Prep':'Prep','Bus':'Bus'
+  };
+  var _customAllowedMap = {};
+  if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
+    CUSTOM_ROSTER.forEach(function(p){
+      if(p.is_salaried) return; // salaried staff aren't scheduled in these sections
+      var roles = [];
+      try { roles = JSON.parse(p.roles_json || '[]'); } catch(e) { roles = []; }
+      var secLbls = roles.map(function(r){ return CUSTOM_ROLE_TO_SECLBL[r]; }).filter(Boolean);
+      if(secLbls.length) _customAllowedMap[p.name] = secLbls;
+    });
+  }
   ALL_SECS.forEach(function(sec) {
     Object.keys(sec.obj).forEach(function(name) {
       if(_managerNames.indexOf(name) !== -1) return; // managers can work any section
-      var allowed = ROLE_MAP[name];
+      var allowed = ROLE_MAP[name] || _customAllowedMap[name];
       // No entry in ROLE_MAP means this person has no defined role at all —
       // that is not a pass, it's the strongest possible violation. Role
       // controls placement, never name or spelling; an unrecognized name
@@ -11154,16 +11196,18 @@ async function readScheduleImage(dataUrl, type) {
       var bohSecs = Object.keys(KNOWN_BOH);
       for(var bi=0; bi<bohSecs.length; bi++){
         var bsec = bohSecs[bi];
-        sched[bsec] = await repairRows(base64, mediaType, sched[bsec] || {}, KNOWN_BOH[bsec], 'string', bsec + ' (Back of House)');
+        var bohKnown = KNOWN_BOH[bsec].concat(customNamesForSection(bsec));
+        sched[bsec] = await repairRows(base64, mediaType, sched[bsec] || {}, bohKnown, 'string', bsec + ' (Back of House)');
       }
     } else if(type === 'FOH') {
       var fohSecs = Object.keys(KNOWN_FOH);
       for(var fi=0; fi<fohSecs.length; fi++){
         var fsec = fohSecs[fi];
-        sched[fsec] = await repairRows(base64, mediaType, sched[fsec] || {}, KNOWN_FOH[fsec], 'pair', fsec + ' (Front of House)');
+        var fohKnown = KNOWN_FOH[fsec].concat(customNamesForSection(fsec));
+        sched[fsec] = await repairRows(base64, mediaType, sched[fsec] || {}, fohKnown, 'pair', fsec + ' (Front of House)');
       }
     } else {
-      sched = await repairRows(base64, mediaType, sched, KNOWN_DRIVER_NAMES, 'string', 'driver');
+      sched = await repairRows(base64, mediaType, sched, KNOWN_DRIVER_NAMES.concat(customNamesForSection('DRIVERS')), 'string', 'driver');
     }
   } catch(e) {
     console.warn('Row repair pass failed; keeping reconciled result.', e);
