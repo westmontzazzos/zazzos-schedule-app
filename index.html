@@ -4765,46 +4765,50 @@ document.addEventListener("DOMContentLoaded",function(){
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Add New Employee</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px;">
         <input type="text" id="roster-add-name" placeholder="Full name (as it'll appear on schedules)" style="border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
-        <div style="font-size:12px;color:#666;font-weight:700;">Role(s) — check all that apply if they work multiple sections:</div>
-        <div id="roster-add-roles" style="display:flex;flex-wrap:wrap;gap:8px;">
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Driver"> Driver</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Manager"> Manager</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Server"> Server</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bartender"> Bartender</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Cashier"> Cashier</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Host"> Host</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Pizza"> Pizza</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Kitchen"> Kitchen</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Dish"> Dish</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Prep"> Prep</label>
-          <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bus"> Bus</label>
+
+        <div style="display:flex;gap:8px;">
+          <button type="button" id="roster-add-type-hourly" class="btn btn-primary" style="flex:1;" onclick="setRosterAddType('hourly')">Hourly</button>
+          <button type="button" id="roster-add-type-salaried" class="btn btn-secondary" style="flex:1;" onclick="setRosterAddType('salaried')">Salaried</button>
         </div>
-        <input type="number" inputmode="decimal" step="0.01" id="roster-add-rate" placeholder="Rate/hr (same rate applies to all their roles)" style="border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
-        <div style="font-size:11.5px;color:#999;">If they work multiple roles, overtime is still calculated correctly on their combined hours across all of them — not per role.</div>
+
+        <div id="roster-add-hourly-fields">
+          <div style="font-size:12px;color:#666;font-weight:700;margin-bottom:8px;">Role(s) — check all that apply if they work multiple sections:</div>
+          <div id="roster-add-roles" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Driver"> Driver</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Manager"> Manager</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Server"> Server</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bartender"> Bartender</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Cashier"> Cashier</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Host"> Host</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Pizza"> Pizza</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Kitchen"> Kitchen</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Dish"> Dish</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Prep"> Prep</label>
+            <label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" value="Bus"> Bus</label>
+          </div>
+          <input type="number" inputmode="decimal" step="0.01" id="roster-add-rate" placeholder="Rate/hr (same rate applies to all their roles)" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box;">
+          <div style="font-size:11.5px;color:#999;margin-top:6px;">If they work multiple roles, overtime is still calculated correctly on their combined hours across all of them — not per role.</div>
+        </div>
+
+        <div id="roster-add-salaried-fields" style="display:none;">
+          <input type="text" id="roster-add-salaried-role" placeholder="Title (e.g. Manager, Owner)" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <input type="number" inputmode="decimal" step="1" id="roster-add-salary" placeholder="Annual salary (e.g. 45000)" style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;box-sizing:border-box;">
+          <div style="font-size:11.5px;color:#999;margin-top:6px;">Salaried staff aren't tied to hourly schedule sections -- they show on the wage roster as a flat weekly cost based on this annual figure.</div>
+        </div>
+
         <button class="btn btn-primary" onclick="addRosterEmployee()">+ Add Employee</button>
       </div>
 
       <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
 
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Current Roster</div>
-      <div style="font-size:12px;color:#999;margin-bottom:8px;">✎ Edit lets you change a name and/or hourly rate. ✕ Remove stops them appearing going forward -- past pay history is unaffected.</div>
+      <div style="font-size:12px;color:#999;margin-bottom:8px;">✎ Edit lets you change a name, rate/salary, and aliases together. ✕ Remove stops them appearing going forward -- past pay history is unaffected.</div>
       <div id="roster-current-list" style="font-size:13px;color:#aaa;">Loading...</div>
 
       <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
 
       <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Removed Employees</div>
       <div id="roster-removed-list" style="font-size:13px;color:#aaa;">Loading...</div>
-
-      <div style="height:1px;background:var(--gray-100);margin:18px 0;"></div>
-
-      <div style="font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.05em;margin-bottom:10px;">Name Aliases</div>
-      <div style="font-size:12px;color:#999;margin-bottom:8px;">If schedules get typed with a nickname or misspelling, add it here so their hours match the right person automatically going forward.</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <input type="text" id="alias-add-alias" placeholder="Nickname/typo" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
-        <input type="text" id="alias-add-canonical" placeholder="Correct name" style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;">
-      </div>
-      <button class="btn btn-primary" style="width:100%;margin-bottom:10px;" onclick="addNameAlias()">+ Add Alias</button>
-      <div id="roster-alias-list" style="font-size:13px;color:#aaa;">Loading...</div>
     </div>
   </div>
 </div>
@@ -7581,7 +7585,7 @@ function renderManageRosterLists() {
   var curList = document.getElementById('roster-current-list');
   var remList = document.getElementById('roster-removed-list');
 
-  // Current roster = everyone in the live HLY array (hardcoded + custom
+  // Current roster = everyone in the live HLY+SAL arrays (hardcoded + custom
   // additions), regardless of hours worked this week -- so someone with 0
   // hours (just added, or between shifts) can still be seen and removed here.
   var current = FULL_ROSTER_NAMES;
@@ -7591,8 +7595,10 @@ function renderManageRosterLists() {
     curList.innerHTML = current.map(function(e){
       var isCustom = CUSTOM_ROSTER.some(function(c){ return c.name === e.origName; });
       var origEsc = e.origName.replace(/'/g,"\\'");
+      var aliases = CUSTOM_ALIASES_LIST.filter(function(a){ return a.canonical_name === e.origName; }).map(function(a){return a.alias;});
+      var akaText = aliases.length ? ' &middot; aka: '+aliases.join(', ') : '';
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
-        + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; $'+Number(e.rate).toFixed(2)+'/hr'+(isCustom?' &middot; added via app':'')+'</div></div>'
+        + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; '+(e.salaried ? '$'+Number(e.rate).toLocaleString()+'/yr' : '$'+Number(e.rate).toFixed(2)+'/hr')+(isCustom?' &middot; added via app':'')+akaText+'</div></div>'
         + '<div style="display:flex;gap:6px;">'
         + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✎ Edit</button>'
         + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
@@ -7610,29 +7616,55 @@ function renderManageRosterLists() {
         + '</div>';
     }).join('');
   }
+}
 
-  var aliasList = document.getElementById('roster-alias-list');
-  if(!CUSTOM_ALIASES_LIST.length) {
-    aliasList.innerHTML = '<div style="color:#aaa;">No custom aliases added yet.</div>';
-  } else {
-    aliasList.innerHTML = CUSTOM_ALIASES_LIST.map(function(a){
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
-        + '<div>"'+a.alias+'" &rarr; '+a.canonical_name+'</div>'
-        + '<button onclick="removeNameAlias('+a.id+',\''+a.alias.replace(/'/g,"\\'")+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
-        + '</div>';
-    }).join('');
-  }
+var _rosterAddType = 'hourly';
+function setRosterAddType(type) {
+  _rosterAddType = type;
+  document.getElementById('roster-add-hourly-fields').style.display = (type === 'hourly') ? 'block' : 'none';
+  document.getElementById('roster-add-salaried-fields').style.display = (type === 'salaried') ? 'block' : 'none';
+  document.getElementById('roster-add-type-hourly').className = 'btn ' + (type === 'hourly' ? 'btn-primary' : 'btn-secondary');
+  document.getElementById('roster-add-type-salaried').className = 'btn ' + (type === 'salaried' ? 'btn-primary' : 'btn-secondary');
 }
 
 function addRosterEmployee() {
   var name = document.getElementById('roster-add-name').value.trim();
+  if(!name) { alert('Enter a name.'); return; }
+
+  if(_rosterAddType === 'salaried') {
+    var salRole = document.getElementById('roster-add-salaried-role').value.trim();
+    var salary = parseFloat(document.getElementById('roster-add-salary').value);
+    if(!salRole) { alert('Enter a title.'); return; }
+    if(!salary || salary <= 0) { alert('Enter a valid annual salary.'); return; }
+    var salEntry = {
+      name: name,
+      is_salaried: true,
+      role_label: salRole,
+      annual_salary: salary,
+      added_by: getCurrentUser(),
+      added_at: new Date().toISOString()
+    };
+    fetch(SUPABASE_URL + '/rest/v1/roster_additions', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([salEntry])
+    }).then(function(r){
+      if(!r.ok) throw new Error('Save failed');
+      document.getElementById('roster-add-name').value = '';
+      document.getElementById('roster-add-salaried-role').value = '';
+      document.getElementById('roster-add-salary').value = '';
+      loadCustomRosterThenRender();
+    }).catch(function(e){ alert('Failed to add: ' + e.message); });
+    return;
+  }
+
   var checked = Array.from(document.querySelectorAll('#roster-add-roles input[type=checkbox]:checked')).map(function(c){return c.value;});
   var rate = parseFloat(document.getElementById('roster-add-rate').value);
-  if(!name) { alert('Enter a name.'); return; }
   if(!checked.length) { alert('Select at least one role.'); return; }
   if(!rate || rate <= 0) { alert('Enter a valid hourly rate.'); return; }
   var entry = {
     name: name,
+    is_salaried: false,
     roles_json: JSON.stringify(checked),
     rate: rate,
     added_by: getCurrentUser(),
@@ -7683,18 +7715,29 @@ function restoreRosterEmployee(id) {
 function editRosterEmployee(origName) {
   var nameOverride = CUSTOM_ROSTER_RENAMES.find(function(r){ return r.original_name === origName; });
   var rateOverride = CUSTOM_ROSTER_RATES.find(function(r){ return r.original_name === origName; });
+  var personInfo = FULL_ROSTER_NAMES.find(function(p){return p.origName===origName;}) || {};
+  var isSalaried = !!personInfo.salaried;
   var currentDisplayName = nameOverride ? nameOverride.display_name : origName;
-  var currentRate = rateOverride ? rateOverride.rate : (FULL_ROSTER_NAMES.find(function(p){return p.origName===origName;}) || {}).rate;
+  var currentRate = rateOverride ? (isSalaried ? rateOverride.annual_salary : rateOverride.rate) : personInfo.rate;
+  // Aliases always target the true underlying identity (origName), never a
+  // renamed display name -- that's what schedule uploads actually match
+  // against, regardless of what's shown on the wage roster.
+  var existingAliases = CUSTOM_ALIASES_LIST.filter(function(a){ return a.canonical_name === origName; });
 
   var newName = prompt('Name for this person:', currentDisplayName);
-  if(newName === null) return;
+  if(newName === null) return; // cancelled entirely
   newName = newName.trim();
   if(!newName) { alert('Name cannot be blank.'); return; }
 
-  var newRateStr = prompt('Hourly rate for ' + newName + ':', currentRate != null ? String(currentRate) : '');
-  if(newRateStr === null) return;
+  var ratePrompt = isSalaried ? ('Annual salary for ' + newName + ':') : ('Hourly rate for ' + newName + ':');
+  var newRateStr = prompt(ratePrompt, currentRate != null ? String(currentRate) : '');
+  if(newRateStr === null) return; // cancelled entirely
   var newRate = parseFloat(newRateStr);
-  if(!newRate || newRate <= 0) { alert('Enter a valid hourly rate.'); return; }
+  if(!newRate || newRate <= 0) { alert('Enter a valid ' + (isSalaried ? 'annual salary' : 'hourly rate') + '.'); return; }
+
+  var existingAliasStr = existingAliases.map(function(a){return a.alias;}).join(', ');
+  var newAliasStr = prompt('Also known as on schedules (comma-separated, e.g. "Chuck, C"). Leave as-is to keep, clear to remove all:', existingAliasStr);
+  var newAliasList = newAliasStr === null ? null : newAliasStr.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s.length>0;});
 
   var requests = [];
   if(newName !== origName || nameOverride) {
@@ -7705,46 +7748,38 @@ function editRosterEmployee(origName) {
     }));
   }
   if(newRate !== currentRate) {
+    var rateBody = isSalaried
+      ? {original_name: origName, annual_salary: newRate, rate: null, updated_by: getCurrentUser(), updated_at: new Date().toISOString()}
+      : {original_name: origName, rate: newRate, annual_salary: null, updated_by: getCurrentUser(), updated_at: new Date().toISOString()};
     requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_rates?on_conflict=original_name', {
       method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body: JSON.stringify([{original_name: origName, rate: newRate, updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
+      body: JSON.stringify([rateBody])
     }));
   }
-  if(!requests.length) return;
+  if(newAliasList !== null) {
+    var existingLower = existingAliases.map(function(a){return a.alias.toLowerCase();});
+    var toAdd = newAliasList.filter(function(a){ return existingLower.indexOf(a) === -1; });
+    var toRemove = existingAliases.filter(function(a){ return newAliasList.indexOf(a.alias.toLowerCase()) === -1; });
+    toAdd.forEach(function(alias){
+      requests.push(fetch(SUPABASE_URL + '/rest/v1/name_aliases?on_conflict=alias', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+        body: JSON.stringify([{alias: alias, canonical_name: origName, added_by: getCurrentUser(), added_at: new Date().toISOString()}])
+      }).then(function(r){ if(r.ok) NAME_ALIASES[alias] = origName; return r; }));
+    });
+    toRemove.forEach(function(a){
+      requests.push(fetch(SUPABASE_URL + '/rest/v1/name_aliases?id=eq.' + a.id, {
+        method: 'DELETE',
+        headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+      }).then(function(r){ if(r.ok) delete NAME_ALIASES[a.alias.toLowerCase()]; return r; }));
+    });
+  }
+  if(!requests.length) return; // nothing actually changed
   Promise.all(requests).then(function(responses){
     if(responses.some(function(r){return !r.ok;})) throw new Error('One or more updates failed');
     loadCustomRosterThenRender();
   }).catch(function(e){ alert('Failed to save changes: ' + e.message); });
-}
-
-function addNameAlias() {
-  var alias = document.getElementById('alias-add-alias').value.trim();
-  var canonical = document.getElementById('alias-add-canonical').value.trim();
-  if(!alias || !canonical) { alert('Enter both the nickname/typo and the correct name.'); return; }
-  fetch(SUPABASE_URL + '/rest/v1/name_aliases?on_conflict=alias', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-    body: JSON.stringify([{alias: alias.toLowerCase(), canonical_name: canonical, added_by: getCurrentUser(), added_at: new Date().toISOString()}])
-  }).then(function(r){
-    if(!r.ok) throw new Error('Save failed');
-    NAME_ALIASES[alias.toLowerCase()] = canonical;
-    document.getElementById('alias-add-alias').value = '';
-    document.getElementById('alias-add-canonical').value = '';
-    loadCustomRosterThenRender();
-  }).catch(function(e){ alert('Failed to add alias: ' + e.message); });
-}
-
-function removeNameAlias(id, alias) {
-  if(!confirm('Remove the alias "' + alias + '"? Future schedule uploads using that spelling will show as unmatched again.')) return;
-  fetch(SUPABASE_URL + '/rest/v1/name_aliases?id=eq.' + id, {
-    method: 'DELETE',
-    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-  }).then(function(r){
-    if(!r.ok) throw new Error('Failed');
-    delete NAME_ALIASES[alias.toLowerCase()];
-    loadCustomRosterThenRender();
-  }).catch(function(e){ alert('Failed to remove: ' + e.message); });
 }
 
 var LAST_PAYROLL = null;
@@ -7871,7 +7906,7 @@ function renderPrivate() {
     {n:'Allie',r:9,role:'Server',src:function(){return [SERVERS['Allie']]},type:'f'},
     {n:'Courtney',r:9,role:'Server',src:function(){return [SERVERS['Courtney']]},type:'f'},
     {n:'Kamini',r:9,role:'Server',src:function(){return [SERVERS['Kamini']]},type:'f'},
-    {n:'Charlie',r:15,role:'Cashier',src:function(){return [CASHIERS['Charlie']]},type:'f',type:'f',role2:'servers'},
+    {n:'Charlie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Charlie'],HOSTS['Charlie']]},type:'f',role2:'cashiers'},
     {n:'Justin',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Justin'],BARTENDERS['Justin']]},type:'f',role2:'servers'},
     {n:'Julia',r:9,role:'Server',src:function(){return [SERVERS['Julia']]},type:'f',role2:'servers'},
     {n:'Lindsay',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lindsay']]},type:'f',role2:'bartenders'},
@@ -7889,13 +7924,19 @@ function renderPrivate() {
     {n:'Lea',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lea']]},type:'f',role2:'bartenders'},
   ];
   // Merge in staff added via the Private tab "Manage Roster" panel, and drop
-  // anyone removed there. Lets Ely add/remove/edit staff without a code push.
+  // anyone removed there. Lets Ely add/remove/edit staff (hourly or salaried)
+  // without a code push.
   if(typeof CUSTOM_ROSTER_REMOVED !== 'undefined' && CUSTOM_ROSTER_REMOVED.length) {
     var removedNames = CUSTOM_ROSTER_REMOVED.map(function(r){return r.name;});
     HLY = HLY.filter(function(e){ return removedNames.indexOf(e.n) === -1; });
+    SAL = SAL.filter(function(e){ return removedNames.indexOf(e.n) === -1; });
   }
   if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
     CUSTOM_ROSTER.forEach(function(person){
+      if(person.is_salaried) {
+        SAL.push({ n: person.name, s: person.annual_salary, role: person.role_label });
+        return;
+      }
       var roles = [];
       try { roles = JSON.parse(person.roles_json || '[]'); } catch(e) { roles = []; }
       var maps = roles.map(function(r){ return {label:r, map:CUSTOM_ROLE_MAP[r]}; }).filter(function(x){ return !!x.map; });
@@ -7926,22 +7967,30 @@ function renderPrivate() {
       HLY.push(entry);
     });
   }
-  // Rename/rate overlay: lets a name or rate be corrected for display without
-  // changing the underlying key used to pull hours from schedule data.
-  // _origName is preserved on every entry so Remove/Edit always target the
-  // stable identity, never a possibly-already-renamed display name.
+  // Rename/rate overlay: lets a name, hourly rate, or annual salary be
+  // corrected for display without changing the underlying key used to pull
+  // hours from schedule data. _origName is preserved on every entry so
+  // Remove/Edit always target the stable identity, never a possibly-already-
+  // renamed display name.
   HLY.forEach(function(e){ e._origName = e.n; });
+  SAL.forEach(function(e){ e._origName = e.n; });
   if(typeof CUSTOM_ROSTER_RENAMES !== 'undefined' && CUSTOM_ROSTER_RENAMES.length) {
     var renameMap = {};
     CUSTOM_ROSTER_RENAMES.forEach(function(r){ renameMap[r.original_name] = r.display_name; });
     HLY.forEach(function(e){ if(renameMap[e._origName]) e.n = renameMap[e._origName]; });
+    SAL.forEach(function(e){ if(renameMap[e._origName]) e.n = renameMap[e._origName]; });
   }
   if(typeof CUSTOM_ROSTER_RATES !== 'undefined' && CUSTOM_ROSTER_RATES.length) {
-    var rateMap = {};
-    CUSTOM_ROSTER_RATES.forEach(function(r){ rateMap[r.original_name] = r.rate; });
+    var rateMap = {}, salaryMap = {};
+    CUSTOM_ROSTER_RATES.forEach(function(r){
+      if(r.annual_salary != null) salaryMap[r.original_name] = r.annual_salary;
+      else if(r.rate != null) rateMap[r.original_name] = r.rate;
+    });
     HLY.forEach(function(e){ if(rateMap[e._origName] != null) e.r = rateMap[e._origName]; });
+    SAL.forEach(function(e){ if(salaryMap[e._origName] != null) e.s = salaryMap[e._origName]; });
   }
-  FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r}; });
+  FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r, salaried:false}; })
+    .concat(SAL.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.s, salaried:true}; }));
   // Compute wh (weekly hours) dynamically now that data is loaded. Entries
   // with roleBreakdown are computed by summing each role's OWN type-correct
   // calculation (weekHrsB for BOH-format data, weekHrsF for FOH-format data)
