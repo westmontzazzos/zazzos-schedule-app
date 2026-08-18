@@ -7588,7 +7588,7 @@ function renderManageRosterLists() {
   // Current roster = everyone in the live HLY+SAL arrays (hardcoded + custom
   // additions), regardless of hours worked this week -- so someone with 0
   // hours (just added, or between shifts) can still be seen and removed here.
-  var current = FULL_ROSTER_NAMES;
+  var current = FULL_ROSTER_NAMES.slice().sort(function(a,b){ return a.n.localeCompare(b.n); });
   if(!current.length) {
     curList.innerHTML = '<div style="color:#aaa;">Open the wage roster once to load current staff.</div>';
   } else {
