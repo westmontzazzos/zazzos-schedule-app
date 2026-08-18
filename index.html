@@ -7804,9 +7804,25 @@ function renderPrivate() {
     return h+mn/60;
   }
 
+  // Training marker: a standalone trailing "T" on a schedule cell (e.g. "4:30-9 T")
+  // means that specific day/shift is a training shift, paid at $15/hr regardless
+  // of the person's normal rate. Must run on the RAW value before any
+  // whitespace-stripping, since "4:30-9 T" becomes "4:30-9t" once spaces are
+  // removed and a trailing T glued to a digit is no longer detectable as a
+  // separate word.
+  var TRAINING_RATE = 15;
+  function extractTrainingFlag(raw) {
+    if(raw == null) return {clean: raw, isTraining: false};
+    var s = String(raw);
+    var m = s.match(/^(.*\S)\s*t$/i);
+    if(m && m[1].trim() !== '') return {clean: m[1], isTraining: true};
+    return {clean: s, isTraining: false};
+  }
+
   function dayHrsB(arr,di){
     if(!arr||!arr[di])return 0;
-    var s=String(arr[di]).trim().toLowerCase().replace(/\s+/g,'');
+    var tf=extractTrainingFlag(arr[di]);
+    var s=String(tf.clean).trim().toLowerCase().replace(/\s+/g,'');
     if(!s||s==='x'||s==='darien'||['kitchen','pizza','dish','bus','prep','serve','bar','host'].includes(s))return 0;
     var st=null,en=null;
     var cm=s.match(/^(.+)-c(?:l(?:ose)?)?$/);
@@ -7815,13 +7831,19 @@ function renderPrivate() {
     if(st!==null&&en!==null&&en>st){var h=en-st;if(h>8)h-=0.5;return Math.max(0,h);}
     return 0;
   }
+  function dayIsTrainingB(arr,di){
+    if(!arr||!arr[di])return false;
+    return extractTrainingFlag(arr[di]).isTraining;
+  }
   function dayHrsF(arr, di, role) {
     if(!arr||!arr[di])return 0;
     var e=arr[di]; if(!e||!e[0])return 0;
-    var st=toH(e[0]); if(st===null) return 0;
+    var startTf = extractTrainingFlag(e[0]);
+    var st=toH(startTf.clean); if(st===null) return 0;
     var isAM = st < 12;
     var isFriSat = (di===4||di===5);
-    var end = e[1];
+    var endTf = extractTrainingFlag(e[1]);
+    var end = endTf.clean;
     var isClose = end && String(end).trim().toLowerCase().match(/^c[l]?$|^close$/);
     var hasEnd  = end !== null && end !== undefined && String(end).trim() !== '';
     var en = null;
@@ -7846,6 +7868,11 @@ function renderPrivate() {
     }
     if(st!==null&&en!==null&&en>st){var h=en-st;if(h>8)h-=0.5;return Math.max(0,h);}
     return 0;
+  }
+  function dayIsTrainingF(arr,di){
+    if(!arr||!arr[di])return false;
+    var e=arr[di];
+    return extractTrainingFlag(e[0]).isTraining || extractTrainingFlag(e[1]).isTraining;
   }
   function weekHrsB(arr){var t=0;for(var i=0;i<7;i++)t+=dayHrsB(arr,i);return t;}
   function weekHrsF(arr,role){var t=0;for(var i=0;i<7;i++)t+=dayHrsF(arr,i,role);return t;}
@@ -8002,28 +8029,75 @@ function renderPrivate() {
         var typ = it.type || e.type;
         return t + (typ==='b' ? weekHrsB(it.arr) : weekHrsF(it.arr, it.role2));
       }, 0);
+      e.trainingHrs = items.reduce(function(t,it){
+        var typ = it.type || e.type;
+        var sum = 0;
+        for(var di=0; di<7; di++){
+          var isTrain = typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
+          if(isTrain) sum += typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2);
+        }
+        return t + sum;
+      }, 0);
       e.dh = function(di){
         return e.roleBreakdown().reduce(function(t,it){
           var typ = it.type || e.type;
           return t + (typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2));
         }, 0);
       };
+      e.dTrain = function(di){
+        return e.roleBreakdown().some(function(it){
+          var typ = it.type || e.type;
+          return typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
+        });
+      };
     } else if(e.type==='b') {
       var arrs = e.src();
       e.wh = arrs.reduce(function(t,a){return t+weekHrsB(a);},0);
+      e.trainingHrs = arrs.reduce(function(t,a){
+        var sum = 0;
+        for(var di=0; di<7; di++){ if(dayIsTrainingB(a,di)) sum += dayHrsB(a,di); }
+        return t + sum;
+      }, 0);
       e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsB(a,di);},0); };
+      e.dTrain = function(di){ return e.src().some(function(a){return dayIsTrainingB(a,di);}); };
     } else {
       var arrs = e.src();
       e.wh = arrs.reduce(function(t,a){return t+weekHrsF(a,e.role2);},0);
+      e.trainingHrs = arrs.reduce(function(t,a){
+        var sum = 0;
+        for(var di=0; di<7; di++){ if(dayIsTrainingF(a,di)) sum += dayHrsF(a,di,e.role2); }
+        return t + sum;
+      }, 0);
       e.dh = function(di){ return e.src().reduce(function(t,a){return t+dayHrsF(a,di,e.role2);},0); };
+      e.dTrain = function(di){ return e.src().some(function(a){return dayIsTrainingF(a,di);}); };
     }
   });
+
+  // Blended-rate wage calculation: when part of someone's week was training
+  // (paid at $15/hr) and part was their normal rate, overtime uses the FLSA
+  // "weighted average" method rather than one flat rate -- straight-time pay
+  // for all hours at whichever rate applied that day, then a 0.5x premium on
+  // hours over 40 at the weighted-average rate. This reduces to the exact
+  // original flat-rate formula when trainingHrs is 0, so nobody else's pay
+  // changes even fractionally.
+  function wageFor(e) {
+    var wh = e.wh || 0;
+    var trainHrs = Math.min(e.trainingHrs || 0, wh);
+    var normalHrs = wh - trainHrs;
+    var straightBase = normalHrs*e.r + trainHrs*TRAINING_RATE;
+    var avgRate = wh > 0 ? straightBase/wh : e.r;
+    var rH = Math.min(wh,40), oH = Math.max(0,wh-40);
+    var oP = oH*avgRate*0.5;
+    var wg = straightBase + oP;
+    var rP = wg - oP;
+    return {rH:rH, oH:oH, wg:wg, rP:rP, oP:oP, avgRate:avgRate, trainHrs:trainHrs};
+  }
 
   // Compute weekly wages
   var totPayroll=0, totOTPremium=0, totTax=0, totCost=0;
   HLY.forEach(function(e){
-    var rH=Math.min(e.wh,40), oH=Math.max(0,e.wh-40);
-    var rP=rH*e.r, oP=oH*e.r*1.5, wg=rP+oP;
+    var w=wageFor(e);
+    var wg=w.wg, oP=w.oP;
     var tx=wg*SS+wg*MED+FUTA+SUTA;
     totPayroll+=wg; totOTPremium+=oP; totTax+=tx; totCost+=wg+tx;
   });
@@ -8077,10 +8151,10 @@ function renderPrivate() {
   LAST_PAYROLL = {
     sal: SAL.map(function(e){ var annTrue=e.s*(1+SS+MED)+42+431; var wk=annTrue/52; return {n:e.n, role:e.role, base:e.s/52, burden:wk-e.s/52, total:wk}; }),
     hly: HLY.filter(function(e){return e.wh>0;}).map(function(e){
-      var rH=Math.min(e.wh,40), oH=Math.max(0,e.wh-40);
-      var base=rH*e.r, ot=oH*e.r*1.5, wg=base+ot;
+      var w=wageFor(e);
+      var wg=w.wg, base=w.rP, ot=w.oP;
       var tx=wg*SS+wg*MED+FUTA+SUTA;
-      return {n:e.n, role:e.role, hrs:e.wh, base:base, ot:ot, tx:tx, total:wg+tx};
+      return {n:e.n, role:e.role, hrs:e.wh, base:base, ot:ot, tx:tx, total:wg+tx, trainHrs:w.trainHrs};
     }).sort(function(a,b){ return a.n.localeCompare(b.n); }),
     unmatched: unmatched.slice()
   };
@@ -8107,11 +8181,12 @@ function renderPrivate() {
     html+='<table class="report-table" style="min-width:620px"><thead><tr><th>Employee</th><th>Role</th><th>Total Hrs</th><th>OT Hrs</th><th>OT Rate</th><th>OT Cost</th></tr></thead><tbody>';
     var gtOT=0;
     otEmps.forEach(function(e){
-      var oH=Math.max(0,e.wh-40), otRate=e.r*1.5, otCost=oH*otRate;
+      var w=wageFor(e);
+      var oH=w.oH, otCost=w.oP;
       gtOT+=otCost;
       html+='<tr><td><strong>'+e.n+'</strong></td><td>'+e.role+'</td><td>'+e.wh.toFixed(1)+'h</td>';
       html+='<td style="color:var(--red);font-weight:700">'+oH.toFixed(1)+'h</td>';
-      html+='<td>$'+e.r.toFixed(2)+' × 1.5 = $'+otRate.toFixed(2)+'/hr</td>';
+      html+='<td>$'+w.avgRate.toFixed(2)+' avg × 1.5 = $'+(w.avgRate*1.5).toFixed(2)+'/hr</td>';
       html+='<td style="color:var(--red);font-weight:700">'+fmt$(otCost)+'</td></tr>';
     });
     html+='<tr style="background:var(--gray-100);font-weight:600"><td colspan="5">TOTAL OVERTIME COST</td><td style="color:var(--red)">'+fmt$(gtOT)+'</td></tr>';
@@ -8127,7 +8202,8 @@ function renderPrivate() {
   html+='<th>WEEKLY TOTAL</th></tr></thead><tbody><tr>';
 
   var dailyTotals=[0,0,0,0,0,0,0];
-  // Hourly daily costs (prorated OT)
+  // Hourly daily costs (prorated OT). A training-marked day uses $15/hr
+  // instead of the person's normal rate for that day's hours.
   HLY.forEach(function(e){
     for(var di=0;di<7;di++){
       var h=e.dh(di); if(!h) continue;
@@ -8135,7 +8211,8 @@ function renderPrivate() {
       for(var j=0;j<di;j++) hoursBeforeToday+=e.dh(j);
       var regH=Math.max(0,Math.min(h,40-hoursBeforeToday));
       var otH=Math.max(0,h-regH);
-      dailyTotals[di]+=(regH*e.r + otH*e.r*1.5)*(1+SS+MED)+(42+431)/(52*5);
+      var dayRate = (e.dTrain && e.dTrain(di)) ? TRAINING_RATE : e.r;
+      dailyTotals[di]+=(regH*dayRate + otH*dayRate*1.5)*(1+SS+MED)+(42+431)/(52*5);
     }
   });
   // Salaried prorated
@@ -8158,18 +8235,21 @@ function renderPrivate() {
   var salSorted=SAL.slice().sort(function(a,b){return a.n.localeCompare(b.n);});
 
   withOT.concat(noOT).forEach(function(e){
-    var rH=Math.min(e.wh,40), oH=Math.max(0,e.wh-40);
-    var rP=rH*e.r, oP=oH*e.r*1.5, wg=rP+oP;
+    var w=wageFor(e);
+    var rH=w.rH, oH=w.oH, wg=w.wg, oP=w.oP;
     var tx=wg*SS+wg*MED+FUTA+SUTA, tc=wg+tx;
     var otStyle=oH>0?'style="color:var(--red);font-weight:700"':'';
     var roleCell = e.role;
+    if(e.trainingHrs > 0) {
+      roleCell += '<div style="font-size:10.5px;color:#b8860b;margin-top:2px;">'+e.trainingHrs.toFixed(1)+'h training @ $'+TRAINING_RATE.toFixed(2)+'/hr</div>';
+    }
     if(e.roleBreakdown) {
       var parts = e.roleBreakdown().map(function(rb){
         var rbType = rb.type || e.type;
         var h = rbType==='b' ? weekHrsB(rb.arr) : weekHrsF(rb.arr, rb.role2);
         return rb.label+': '+h.toFixed(1)+'h';
       });
-      roleCell = e.role + '<div style="font-size:10.5px;color:var(--gray-400);margin-top:2px;">'+parts.join(' · ')+'</div>';
+      roleCell += '<div style="font-size:10.5px;color:var(--gray-400);margin-top:2px;">'+parts.join(' · ')+'</div>';
     }
     html+='<tr><td><strong>'+e.n+'</strong></td><td>'+roleCell+'</td>';
     html+='<td>'+rH.toFixed(1)+'h</td>';
