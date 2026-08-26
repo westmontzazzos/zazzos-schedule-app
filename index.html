@@ -4698,6 +4698,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn" onclick="switchSched('boh',this)">Back of House</button>
     <button class="sub-btn" onclick="showSchedPrintMenu(this)">🖨 Print</button>
     <button class="sub-btn" onclick="showEventsSummary()">🎉 Events</button>
+    <button class="sub-btn" onclick="copyWeekToNext()">📋 Copy to Next Week</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Schedule Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
@@ -11396,6 +11397,75 @@ function renderEventsSummaryTable() {
     rows += '<tr style="border-bottom:2px solid #ddd;"><td></td><td colspan="4" style="padding:2px 4px 8px;"><a href="#" onclick="addEventRow('+di+');return false;" style="font-size:11px;color:#c8102e;text-decoration:none;font-weight:600;">+ Add another event</a></td></tr>';
   }
   table.innerHTML = rows;
+}
+
+// Copies the currently-loaded week's entire schedule (every section,
+// drivers, dispatch, and events) into the following week, as a starting
+// point to edit from instead of building from scratch. Checks first
+// whether next week already has data and confirms before overwriting
+// anything real.
+async function copyWeekToNext() {
+  var current = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
+  if(!current || !current.week_start) { alert('No week loaded to copy from.'); return; }
+
+  var curStart = new Date(current.week_start + 'T00:00:00');
+  var nextStart = new Date(curStart); nextStart.setDate(curStart.getDate() + 7);
+  var nextStartStr = nextStart.getFullYear() + '-' + String(nextStart.getMonth()+1).padStart(2,'0') + '-' + String(nextStart.getDate()).padStart(2,'0');
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var nextLabel = months[nextStart.getMonth()] + ' ' + nextStart.getDate() + ', ' + nextStart.getFullYear();
+
+  var existing = null;
+  try {
+    var checkResp = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + nextStartStr + '&select=id', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(checkResp.ok) {
+      var rows = await checkResp.json();
+      if(rows && rows.length) existing = rows[0];
+    }
+  } catch(e) { /* fall through, treat as no existing row */ }
+
+  var confirmMsg = existing
+    ? 'Week of ' + nextLabel + ' already has a schedule saved. Copy this week over it, overwriting what\'s there?'
+    : 'Copy this entire week\'s schedule to the week of ' + nextLabel + '?';
+  if(!confirm(confirmMsg)) return;
+
+  var payload = {
+    week_start: nextStartStr,
+    boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
+    foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
+    driver_data: JSON.stringify(DRIVERS),
+    dispatch_data: JSON.stringify(DISPATCH),
+    event_data: JSON.stringify(WEEK_EVENTS),
+    events_list_data: JSON.stringify(EVENTS_LIST),
+    last_edited_by: getCurrentUser(),
+    last_edited_at: new Date().toISOString()
+  };
+
+  try {
+    var resp;
+    if(existing) {
+      resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + existing.id, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify(payload)
+      });
+    } else {
+      payload.created_at = new Date().toISOString();
+      resp = await fetch(SUPABASE_URL + '/rest/v1/schedules', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify([payload])
+      });
+    }
+    if(!resp.ok) throw new Error('copy failed (' + resp.status + ')');
+    alert('Copied to week of ' + nextLabel + '. Loading it now.');
+    await loadAllWeeks();
+    var idx = allWeeks.findIndex(function(w){ return w.week_start === nextStartStr; });
+    if(idx >= 0) { currentWeekIdx = idx; applyWeek(idx); if(currentTab === 'schedule') renderSchedule(); }
+  } catch(e) {
+    alert('Copy failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
 }
 
 function showEventsSummary() {
