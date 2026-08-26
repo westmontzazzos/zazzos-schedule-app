@@ -268,7 +268,7 @@ body {
 .sched-table th {
   background: var(--black);
   color: var(--white);
-  padding: 9px 12px;
+  padding: 9px 6px;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
@@ -277,15 +277,19 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sched-table th:first-child { text-align: left; min-width: 140px; width: 140px; }
 .sched-table td {
-  padding: 8px 12px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--gray-100);
   color: var(--gray-800);
   white-space: nowrap;
   background: var(--white);
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sched-table td:first-child { font-weight: 500; background: var(--gray-50); text-align: left; width: 140px; }
 .sched-table tr:last-child td { border-bottom: none; }
@@ -7872,7 +7876,7 @@ async function renderScheduleCalendar() {
   weekStarts.forEach(function(ws){
     var rec = dataByWeek[ws];
     var count = rec ? (rec.boh_uploaded_by?1:0) + (rec.foh_uploaded_by?1:0) + (rec.driver_uploaded_by?1:0) : 0;
-    var color = count === 3 ? '#27AE60' : count === 0 ? '#E31010' : '#E8A800';
+    var color = count === 3 ? '#27AE60' : count === 0 ? '#E31010' : '#C98A00';
     var bg = count === 3 ? '#eafaf1' : count === 0 ? '#fff0f2' : '#fff8e6';
 
     var dailyCosts = [0,0,0,0,0,0,0];
@@ -12550,7 +12554,7 @@ function handleLockIconTap() {
 </div>
 
 <!-- Required: recipient sees an open message addressed to them -->
-<div id="msg-recipient-modal" style="display:none;position:fixed;inset:0;z-index:10005;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
+<div id="msg-recipient-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:420px;overflow:hidden;">
     <div style="background:var(--red);padding:14px 16px;">
       <div style="font-size:11px;color:rgba(255,255,255,0.8);">Message from <span id="msg-recipient-from"></span></div>
@@ -12571,7 +12575,7 @@ function handleLockIconTap() {
 </div>
 
 <!-- Required: sender verifies a message the recipient marked fixed -->
-<div id="msg-verify-modal" style="display:none;position:fixed;inset:0;z-index:10005;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
+<div id="msg-verify-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:420px;overflow:hidden;">
     <div style="background:var(--red);padding:14px 16px;">
       <div style="font-size:11px;color:rgba(255,255,255,0.8);"><span id="msg-verify-from"></span> marked this fixed</div>
