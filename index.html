@@ -7242,6 +7242,38 @@ async function toggleSchedEditMode() {
   renderSchedule();
 }
 
+// Arrow-key navigation between schedule cells while in Edit mode. Right/
+// Left moves within the same row (same person, next/previous day). Up/
+// Down moves within the same column (same day, next/previous row) —
+// walks past any row that happens not to have a cell for that day (like a
+// section header row) rather than getting stuck. Tab already moves
+// through cells in document order natively, so this only needs to handle
+// arrow keys specifically.
+function scheduleCellKeyNav(e) {
+  var key = e.key;
+  if(key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'ArrowUp' && key !== 'ArrowDown') return;
+  var input = e.target;
+  var row = input.closest('tr');
+  if(!row) return;
+  e.preventDefault();
+
+  if(key === 'ArrowRight' || key === 'ArrowLeft') {
+    var inputsInRow = Array.prototype.slice.call(row.querySelectorAll('input'));
+    var idx = inputsInRow.indexOf(input);
+    var nextIdx = key === 'ArrowRight' ? idx + 1 : idx - 1;
+    if(inputsInRow[nextIdx]) inputsInRow[nextIdx].focus();
+    return;
+  }
+
+  var di = input.dataset.di;
+  var targetRow = key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling;
+  while(targetRow) {
+    var targetInput = di != null ? targetRow.querySelector('input[data-di="'+di+'"]') : null;
+    if(targetInput) { targetInput.focus(); return; }
+    targetRow = key === 'ArrowDown' ? targetRow.nextElementSibling : targetRow.previousElementSibling;
+  }
+}
+
 async function saveSchedInlineEdits() {
   // Collect all input values and write back to section objects
   var inputs = document.querySelectorAll('.sched-inline-input');
@@ -7346,7 +7378,7 @@ function renderSchedule() {
     var dayEventCount = (EVENTS_LIST[i]||[]).length;
     if(window._schedEditMode) {
       if(dayEventCount <= 1) {
-        var ev = '<input class="sched-event-input" data-di="'+i+'" type="text" value="'+evText+'" placeholder="Event" style="width:70px;font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.04em;margin-top:2px;border:1px solid #ddd;border-radius:4px;padding:2px 3px;text-align:center;background:#fff;">';
+        var ev = '<input class="sched-event-input" data-di="'+i+'" type="text" value="'+evText+'" placeholder="Event" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:9px;font-weight:700;color:var(--red);letter-spacing:0.04em;margin-top:2px;border:1px solid #ddd;border-radius:4px;padding:2px 3px;text-align:center;background:#fff;">';
       } else {
         var ev = '<div style="font-size:8px;color:var(--red);margin-top:2px;line-height:1.2;">'+dayEventCount+' events — edit on Events page</div>';
       }
@@ -7362,7 +7394,7 @@ function renderSchedule() {
     html+='<tr><td>Dispatch</td>';
     for(var dpi2=0; dpi2<7; dpi2++){
       if(window._schedEditMode){
-        html+=`<td><input class="sched-inline-input" data-section="DISPATCH" data-name="Dispatch" data-di="${dpi2}" value="${DISPATCH[dpi2]||''}" placeholder="Name + time" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+        html+=`<td><input class="sched-inline-input" data-section="DISPATCH" data-name="Dispatch" data-di="${dpi2}" value="${DISPATCH[dpi2]||''}" placeholder="Name + time" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
       } else {
         html+=`<td class="sched-jump-cell" data-name="Dispatch" data-di="${dpi2}">${DISPATCH[dpi2]||''}</td>`;
       }
@@ -7374,7 +7406,7 @@ function renderSchedule() {
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           if(!raw){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
@@ -7393,7 +7425,7 @@ function renderSchedule() {
         days.forEach((e,di)=>{
           if(window._schedEditMode){
             var rawVal = getShiftDisplay(l, e);
-            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           if(!e){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
@@ -7409,7 +7441,7 @@ function renderSchedule() {
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           const p=parseBOH(raw,di);
