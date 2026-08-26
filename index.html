@@ -11404,34 +11404,42 @@ function renderEventsSummaryTable() {
 // point to edit from instead of building from scratch. Checks first
 // whether next week already has data and confirms before overwriting
 // anything real.
+var _copyWeekNextStr = null;
+var _copyWeekNextLabel = null;
+var _copyWeekExisting = null;
+
 async function copyWeekToNext() {
   var current = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
   if(!current || !current.week_start) { alert('No week loaded to copy from.'); return; }
 
   var curStart = new Date(current.week_start + 'T00:00:00');
   var nextStart = new Date(curStart); nextStart.setDate(curStart.getDate() + 7);
-  var nextStartStr = nextStart.getFullYear() + '-' + String(nextStart.getMonth()+1).padStart(2,'0') + '-' + String(nextStart.getDate()).padStart(2,'0');
+  _copyWeekNextStr = nextStart.getFullYear() + '-' + String(nextStart.getMonth()+1).padStart(2,'0') + '-' + String(nextStart.getDate()).padStart(2,'0');
   var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  var nextLabel = months[nextStart.getMonth()] + ' ' + nextStart.getDate() + ', ' + nextStart.getFullYear();
+  _copyWeekNextLabel = months[nextStart.getMonth()] + ' ' + nextStart.getDate() + ', ' + nextStart.getFullYear();
 
-  var existing = null;
+  _copyWeekExisting = null;
   try {
-    var checkResp = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + nextStartStr + '&select=id', {
+    var checkResp = await fetch(SUPABASE_URL + '/rest/v1/schedules?week_start=eq.' + _copyWeekNextStr + '&select=id', {
       headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     });
     if(checkResp.ok) {
       var rows = await checkResp.json();
-      if(rows && rows.length) existing = rows[0];
+      if(rows && rows.length) _copyWeekExisting = rows[0];
     }
   } catch(e) { /* fall through, treat as no existing row */ }
 
-  var confirmMsg = existing
-    ? 'Week of ' + nextLabel + ' already has a schedule saved. Copy this week over it, overwriting what\'s there?'
-    : 'Copy this entire week\'s schedule to the week of ' + nextLabel + '?';
-  if(!confirm(confirmMsg)) return;
+  document.getElementById('copy-week-confirm-text').textContent = _copyWeekExisting
+    ? 'Week of ' + _copyWeekNextLabel + ' already has a schedule saved. Copy this week over it, overwriting what\'s there?'
+    : 'Copy this entire week\'s schedule to the week of ' + _copyWeekNextLabel + '?';
+  document.getElementById('copy-week-confirm-modal').style.display = 'flex';
+}
+
+async function _runCopyWeekConfirmed() {
+  document.getElementById('copy-week-confirm-modal').style.display = 'none';
 
   var payload = {
-    week_start: nextStartStr,
+    week_start: _copyWeekNextStr,
     boh_data: JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH}),
     foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
     driver_data: JSON.stringify(DRIVERS),
@@ -11444,8 +11452,8 @@ async function copyWeekToNext() {
 
   try {
     var resp;
-    if(existing) {
-      resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + existing.id, {
+    if(_copyWeekExisting) {
+      resp = await fetch(SUPABASE_URL + '/rest/v1/schedules?id=eq.' + _copyWeekExisting.id, {
         method: 'PATCH',
         headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
         body: JSON.stringify(payload)
@@ -11459,9 +11467,9 @@ async function copyWeekToNext() {
       });
     }
     if(!resp.ok) throw new Error('copy failed (' + resp.status + ')');
-    alert('Copied to week of ' + nextLabel + '. Loading it now.');
+    alert('Copied to week of ' + _copyWeekNextLabel + '. Loading it now.');
     await loadAllWeeks();
-    var idx = allWeeks.findIndex(function(w){ return w.week_start === nextStartStr; });
+    var idx = allWeeks.findIndex(function(w){ return w.week_start === _copyWeekNextStr; });
     if(idx >= 0) { currentWeekIdx = idx; applyWeek(idx); if(currentTab === 'schedule') renderSchedule(); }
   } catch(e) {
     alert('Copy failed — nothing was recorded. Check your connection and try again: ' + e.message);
@@ -11808,6 +11816,22 @@ function handleLockIconTap() {
 
 <!-- Dom's Notes acknowledgment popup -->
 <!-- Print Run Sheets — day picker (pick any combination of upcoming days, print as one PDF) -->
+<!-- Copy to Next Week confirmation — custom modal, not the native confirm() dialog -->
+<div id="copy-week-confirm-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Copy to Next Week</div>
+    </div>
+    <div style="padding:18px 16px;">
+      <div id="copy-week-confirm-text" style="font-size:14px;color:#333;line-height:1.5;"></div>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('copy-week-confirm-modal').style.display='none';">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="_runCopyWeekConfirmed();">Copy</button>
+    </div>
+  </div>
+</div>
+
 <div id="print-picker-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:92%;max-width:440px;overflow:hidden;display:flex;flex-direction:column;max-height:85vh;">
     <div style="background:var(--red);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
