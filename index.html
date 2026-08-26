@@ -4704,6 +4704,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn" onclick="copyWeekToNext()">📋 Copy to Next Week</button>
     <button class="sub-btn" onclick="openSaveTemplateModal()">💾 Save as Template</button>
     <button class="sub-btn" onclick="openLoadTemplateModal()">📥 Load Template</button>
+    <button class="sub-btn" onclick="openSendMessageModal()">✉️ Send Message</button>
     <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Schedule Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
@@ -7372,6 +7373,245 @@ function setScheduleViewMode(showingCalendar) {
   if(subNav) subNav.style.display = showingCalendar ? 'none' : 'flex';
 }
 
+// Manager Messages — a message thread stays open until the ORIGINAL SENDER
+// confirms it resolved, not when the recipient marks it fixed. Every send,
+// reply, mark-fixed, confirm, and reopen is its own row sharing one
+// thread_id, so the whole exchange logs together in the Schedule Log.
+var MSG_MANAGERS = ['Ely','Selena','Dom','Alexis A','Brett'];
+var _selectedMsgRecipient = null;
+var _pendingMsgAction = null;
+
+function openSendMessageModal() {
+  var picker = document.getElementById('send-message-to-picker');
+  var currentUser = getCurrentUser();
+  _selectedMsgRecipient = null;
+  picker.innerHTML = MSG_MANAGERS.filter(function(m){ return m !== currentUser; }).map(function(m){
+    return '<button type="button" data-name="'+m+'" onclick="selectMsgRecipient(this)" style="padding:6px 12px;border-radius:20px;border:1px solid #ddd;background:#fff;color:#333;font-size:13px;cursor:pointer;">'+m+'</button>';
+  }).join('');
+  document.getElementById('send-message-subject').value = '';
+  document.getElementById('send-message-body').value = '';
+  document.getElementById('send-message-modal').style.display = 'flex';
+}
+
+function selectMsgRecipient(btn) {
+  _selectedMsgRecipient = btn.dataset.name;
+  Array.prototype.forEach.call(btn.parentElement.children, function(b){
+    var selected = b === btn;
+    b.style.background = selected ? 'var(--red)' : '#fff';
+    b.style.color = selected ? '#fff' : '#333';
+    b.style.borderColor = selected ? 'var(--red)' : '#ddd';
+  });
+}
+
+async function sendManagerMessage() {
+  var subject = document.getElementById('send-message-subject').value.trim();
+  var body = document.getElementById('send-message-body').value.trim();
+  if(!_selectedMsgRecipient) { alert('Pick who this is going to.'); return; }
+  if(!subject) { alert('Give this message a subject.'); return; }
+  if(!body) { alert('Write a message.'); return; }
+
+  var payload = {
+    thread_id: null,
+    subject: subject,
+    from_user: getCurrentUser(),
+    to_user: _selectedMsgRecipient,
+    body: body,
+    action: 'sent',
+    status: 'open',
+    created_at: new Date().toISOString()
+  };
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([payload])
+    });
+    if(!resp.ok) throw new Error('send failed (' + resp.status + ')');
+    document.getElementById('send-message-modal').style.display = 'none';
+    alert('Message sent to ' + payload.to_user + '.');
+    _selectedMsgRecipient = null;
+  } catch(e) {
+    alert('Send failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
+// Checks whether there's a thread currently awaiting action from the
+// person logged in on this device — either as the recipient of an open
+// message, or as the original sender being asked to verify a fix. Shows
+// at most one at a time; each action re-checks for the next one.
+async function checkManagerMessages() {
+  var user = getCurrentUser();
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages?order=created_at.asc&select=*', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    });
+    if(!resp.ok) return;
+    var rows = await resp.json();
+    if(!rows || !rows.length) return;
+
+    var threads = {};
+    rows.forEach(function(r){
+      var key = r.thread_id != null ? r.thread_id : r.id;
+      if(!threads[key]) threads[key] = [];
+      threads[key].push(r);
+    });
+
+    var actionable = null;
+    Object.keys(threads).forEach(function(key){
+      if(actionable) return;
+      var thread = threads[key].sort(function(a,b){ return new Date(a.created_at) - new Date(b.created_at); });
+      var latest = thread[thread.length-1];
+      if(latest.status !== 'closed' && latest.to_user === user) {
+        actionable = {thread: thread, latest: latest};
+      }
+    });
+
+    if(!actionable) return;
+    _pendingMsgAction = actionable;
+    if(actionable.latest.status === 'pending_verification') {
+      showMsgVerifyModal(actionable);
+    } else {
+      showMsgRecipientModal(actionable);
+    }
+  } catch(e) { /* silent — non-critical background check */ }
+}
+
+function showMsgRecipientModal(actionable) {
+  var root = actionable.thread[0];
+  var latest = actionable.latest;
+  document.getElementById('msg-recipient-from').textContent = latest.from_user;
+  document.getElementById('msg-recipient-subject').textContent = root.subject;
+  document.getElementById('msg-recipient-body').textContent = latest.body || '(no message)';
+  document.getElementById('msg-recipient-reply').style.display = 'none';
+  document.getElementById('msg-recipient-reply').value = '';
+  document.getElementById('msg-recipient-send-reply-row').style.display = 'none';
+  document.getElementById('msg-recipient-modal').style.display = 'flex';
+}
+
+function showMsgReplyBox() {
+  document.getElementById('msg-recipient-reply').style.display = 'block';
+  document.getElementById('msg-recipient-send-reply-row').style.display = 'block';
+}
+
+async function sendMsgReply() {
+  var text = document.getElementById('msg-recipient-reply').value.trim();
+  if(!text) { alert('Write a reply first.'); return; }
+  var root = _pendingMsgAction.thread[0];
+  var latest = _pendingMsgAction.latest;
+  var payload = {
+    thread_id: root.thread_id != null ? root.thread_id : root.id,
+    subject: null,
+    from_user: getCurrentUser(),
+    to_user: latest.from_user,
+    body: text,
+    action: 'reply',
+    status: 'open',
+    created_at: new Date().toISOString()
+  };
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([payload])
+    });
+    if(!resp.ok) throw new Error('reply failed (' + resp.status + ')');
+    document.getElementById('msg-recipient-modal').style.display = 'none';
+    _pendingMsgAction = null;
+  } catch(e) {
+    alert('Reply failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
+async function markMessageFixed() {
+  var root = _pendingMsgAction.thread[0];
+  var latest = _pendingMsgAction.latest;
+  var payload = {
+    thread_id: root.thread_id != null ? root.thread_id : root.id,
+    subject: null,
+    from_user: getCurrentUser(),
+    to_user: latest.from_user,
+    body: null,
+    action: 'marked_fixed',
+    status: 'pending_verification',
+    created_at: new Date().toISOString()
+  };
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([payload])
+    });
+    if(!resp.ok) throw new Error('mark fixed failed (' + resp.status + ')');
+    document.getElementById('msg-recipient-modal').style.display = 'none';
+    _pendingMsgAction = null;
+  } catch(e) {
+    alert('Mark fixed failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
+function showMsgVerifyModal(actionable) {
+  var root = actionable.thread[0];
+  var latest = actionable.latest;
+  document.getElementById('msg-verify-from').textContent = latest.from_user;
+  document.getElementById('msg-verify-subject').textContent = root.subject;
+  document.getElementById('msg-verify-original').textContent = root.body;
+  document.getElementById('msg-verify-modal').style.display = 'flex';
+}
+
+async function confirmMessageResolved() {
+  var root = _pendingMsgAction.thread[0];
+  var latest = _pendingMsgAction.latest;
+  var payload = {
+    thread_id: root.thread_id != null ? root.thread_id : root.id,
+    subject: null,
+    from_user: getCurrentUser(),
+    to_user: latest.from_user,
+    body: null,
+    action: 'confirmed_closed',
+    status: 'closed',
+    created_at: new Date().toISOString()
+  };
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([payload])
+    });
+    if(!resp.ok) throw new Error('confirm failed (' + resp.status + ')');
+    document.getElementById('msg-verify-modal').style.display = 'none';
+    _pendingMsgAction = null;
+  } catch(e) {
+    alert('Confirm failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
+async function reopenMessage() {
+  var root = _pendingMsgAction.thread[0];
+  var latest = _pendingMsgAction.latest;
+  var payload = {
+    thread_id: root.thread_id != null ? root.thread_id : root.id,
+    subject: null,
+    from_user: getCurrentUser(),
+    to_user: latest.from_user,
+    body: null,
+    action: 'reopened',
+    status: 'open',
+    created_at: new Date().toISOString()
+  };
+  try {
+    var resp = await fetch(SUPABASE_URL + '/rest/v1/manager_messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify([payload])
+    });
+    if(!resp.ok) throw new Error('reopen failed (' + resp.status + ')');
+    document.getElementById('msg-verify-modal').style.display = 'none';
+    _pendingMsgAction = null;
+  } catch(e) {
+    alert('Reopen failed — nothing was recorded. Check your connection and try again: ' + e.message);
+  }
+}
+
 function backToScheduleCalendar() {
   _calMonthOffset = 0;
   renderScheduleCalendar();
@@ -7859,6 +8099,7 @@ function checkAppLock() {
     } else {
       updateGlobalUserDisplay();
       setTimeout(checkDomsNotes, 500);
+      setTimeout(checkManagerMessages, 700);
     }
   } else {
     document.getElementById('app-lock-error').style.display='block';
@@ -7889,6 +8130,7 @@ function setIdentity(name) {
   if(modal) modal.style.display='none';
   updateGlobalUserDisplay();
   setTimeout(checkDomsNotes, 500);
+  setTimeout(checkManagerMessages, 700);
 }
 
 function updateGlobalUserDisplay() {
@@ -11985,12 +12227,16 @@ function showOverrideLog(btn) {
     }).then(function(r){ return r.json(); }).catch(function(){ return []; }),
     fetch(SUPABASE_URL + '/rest/v1/doms_notes?order=created_at.desc&limit=30', {
       headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.json(); }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/manager_messages?order=created_at.desc&limit=150', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     }).then(function(r){ return r.json(); }).catch(function(){ return []; })
   ]).then(function(results){
     var overrideRows = results[0] || [];
     var domsAckRows = results[1] || [];
     var domsNotesById = {};
     (results[2] || []).forEach(function(n){ domsNotesById[n.id] = n; });
+    var msgRows = results[3] || [];
 
     var domsRows = domsAckRows.map(function(r){
       return {
@@ -12005,7 +12251,25 @@ function showOverrideLog(btn) {
       };
     });
 
-    var allRows = overrideRows.concat(domsRows);
+    var messageRows = msgRows.map(function(r){
+      var actionLabel = r.action === 'sent' ? 'Message sent to ' + r.to_user
+        : r.action === 'reply' ? 'Reply'
+        : r.action === 'marked_fixed' ? 'Marked fixed — awaiting confirmation from ' + r.to_user
+        : r.action === 'confirmed_closed' ? 'Confirmed resolved'
+        : r.action === 'reopened' ? 'Reopened'
+        : r.action;
+      return {
+        logged_at: r.created_at,
+        who: r.from_user,
+        dept: 'Message',
+        msg: (r.subject ? r.subject + ' — ' : '') + actionLabel + (r.body ? ': ' + r.body : ''),
+        ack_type: 'message',
+        day_name: '', week_label: '', note: '',
+        msg_thread_id: r.thread_id != null ? r.thread_id : r.id
+      };
+    });
+
+    var allRows = overrideRows.concat(domsRows).concat(messageRows);
     if(!allRows.length) {
       body.innerHTML = '<div style="color:#aaa;font-size:13px;text-align:center;padding:20px;">No activity logged yet.</div>';
       return;
@@ -12018,6 +12282,8 @@ function showOverrideLog(btn) {
       var key = null;
       if(r.dept === "Dom's Notes") {
         key = 'doms:' + (r.note_id != null ? r.note_id : 'unknown-' + r.logged_at);
+      } else if(r.dept === 'Message') {
+        key = 'msg:' + r.msg_thread_id;
       } else if(ERROR_ACK_TYPES[r.ack_type] && r.dept && r.msg) {
         key = 'err:' + (r.week_label||'') + '|' + r.day_index + '|' + r.dept + '|' + r.msg;
       }
@@ -12262,6 +12528,66 @@ function handleLockIconTap() {
 </div>
 
 <!-- Day events detail — opened by tapping/clicking the event count on the Schedule tab header -->
+<!-- Send Message -->
+<div id="send-message-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:420px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Send Message</div>
+    </div>
+    <div style="padding:16px;">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">TO</div>
+      <div id="send-message-to-picker" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;"></div>
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">SUBJECT</div>
+      <input id="send-message-subject" type="text" placeholder="e.g. Tuesday schedule issue" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;margin-bottom:14px;">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:6px;">MESSAGE</div>
+      <textarea id="send-message-body" placeholder="What's up?" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;min-height:80px;resize:vertical;"></textarea>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('send-message-modal').style.display='none';">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="sendManagerMessage();">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- Required: recipient sees an open message addressed to them -->
+<div id="msg-recipient-modal" style="display:none;position:fixed;inset:0;z-index:10005;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:420px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-size:11px;color:rgba(255,255,255,0.8);">Message from <span id="msg-recipient-from"></span></div>
+      <div id="msg-recipient-subject" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;color:#fff;"></div>
+    </div>
+    <div style="padding:16px;">
+      <div id="msg-recipient-body" style="font-size:14px;color:#333;white-space:pre-wrap;margin-bottom:14px;"></div>
+      <textarea id="msg-recipient-reply" placeholder="Reply (optional if marking fixed)" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;box-sizing:border-box;min-height:60px;resize:vertical;display:none;"></textarea>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="showMsgReplyBox();">💬 Reply</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="markMessageFixed();">✅ Mark Fixed</button>
+    </div>
+    <div id="msg-recipient-send-reply-row" style="padding:0 16px 16px;display:none;">
+      <button class="btn btn-primary" style="width:100%;" onclick="sendMsgReply();">Send Reply</button>
+    </div>
+  </div>
+</div>
+
+<!-- Required: sender verifies a message the recipient marked fixed -->
+<div id="msg-verify-modal" style="display:none;position:fixed;inset:0;z-index:10005;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:92%;max-width:420px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-size:11px;color:rgba(255,255,255,0.8);"><span id="msg-verify-from"></span> marked this fixed</div>
+      <div id="msg-verify-subject" style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.06em;color:#fff;"></div>
+    </div>
+    <div style="padding:16px;">
+      <div style="font-size:11px;font-weight:700;color:#888;margin-bottom:4px;">ORIGINAL MESSAGE</div>
+      <div id="msg-verify-original" style="font-size:13px;color:#666;white-space:pre-wrap;margin-bottom:12px;"></div>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="reopenMessage();">↩️ Reopen</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="confirmMessageResolved();">✅ Confirm Resolved</button>
+    </div>
+  </div>
+</div>
+
 <div id="sched-day-events-modal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:380px;overflow:hidden;max-height:75vh;display:flex;flex-direction:column;">
     <div style="background:var(--red);padding:14px 16px;flex-shrink:0;">
