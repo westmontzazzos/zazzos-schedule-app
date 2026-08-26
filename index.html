@@ -263,12 +263,13 @@ body {
   border-collapse: collapse;
   background: var(--white);
   font-size: 12px;
+  table-layout: fixed;
 }
 .sched-table th {
   background: var(--black);
   color: var(--white);
   padding: 9px 12px;
-  text-align: left;
+  text-align: center;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -277,15 +278,16 @@ body {
   top: 0;
   z-index: 10;
 }
-.sched-table th:first-child { min-width: 140px; }
+.sched-table th:first-child { text-align: left; min-width: 140px; width: 140px; }
 .sched-table td {
   padding: 8px 12px;
   border-bottom: 1px solid var(--gray-100);
   color: var(--gray-800);
   white-space: nowrap;
   background: var(--white);
+  text-align: center;
 }
-.sched-table td:first-child { font-weight: 500; background: var(--gray-50); }
+.sched-table td:first-child { font-weight: 500; background: var(--gray-50); text-align: left; width: 140px; }
 .sched-table tr:last-child td { border-bottom: none; }
 .sched-table tr:hover td { background: var(--gray-50); }
 .sched-table tr:hover td:first-child { background: var(--gray-100); }
