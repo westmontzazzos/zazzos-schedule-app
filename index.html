@@ -7772,6 +7772,30 @@ function changeCalMonth(dir) {
 // this has to work for weeks OTHER than the one currently loaded, without
 // disturbing whatever's actually being edited right now. Internal
 // reference only — this never appears on anything printed.
+// Checks whether a section actually has real schedule content — any
+// person with any day filled in — regardless of whether it was tracked
+// by the upload-attribution system (that only exists for uploads after a
+// certain point) or entered some other way (older upload, manual edit,
+// Copy to Next Week, a template). This is what "is this week actually
+// done" should mean, not "do we happen to know who uploaded it."
+function sectionHasContent(sectionData) {
+  if(!sectionData) return false;
+  var isWrapped = sectionData.MANAGERS !== undefined || sectionData.PIZZA !== undefined ||
+    sectionData.SERVERS !== undefined || sectionData.KITCHEN !== undefined;
+  var groups = isWrapped ? Object.values(sectionData) : [sectionData];
+  return groups.some(function(group){
+    if(!group) return false;
+    return Object.values(group).some(function(days){
+      if(!Array.isArray(days)) return false;
+      return days.some(function(d){
+        if(!d) return false;
+        if(Array.isArray(d)) return !!(d[0] || d[1]);
+        return true;
+      });
+    });
+  });
+}
+
 function computeWeekDailyLaborCost(bohObj, fohObj, drvObj) {
   var daily = [0,0,0,0,0,0,0];
   function addBOHStyle(sectionObj) {
@@ -7875,7 +7899,13 @@ async function renderScheduleCalendar() {
 
   weekStarts.forEach(function(ws){
     var rec = dataByWeek[ws];
-    var count = rec ? (rec.boh_uploaded_by?1:0) + (rec.foh_uploaded_by?1:0) + (rec.driver_uploaded_by?1:0) : 0;
+    var bohObj = {}, fohObj = {}, drvObj = {};
+    if(rec) {
+      try { bohObj = rec.boh_data ? JSON.parse(rec.boh_data) : {}; } catch(e) {}
+      try { fohObj = rec.foh_data ? JSON.parse(rec.foh_data) : {}; } catch(e) {}
+      try { drvObj = rec.driver_data ? JSON.parse(rec.driver_data) : {}; } catch(e) {}
+    }
+    var count = (sectionHasContent(bohObj)?1:0) + (sectionHasContent(fohObj)?1:0) + (sectionHasContent(drvObj)?1:0);
     var color = count === 3 ? '#27AE60' : count === 0 ? '#E31010' : '#C98A00';
     var bg = count === 3 ? '#eafaf1' : count === 0 ? '#fff0f2' : '#fff8e6';
 
@@ -7883,9 +7913,6 @@ async function renderScheduleCalendar() {
     var dailyEvents = [[],[],[],[],[],[],[]];
     if(rec) {
       try {
-        var bohObj = rec.boh_data ? JSON.parse(rec.boh_data) : {};
-        var fohObj = rec.foh_data ? JSON.parse(rec.foh_data) : {};
-        var drvObj = rec.driver_data ? JSON.parse(rec.driver_data) : {};
         dailyCosts = computeWeekDailyLaborCost(bohObj, fohObj, drvObj);
       } catch(e) { /* leave as zeros if the data is malformed */ }
       try {
