@@ -263,7 +263,6 @@ body {
   border-collapse: collapse;
   background: var(--white);
   font-size: 12px;
-  table-layout: fixed;
 }
 .sched-table th {
   background: var(--black);
@@ -280,7 +279,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sched-table th:first-child { text-align: left; min-width: 140px; width: 140px; }
+.sched-table th:first-child { text-align: left; }
 .sched-table td {
   padding: 8px 6px;
   border-bottom: 1px solid var(--gray-100);
@@ -694,6 +693,8 @@ body {
   .day-btn { font-size: 13px; padding: 8px 18px; }
 
   /* Schedule table */
+  .sched-table { table-layout: fixed; }
+  .sched-table th:first-child { min-width: 140px; width: 140px; }
   .sched-table th, .sched-table td { font-size: 13px; padding: 8px 12px; }
 
   /* Sub nav */
