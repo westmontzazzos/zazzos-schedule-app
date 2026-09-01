@@ -514,6 +514,17 @@ body {
 .btn-primary:hover { background: var(--red-dark); }
 .btn-secondary { background: var(--white); color: var(--gray-800); border: 1px solid var(--gray-200); box-shadow: var(--shadow); }
 .btn-secondary:hover { border-color: var(--gray-400); }
+.run-sheet-action-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 46px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
+}
 .drawer-type-btn {
   min-height: 46px;
   box-sizing: border-box;
@@ -4694,8 +4705,8 @@ document.addEventListener("DOMContentLoaded",function(){
         <div id="week-label" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.08em;color:var(--black);white-space:nowrap;">Loading...</div>
         <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(-1)">›</button>
       </div>
-      <button class="btn btn-primary no-print" onclick="printRunSheet()">🖨 Print / PDF</button>
-      <button class="btn btn-secondary no-print" onclick="openPrintPickerModal()">🖨 Print Run Sheets</button>
+      <button class="btn btn-primary no-print run-sheet-action-btn" onclick="printRunSheet()">🖨 Print / PDF</button>
+      <button class="btn btn-secondary no-print run-sheet-action-btn" onclick="openPrintPickerModal()">🖨 Print Run Sheets</button>
     </div>
     <div class="day-tabs" id="day-tabs" style="position:static;top:auto;padding-top:0;margin-bottom:8px;"></div>
   </div>
@@ -5450,6 +5461,7 @@ const PIZZA = {
   'Carlos': [null,null,null,null,null,null,null],
   'Carlos Jr': [null,null,null,null,null,null,null],
   'Eddie': [null,null,null,null,null,null,null],
+  'Ever': [null,null,null,null,null,null,null],
   'Gonzo': [null,null,null,null,null,null,null],
   'Jesus': [null,null,null,null,null,null,null],
   'Leo': [null,null,null,null,null,null,null],
@@ -5464,6 +5476,7 @@ const PIZZA = {
 const KITCHEN = {
   'Arturo': [null,null,null,null,null,null,null],
   'Carlos': [null,null,null,null,null,null,null],
+  'Ever': [null,null,null,null,null,null,null],
   'Jesus': [null,null,null,null,null,null,null],
   'Jose B': [null,null,null,null,null,null,null],
   'Nithia Maldonado': [null,null,null,null,null,null,null],
@@ -8420,9 +8433,12 @@ function addRosterEmployee() {
   }
 
   var checked = Array.from(document.querySelectorAll('#roster-add-roles input[type=checkbox]:checked')).map(function(c){return c.value;});
-  var rate = parseFloat(document.getElementById('roster-add-rate').value);
+  var rateInput = document.getElementById('roster-add-rate').value;
+  var rate = parseFloat(rateInput);
+  var isDriverOnly = checked.length === 1 && checked[0] === 'Driver';
   if(!checked.length) { alert('Select at least one role.'); return; }
-  if(!rate || rate <= 0) { alert('Enter a valid hourly rate.'); return; }
+  if(!isDriverOnly && (!rate || rate <= 0)) { alert('Enter a valid hourly rate.'); return; }
+  if(isDriverOnly) rate = 0;
   var entry = {
     name: name,
     is_salaried: false,
@@ -8655,21 +8671,22 @@ function renderPrivate() {
     {n:'Jesus Murillo',r:21,role:'Pizza/Kitchen',src:function(){return [PIZZA['Jesus'],KITCHEN['Jesus']]},type:'b'},
     {n:'Carlos Mora',r:19.25,role:'Pizza Cook',src:function(){return [PIZZA['Carlos'],KITCHEN['Carlos']]},type:'b'},
     {n:'Nicholas Urbana',r:20,role:'Prep/Utility',src:function(){return [PREP['Nick'],KITCHEN['Nick']]},type:'b'},
+    {n:'Ever',r:17.50,role:'Kitchen/Pizza',src:function(){return [KITCHEN['Ever'],PIZZA['Ever']]},type:'b'},
     {n:'Luis Perez',r:20,role:'Pizza Cook',src:function(){return [PIZZA['Luis']]},type:'b'},
     {n:'Victor Cruz',r:20.50,role:'Pizza Cook',src:function(){return [PIZZA['Victor']]},type:'b'},
     {n:'Monico Esparza',r:20,role:'Pizza Cook',src:function(){return [PIZZA['Monico']]},type:'b'},
     {n:'Oscar Velazquez',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Oscar']]},type:'b'},
     {n:'Luis Soto',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Soto']]},type:'b'},
-    {n:'Gonzo',r:17,role:'Pizza Cook',src:function(){return [PIZZA['Gonzo']]},type:'b'},
+    {n:'Gonzo',r:17,role:'Pizza/Dish/Bus',src:function(){return [PIZZA['Gonzo'],DISH['Gonzo'],BUS['Gonzo']]},type:'b'},
     {n:'Carlos Jr',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Carlos Jr']]},type:'b'},
     {n:'Leo',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Leo']]},type:'b'},
     {n:'Eddie Cruz',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Eddie'],PIZZA['Eddy'],KITCHEN['Eddie'],KITCHEN['Eddy']]},type:'b'},
 
     {n:'Sylvia',r:15,role:'Prep',src:function(){return [PREP['Sylvia']]},type:'b'},
     {n:'Jack Ruane',r:16,role:'Cashier',src:function(){return [CASHIERS['Jack']]},type:'f',role2:'cashiers'},
-    {n:'Marco Sanchez',r:16,role:'Bus/Dish',src:function(){return [BUS['Marco'],DISH['Marco']]},type:'b'},
+    {n:'Marco Sanchez',r:16,role:'Pizza/Bus/Dish',src:function(){return [BUS['Marco'],DISH['Marco'],PIZZA['Marco']]},type:'b'},
     {n:'Armani Finley',r:16,role:'Bus/Dish',src:function(){return [BUS['Armani'],DISH['Armani']]},type:'b'},
-    {n:'Gonzalo',r:17,role:'Bus/Dish',src:function(){return [BUS['Gonzalo'],DISH['Gonzalo']]},type:'b'},
+    {n:'Gonzalo',r:17,role:'Pizza/Bus/Dish',src:function(){return [BUS['Gonzalo'],DISH['Gonzalo'],PIZZA['Gonzalo']]},type:'b'},
     {n:'Eric',r:15,role:'Bus/Dish',src:function(){return [BUS['Eric'],DISH['Eric']]},type:'b'},
     {n:'Jaxon',r:15,role:'Bus/Dish',src:function(){return [BUS['Jaxon'],DISH['Jaxon']]},type:'b'},
     {n:'Matt',r:15,role:'Dish',src:function(){return [DISH['Matt']]},type:'b'},
@@ -8685,15 +8702,33 @@ function renderPrivate() {
     {n:'Brianna',r:9,role:'Server',src:function(){return [SERVERS['Brianna']]},type:'f',role2:'servers'},
     {n:'Erika',r:9,role:'Server',src:function(){return [SERVERS['Erika']]},type:'f',role2:'servers'},
     {n:'Elena',r:9,role:'Server',src:function(){return [SERVERS['Elena']]},type:'f',role2:'servers'},
-    {n:'Hannah Z',r:9,role:'Server',src:function(){return [SERVERS['Hannah Z'],SERVERS['Hannah Z.']]},type:'f',role2:'servers'},
-    {n:'Abby',r:9,role:'Server',src:function(){return [SERVERS['Abby']]},type:'f',role2:'servers'},
+    {n:'Hannah Z',r:9,role:'Server/Cashier',
+      src:function(){return [SERVERS['Hannah Z'],SERVERS['Hannah Z.'],CASHIERS['Hannah Z'],CASHIERS['Hannah Z.']]},type:'f',role2:'servers',
+      roleBreakdown:function(){return [
+        {label:'Server',arr:SERVERS['Hannah Z'],type:'f',role2:'servers',rate:9},
+        {label:'Server',arr:SERVERS['Hannah Z.'],type:'f',role2:'servers',rate:9},
+        {label:'Cashier',arr:CASHIERS['Hannah Z'],type:'f',role2:'cashiers',rate:15},
+        {label:'Cashier',arr:CASHIERS['Hannah Z.'],type:'f',role2:'cashiers',rate:15}
+      ];}},
+    {n:'Abby',r:9,role:'Server/Cashier/Host',
+      src:function(){return [SERVERS['Abby'],CASHIERS['Abby'],HOSTS['Abby']]},type:'f',role2:'servers',
+      roleBreakdown:function(){return [
+        {label:'Server',arr:SERVERS['Abby'],type:'f',role2:'servers',rate:9},
+        {label:'Cashier',arr:CASHIERS['Abby'],type:'f',role2:'cashiers',rate:15},
+        {label:'Host',arr:HOSTS['Abby'],type:'f',role2:'hosts',rate:15}
+      ];}},
     {n:'Alexis',r:9,role:'Server',src:function(){return [SERVERS['Alexis']]},type:'f',role2:'servers'},
     {n:'Bridget',r:9,role:'Server',src:function(){return [SERVERS['Bridget']]},type:'f',role2:'servers'},
     {n:'Claudia M',r:9,role:'Server',src:function(){return [SERVERS['Claudia'],SERVERS['Claudia M'],SERVERS['Claudia M.']]},type:'f',role2:'servers'},
-    {n:'Dorris',r:9,role:'Server',src:function(){return [SERVERS['Dorris']]},type:'f',role2:'servers'},
+    {n:'Dorris',r:9,role:'Server/Cashier',
+      src:function(){return [SERVERS['Dorris'],CASHIERS['Dorris']]},type:'f',role2:'servers',
+      roleBreakdown:function(){return [
+        {label:'Server',arr:SERVERS['Dorris'],type:'f',role2:'servers',rate:9},
+        {label:'Cashier',arr:CASHIERS['Dorris'],type:'f',role2:'cashiers',rate:17}
+      ];}},
     {n:'Hannah',r:9,role:'Server',src:function(){return [SERVERS['Hannah']]},type:'f',role2:'servers'},
-    {n:'Jaime',r:9,role:'Server',src:function(){return [SERVERS['Jaime']]},type:'f',role2:'servers'},
-    {n:'Kelly',r:9,role:'Server',src:function(){return [SERVERS['Kelly']]},type:'f',role2:'servers'},
+    {n:'Jaime',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Jaime'],BARTENDERS['Jaime']]},type:'f',role2:'servers'},
+    {n:'Kelly',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Kelly'],BARTENDERS['Kelly']]},type:'f',role2:'servers'},
     {n:'Claudia G',r:9,role:'Server',src:function(){return [SERVERS['Claudia G'],SERVERS['Claudia G.']]},type:'f',role2:'servers'},
     {n:'Hannah M',r:9,role:'Server',src:function(){return [SERVERS['Hannah M'],SERVERS['Hannah M.']]},type:'f',role2:'servers'},
     {n:'Allie',r:9,role:'Server',src:function(){return [SERVERS['Allie']]},type:'f'},
@@ -8710,9 +8745,9 @@ function renderPrivate() {
     {n:'Natalie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Natalie'],HOSTS['Natalie']]},type:'f',role2:'cashiers'},
     {n:'Presley',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Presley'],HOSTS['Presley']]},type:'f',role2:'cashiers'},
     {n:'Tia',r:15,role:'Host/Cashier',src:function(){return [HOSTS['Tia'],CASHIERS['Tia']]},type:'f',role2:'hosts'},
-    {n:'Emilie',r:15,role:'Cashier',src:function(){return [CASHIERS['Emilie']]},type:'f',role2:'cashiers'},
+    {n:'Emilie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Emilie'],HOSTS['Emilie']]},type:'f',role2:'cashiers'},
     {n:'Ellianna',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Ellianna'],HOSTS['Ellianna']]},type:'f',role2:'cashiers'},
-    {n:'Keegan',r:15,role:'Cashier',src:function(){return [CASHIERS['Keegan']]},type:'f',role2:'cashiers'},
+    {n:'Keegan',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Keegan'],HOSTS['Keegan']]},type:'f',role2:'cashiers'},
     {n:'Molly',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Molly'],HOSTS['Molly']]},type:'f',role2:'cashiers'},
     {n:'Lea',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lea']]},type:'f',role2:'bartenders'},
   ];
@@ -12140,6 +12175,14 @@ async function runCopyWeekToNext() {
   var checked = Array.prototype.filter.call(document.querySelectorAll('.copy-week-cb'), function(cb){ return cb.checked; }).map(function(cb){ return cb.value; });
   if(!checked.length) { alert('Pick at least one section to copy.'); return; }
 
+  var SECTION_LABELS = {boh:'Back of House', foh:'Front of House', drivers:'Drivers', dispatch:'Dispatch', events:'Events'};
+  var sectionsText = checked.map(function(s){ return SECTION_LABELS[s] || s; }).join(', ');
+
+  var current = allWeeks && allWeeks[currentWeekIdx] ? allWeeks[currentWeekIdx] : null;
+  var srcMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var srcStart = current ? new Date(current.week_start + 'T00:00:00') : null;
+  var srcLabel = srcStart ? srcMonths[srcStart.getMonth()] + ' ' + srcStart.getDate() + ', ' + srcStart.getFullYear() : 'unknown week';
+
   var payload = {};
   if(checked.indexOf('boh') !== -1) payload.boh_data = JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH});
   if(checked.indexOf('foh') !== -1) payload.foh_data = JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS});
@@ -12186,6 +12229,27 @@ async function runCopyWeekToNext() {
       });
     }
     if(!resp.ok) throw new Error('copy failed (' + resp.status + ')');
+
+    // Log this so "when was the last copy" is never a mystery again —
+    // written to override_log the same way every other schedule action
+    // already is, visible in Schedule Log.
+    try {
+      await fetch(SUPABASE_URL + '/rest/v1/override_log', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify([{
+          week_label: 'Week of ' + _copyWeekNextLabel,
+          day_index: -1,
+          dept: 'Copy to Next Week',
+          msg: sectionsText + ' copied from week of ' + srcLabel + ' to week of ' + _copyWeekNextLabel + (_copyWeekExisting ? ' (overwrote existing schedule)' : ' (new week)'),
+          who: getCurrentUser(),
+          ack_type: 'copy_week',
+          logged_at: new Date().toISOString(),
+          day_name: ''
+        }])
+      });
+    } catch(logErr) { console.log('Copy log failed:', logErr.message); }
+
     document.getElementById('copy-week-modal').style.display = 'none';
     alert('Copied to week of ' + _copyWeekNextLabel + '. Loading it now.');
     await loadAllWeeks();
@@ -12281,6 +12345,7 @@ function showOverrideLog(btn) {
            r.ack_type === 'upload' ? 'Schedule uploaded' :
            r.ack_type === 'upload_errors' ? 'Uploaded with errors' :
            r.ack_type === 'bypass_now' ? 'Bypassed for now' :
+           r.ack_type === 'copy_week' ? 'Schedule copied' :
            r.note || r.ack_type || '';
   }
   function eventColor(r) {
@@ -12290,6 +12355,7 @@ function showOverrideLog(btn) {
            r.ack_type === 'intentional' ? '#1a7a3c' :
            r.ack_type === 'edit' ? '#1a7a3c' :
            r.ack_type === 'upload' ? '#1a7a3c' :
+           r.ack_type === 'copy_week' ? '#1a7a3c' :
            r.ack_type === 'upload_errors' ? '#c8102e' :
            r.ack_type === 'uncleared' ? '#888' :
            r.ack_type === 'published' ? '#1a7a3c' : '#c8102e';
@@ -12526,6 +12592,7 @@ function handleLockIconTap() {
       <button onclick="setIdentity('Selena')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Selena</button>
       <button onclick="setIdentity('Alexis A')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Alexis A</button>
       <button onclick="setIdentity('Dom')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Dom</button>
+      <button onclick="setIdentity('Brett')" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;">Brett</button>
       <button onclick="showIdentityInput()" style="padding:14px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;font-size:16px;font-weight:600;cursor:pointer;color:#888;">Add / Not Listed</button>
       <div id="identity-input-wrap" style="display:none;">
         <input id="identity-custom-input" type="text" placeholder="Enter your name" style="width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;box-sizing:border-box;margin-bottom:8px;">
