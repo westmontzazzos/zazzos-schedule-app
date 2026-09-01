@@ -8075,7 +8075,6 @@ function renderSchedule() {
     }
     html+='</tr>';
     schedSort(Object.entries(DRIVERS),'drv')
-      .filter(([n,d])=>d.some(v=>v))
       .forEach(([name,days])=>{
         html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
@@ -8277,6 +8276,7 @@ function loadCustomRosterThenRender() {
     seedCustomRosterIntoSections();
     if(document.getElementById('private-content').style.display !== 'none') renderPrivate();
     if(document.getElementById('manage-roster-modal').style.display !== 'none') renderManageRosterLists();
+    if(currentTab === 'schedule' && !_schedShowingCalendar) renderSchedule();
   });
 }
 
@@ -8355,6 +8355,38 @@ function openManageRosterModal() {
   renderManageRosterLists();
 }
 
+var _addRoleTarget = null;
+var VALID_ROLES_LIST = ['Driver','Manager','Server','Bartender','Cashier','Host','Pizza','Kitchen','Dish','Prep','Bus'];
+
+function openAddRoleModal(origName) {
+  var customEntry = CUSTOM_ROSTER.find(function(c){ return c.name === origName; });
+  if(!customEntry) { alert('Roles can only be edited this way for people added through Manage Roster.'); return; }
+  _addRoleTarget = customEntry;
+  var currentRoles = (function(){ try { return JSON.parse(customEntry.roles_json || '[]'); } catch(e){ return []; } })();
+  document.getElementById('add-role-name').textContent = customEntry.name;
+  document.getElementById('add-role-checkboxes').innerHTML = VALID_ROLES_LIST.map(function(r){
+    var checked = currentRoles.indexOf(r) !== -1 ? 'checked' : '';
+    return '<label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" class="add-role-cb" value="'+r+'" '+checked+'> '+r+'</label>';
+  }).join('');
+  document.getElementById('add-role-modal').style.display = 'flex';
+}
+
+function saveAddRole() {
+  if(!_addRoleTarget) return;
+  var checked = Array.from(document.querySelectorAll('.add-role-cb:checked')).map(function(c){ return c.value; });
+  if(!checked.length) { alert('Select at least one role.'); return; }
+  fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.id, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify({roles_json: JSON.stringify(checked)})
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    document.getElementById('add-role-modal').style.display = 'none';
+    _addRoleTarget = null;
+    loadCustomRosterThenRender();
+  }).catch(function(e){ alert('Failed to save roles: ' + e.message); });
+}
+
 function renderManageRosterLists() {
   var curList = document.getElementById('roster-current-list');
   var remList = document.getElementById('roster-removed-list');
@@ -8374,6 +8406,7 @@ function renderManageRosterLists() {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
         + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; '+(e.salaried ? '$'+Number(e.rate).toLocaleString()+'/yr' : '$'+Number(e.rate).toFixed(2)+'/hr')+(isCustom?' &middot; added via app':'')+akaText+'</div></div>'
         + '<div style="display:flex;gap:6px;">'
+        + (isCustom ? '<button onclick="openAddRoleModal(\''+origEsc+'\')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">+ Role</button>' : '')
         + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✎ Edit</button>'
         + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
         + '</div></div>';
@@ -8501,6 +8534,14 @@ function editRosterEmployee(origName) {
   // against, regardless of what's shown on the wage roster.
   var existingAliases = CUSTOM_ALIASES_LIST.filter(function(a){ return a.canonical_name === origName; });
 
+  // Role editing only works for people added through Manage Roster -- they
+  // have a real roster_additions row with a roles_json column to update.
+  // Someone hardcoded into the app's own role-map has their roles baked
+  // into the code itself; that can't be changed from here, only by an
+  // actual code update.
+  var customEntry = CUSTOM_ROSTER.find(function(c){ return c.name === origName; });
+  var VALID_ROLES = ['Driver','Manager','Server','Bartender','Cashier','Host','Pizza','Kitchen','Dish','Prep','Bus'];
+
   var newName = prompt('Name for this person:', currentDisplayName);
   if(newName === null) return; // cancelled entirely
   newName = newName.trim();
@@ -8511,6 +8552,18 @@ function editRosterEmployee(origName) {
   if(newRateStr === null) return; // cancelled entirely
   var newRate = parseFloat(newRateStr);
   if(!newRate || newRate <= 0) { alert('Enter a valid ' + (isSalaried ? 'annual salary' : 'hourly rate') + '.'); return; }
+
+  var newRolesList = null;
+  if(customEntry) {
+    var currentRoles = (function(){ try { return JSON.parse(customEntry.roles_json || '[]'); } catch(e){ return []; } })();
+    var rolesPrompt = 'Roles for ' + newName + ' (comma-separated). Valid: ' + VALID_ROLES.join(', ');
+    var newRolesStr = prompt(rolesPrompt, currentRoles.join(', '));
+    if(newRolesStr === null) return; // cancelled entirely
+    newRolesList = newRolesStr.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length>0; });
+    var invalid = newRolesList.filter(function(r){ return VALID_ROLES.indexOf(r) === -1; });
+    if(invalid.length) { alert('Not a valid role: ' + invalid.join(', ') + '. Valid roles are: ' + VALID_ROLES.join(', ')); return; }
+    if(!newRolesList.length) { alert('Select at least one role.'); return; }
+  }
 
   var existingAliasStr = existingAliases.map(function(a){return a.alias;}).join(', ');
   var newAliasStr = prompt('Also known as on schedules (comma-separated, e.g. "Chuck, C"). Leave as-is to keep, clear to remove all:', existingAliasStr);
@@ -8532,6 +8585,13 @@ function editRosterEmployee(origName) {
       method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
       body: JSON.stringify([rateBody])
+    }));
+  }
+  if(customEntry && newRolesList) {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + customEntry.id, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify({roles_json: JSON.stringify(newRolesList), rate: newRate})
     }));
   }
   if(newAliasList !== null) {
