@@ -4795,6 +4795,22 @@ document.addEventListener("DOMContentLoaded",function(){
 </div>
 
 <!-- MANAGE ROSTER MODAL -->
+<div id="add-role-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Roles for <span id="add-role-name"></span></div>
+    </div>
+    <div style="padding:16px;">
+      <div style="font-size:11px;color:#888;margin-bottom:10px;">Check every role this person actually works. Works the same whether they're a longtime staff member or brand new.</div>
+      <div id="add-role-checkboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+    <div style="padding:0 16px 16px;display:flex;gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('add-role-modal').style.display='none';">Cancel</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveAddRole()">Save</button>
+    </div>
+  </div>
+</div>
+
 <div id="manage-roster-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;">
   <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:var(--white);overflow-y:auto;">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid var(--gray-100);position:sticky;top:0;background:var(--white);z-index:2;">
@@ -5368,6 +5384,10 @@ const DRIVERS = {
 // either Run Sheets or the Schedule tab. Always shown as the first line
 // under Drivers, regardless of what time it holds.
 var DISPATCH = [null,null,null,null,null,null,null];
+// Per-driver notes for the currently loaded week only (e.g. "working extra
+// hours this week, caveat: only until 6pm Thu/Fri") -- not a permanent
+// property of the person, just something worth flagging for this one week.
+var DRIVER_NOTES = {};
 
 // Canonical driver roster, captured now before any week's data replaces DRIVERS.
 // Used by the upload repair pass so a known driver can never be silently dropped.
@@ -7358,6 +7378,7 @@ async function saveSchedInlineEdits() {
       foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
       driver_data: JSON.stringify(DRIVERS),
       dispatch_data: JSON.stringify(DISPATCH),
+      driver_notes_data: JSON.stringify(DRIVER_NOTES),
       event_data: JSON.stringify(WEEK_EVENTS),
       events_list_data: JSON.stringify(EVENTS_LIST),
       last_edited_by: getCurrentUser(),
@@ -8025,6 +8046,19 @@ async function openCalendarWeek(weekStartStr) {
   renderSchedule();
 }
 
+// Checking the box next to a driver's name adds them to the Driver Notes
+// section at the bottom (re-renders so that section appears/disappears).
+// Typing in the note itself does NOT re-render -- that would blow away
+// the input's focus and cursor position on every keystroke.
+function toggleDriverNote(name, isChecked) {
+  if(isChecked) { if(DRIVER_NOTES[name] === undefined) DRIVER_NOTES[name] = ''; }
+  else { delete DRIVER_NOTES[name]; }
+  renderSchedule();
+}
+function updateDriverNoteText(name, value) {
+  DRIVER_NOTES[name] = value;
+}
+
 function renderSchedule() {
   if(typeof setScheduleViewMode === 'function') setScheduleViewMode(false);
   const el = document.getElementById('schedule-content');
@@ -8076,7 +8110,12 @@ function renderSchedule() {
     html+='</tr>';
     schedSort(Object.entries(DRIVERS),'drv')
       .forEach(([name,days])=>{
-        html+=`<tr><td>${name}</td>`;
+        var nameEsc = name.replace(/'/g,"\\'");
+        var hasNote = DRIVER_NOTES[name] !== undefined;
+        var nameCell = window._schedEditMode
+          ? `<td><label style="display:flex;align-items:center;gap:5px;white-space:nowrap;"><input type="checkbox" onchange="toggleDriverNote('${nameEsc}', this.checked)" ${hasNote?'checked':''}> ${name}</label></td>`
+          : (DRIVER_NOTES[name] ? `<td>${name}<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">${DRIVER_NOTES[name]}</div></td>` : `<td>${name}</td>`);
+        html+=`<tr>${nameCell}`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
             html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
@@ -8090,6 +8129,20 @@ function renderSchedule() {
         });
         html+='</tr>';
       });
+    if(window._schedEditMode) {
+      var notedDriverNames = Object.keys(DRIVER_NOTES);
+      if(notedDriverNames.length) {
+        html += `<tr class="sched-sec-hdr"><td colspan="8">DRIVER NOTES</td></tr>`;
+        notedDriverNames.forEach(function(name){
+          var nameEsc2 = name.replace(/'/g,"\\'");
+          var noteVal = (DRIVER_NOTES[name]||'').replace(/"/g,'&quot;');
+          html += `<tr><td colspan="8" style="text-align:left;padding:8px;">`
+            + `<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">${name}</div>`
+            + `<input type="text" value="${noteVal}" oninput="updateDriverNoteText('${nameEsc2}', this.value)" placeholder="e.g. working extra hours this week, only until 6pm Thu/Fri" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">`
+            + `</td></tr>`;
+        });
+      }
+    }
   } else if(currentSchedView==='foh') {
     [{l:'SERVERS',d:SERVERS},{l:'BARTENDERS',d:BARTENDERS},{l:'CASHIERS',d:CASHIERS},{l:'HOSTS',d:HOSTS}].forEach(({l,d})=>{
       html+=`<tr class="sched-sec-hdr"><td colspan="8">${l}</td></tr>`;
@@ -8248,6 +8301,9 @@ var CUSTOM_ROSTER_REMOVED = [];  // [{id, name, removed_by, removed_at}]
 var CUSTOM_ROSTER_RENAMES = [];  // [{id, original_name, display_name, renamed_by, renamed_at}]
 var CUSTOM_ROSTER_RATES = [];    // [{id, original_name, rate, updated_by, updated_at}]
 var CUSTOM_ALIASES_LIST = [];    // [{id, alias, canonical_name, added_by, added_at}]
+var ROLE_OVERRIDES = {};         // {original_name: ['Server','Cashier',...]} -- lets ANYONE's roles be
+                                  // changed from the app (hardcoded or app-added), no code push required
+var ROLE_RATE_OVERRIDES = {};    // {original_name: {'Cashier': 15, 'Server': 9}} -- per-role rate corrections
 var FULL_ROSTER_NAMES = [];      // [{n, role, origName, rate}] -- every hourly employee, regardless of hours this week
 
 function loadCustomRosterThenRender() {
@@ -8266,6 +8322,9 @@ function loadCustomRosterThenRender() {
     }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
     fetch(SUPABASE_URL + '/rest/v1/name_aliases?order=added_at.asc', {
       headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; }),
+    fetch(SUPABASE_URL + '/rest/v1/roster_role_overrides?order=updated_at.asc', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
     }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; })
   ]).then(function(results){
     CUSTOM_ROSTER = results[0] || [];
@@ -8273,6 +8332,16 @@ function loadCustomRosterThenRender() {
     CUSTOM_ROSTER_RENAMES = results[2] || [];
     CUSTOM_ROSTER_RATES = results[3] || [];
     CUSTOM_ALIASES_LIST = results[4] || [];
+    ROLE_OVERRIDES = {};
+    (results[5] || []).forEach(function(row){
+      try { ROLE_OVERRIDES[row.original_name] = JSON.parse(row.roles_json || '[]'); } catch(e) {}
+    });
+    ROLE_RATE_OVERRIDES = {};
+    CUSTOM_ROSTER_RATES.forEach(function(row){
+      if(row.role_rates_json) {
+        try { ROLE_RATE_OVERRIDES[row.original_name] = JSON.parse(row.role_rates_json); } catch(e) {}
+      }
+    });
     seedCustomRosterIntoSections();
     if(document.getElementById('private-content').style.display !== 'none') renderPrivate();
     if(document.getElementById('manage-roster-modal').style.display !== 'none') renderManageRosterLists();
@@ -8288,20 +8357,36 @@ function loadCustomRosterThenRender() {
 // never overwrites an existing row (e.g. one already loaded from a saved
 // week), only fills in a gap.
 function seedCustomRosterIntoSections() {
-  if(typeof CUSTOM_ROSTER === 'undefined' || !CUSTOM_ROSTER.length) return;
-  CUSTOM_ROSTER.forEach(function(person){
-    if(person.is_salaried) return; // salaried staff aren't tied to schedule sections
-    var roles = [];
-    try { roles = JSON.parse(person.roles_json || '[]'); } catch(e) { roles = []; }
-    roles.forEach(function(roleLabel){
-      var map = CUSTOM_ROLE_MAP[roleLabel];
-      if(!map) return;
-      var sectionObj = SECTION_ARRAYS[map.arr];
-      if(sectionObj && !sectionObj[person.name]) {
-        sectionObj[person.name] = [null,null,null,null,null,null,null];
-      }
+  if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
+    CUSTOM_ROSTER.forEach(function(person){
+      if(person.is_salaried) return; // salaried staff aren't tied to schedule sections
+      var roles = [];
+      try { roles = JSON.parse(person.roles_json || '[]'); } catch(e) { roles = []; }
+      roles.forEach(function(roleLabel){
+        var map = CUSTOM_ROLE_MAP[roleLabel];
+        if(!map) return;
+        var sectionObj = SECTION_ARRAYS[map.arr];
+        if(sectionObj && !sectionObj[person.name]) {
+          sectionObj[person.name] = [null,null,null,null,null,null,null];
+        }
+      });
     });
-  });
+  }
+  // Anyone with a live role override -- hardcoded or app-added -- needs the
+  // same treatment: a newly-added role means a brand new section, and a
+  // brand new section needs a blank row to actually type a shift into.
+  if(typeof ROLE_OVERRIDES !== 'undefined') {
+    Object.keys(ROLE_OVERRIDES).forEach(function(name){
+      ROLE_OVERRIDES[name].forEach(function(roleLabel){
+        var map = CUSTOM_ROLE_MAP[roleLabel];
+        if(!map) return;
+        var sectionObj = SECTION_ARRAYS[map.arr];
+        if(sectionObj && !sectionObj[name]) {
+          sectionObj[name] = [null,null,null,null,null,null,null];
+        }
+      });
+    });
+  }
 }
 
 // KNOWN_FOH/KNOWN_BOH/KNOWN_DRIVER_NAMES are frozen snapshots taken once at
@@ -8360,10 +8445,18 @@ var VALID_ROLES_LIST = ['Driver','Manager','Server','Bartender','Cashier','Host'
 
 function openAddRoleModal(origName) {
   var customEntry = CUSTOM_ROSTER.find(function(c){ return c.name === origName; });
-  if(!customEntry) { alert('Roles can only be edited this way for people added through Manage Roster.'); return; }
-  _addRoleTarget = customEntry;
-  var currentRoles = (function(){ try { return JSON.parse(customEntry.roles_json || '[]'); } catch(e){ return []; } })();
-  document.getElementById('add-role-name').textContent = customEntry.name;
+  var currentRoles;
+  if(ROLE_OVERRIDES[origName]) {
+    currentRoles = ROLE_OVERRIDES[origName];
+  } else if(customEntry) {
+    try { currentRoles = JSON.parse(customEntry.roles_json || '[]'); } catch(e) { currentRoles = []; }
+  } else if(DEFAULT_ROSTER[origName]) {
+    currentRoles = DEFAULT_ROSTER[origName].map(function(r){ return r.role; });
+  } else {
+    currentRoles = [];
+  }
+  _addRoleTarget = {origName: origName, customEntry: customEntry};
+  document.getElementById('add-role-name').textContent = origName;
   document.getElementById('add-role-checkboxes').innerHTML = VALID_ROLES_LIST.map(function(r){
     var checked = currentRoles.indexOf(r) !== -1 ? 'checked' : '';
     return '<label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" class="add-role-cb" value="'+r+'" '+checked+'> '+r+'</label>';
@@ -8375,11 +8468,25 @@ function saveAddRole() {
   if(!_addRoleTarget) return;
   var checked = Array.from(document.querySelectorAll('.add-role-cb:checked')).map(function(c){ return c.value; });
   if(!checked.length) { alert('Select at least one role.'); return; }
-  fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.id, {
-    method: 'PATCH',
-    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-    body: JSON.stringify({roles_json: JSON.stringify(checked)})
-  }).then(function(r){
+
+  var request;
+  if(_addRoleTarget.customEntry) {
+    // App-added person: their roles live directly on their roster_additions row.
+    request = fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.customEntry.id, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+      body: JSON.stringify({roles_json: JSON.stringify(checked)})
+    });
+  } else {
+    // Hardcoded person: write an override that takes priority over their
+    // code-defined default roles, without ever touching the code itself.
+    request = fetch(SUPABASE_URL + '/rest/v1/roster_role_overrides?on_conflict=original_name', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{original_name: _addRoleTarget.origName, roles_json: JSON.stringify(checked), updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
+    });
+  }
+  request.then(function(r){
     if(!r.ok) throw new Error('HTTP ' + r.status);
     document.getElementById('add-role-modal').style.display = 'none';
     _addRoleTarget = null;
@@ -8406,7 +8513,7 @@ function renderManageRosterLists() {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
         + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; '+(e.salaried ? '$'+Number(e.rate).toLocaleString()+'/yr' : '$'+Number(e.rate).toFixed(2)+'/hr')+(isCustom?' &middot; added via app':'')+akaText+'</div></div>'
         + '<div style="display:flex;gap:6px;">'
-        + (isCustom ? '<button onclick="openAddRoleModal(\''+origEsc+'\')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">+ Role</button>' : '')
+        + '<button onclick="openAddRoleModal(\''+origEsc+'\')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">+ Role</button>'
         + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✎ Edit</button>'
         + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
         + '</div></div>';
@@ -8540,7 +8647,6 @@ function editRosterEmployee(origName) {
   // into the code itself; that can't be changed from here, only by an
   // actual code update.
   var customEntry = CUSTOM_ROSTER.find(function(c){ return c.name === origName; });
-  var VALID_ROLES = ['Driver','Manager','Server','Bartender','Cashier','Host','Pizza','Kitchen','Dish','Prep','Bus'];
 
   var newName = prompt('Name for this person:', currentDisplayName);
   if(newName === null) return; // cancelled entirely
@@ -8553,17 +8659,9 @@ function editRosterEmployee(origName) {
   var newRate = parseFloat(newRateStr);
   if(!newRate || newRate <= 0) { alert('Enter a valid ' + (isSalaried ? 'annual salary' : 'hourly rate') + '.'); return; }
 
-  var newRolesList = null;
-  if(customEntry) {
-    var currentRoles = (function(){ try { return JSON.parse(customEntry.roles_json || '[]'); } catch(e){ return []; } })();
-    var rolesPrompt = 'Roles for ' + newName + ' (comma-separated). Valid: ' + VALID_ROLES.join(', ');
-    var newRolesStr = prompt(rolesPrompt, currentRoles.join(', '));
-    if(newRolesStr === null) return; // cancelled entirely
-    newRolesList = newRolesStr.split(',').map(function(s){ return s.trim(); }).filter(function(s){ return s.length>0; });
-    var invalid = newRolesList.filter(function(r){ return VALID_ROLES.indexOf(r) === -1; });
-    if(invalid.length) { alert('Not a valid role: ' + invalid.join(', ') + '. Valid roles are: ' + VALID_ROLES.join(', ')); return; }
-    if(!newRolesList.length) { alert('Select at least one role.'); return; }
-  }
+  // Roles are managed through the "+Role" button (checkboxes) -- not here.
+  // Typing role names into a text prompt is exactly the kind of thing a
+  // typo slips through; a checkbox can't be mistyped.
 
   var existingAliasStr = existingAliases.map(function(a){return a.alias;}).join(', ');
   var newAliasStr = prompt('Also known as on schedules (comma-separated, e.g. "Chuck, C"). Leave as-is to keep, clear to remove all:', existingAliasStr);
@@ -8585,13 +8683,6 @@ function editRosterEmployee(origName) {
       method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
       body: JSON.stringify([rateBody])
-    }));
-  }
-  if(customEntry && newRolesList) {
-    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + customEntry.id, {
-      method: 'PATCH',
-      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body: JSON.stringify({roles_json: JSON.stringify(newRolesList), rate: newRate})
     }));
   }
   if(newAliasList !== null) {
@@ -8724,142 +8815,91 @@ function renderPrivate() {
     {n:'Brett',s:10000,role:'Manager'},
     {n:'Alexis A',s:60000,role:'Manager'}
   ];
-  var HLY=[
-    {n:'Laura Z',r:19,role:'Kitchen/Pizza',src:function(){return [KITCHEN['Laura Z'],PIZZA['Laura Z']]},type:'b'},
-    {n:'Nithia Maldonado',r:17.50,role:'Kitchen Cook',src:function(){return [KITCHEN['Nithia Maldonado']]},type:'b'},
-    {n:'Arturo Viveros',r:21,role:'Kitchen/Pizza',src:function(){return [PIZZA['Arturo'],KITCHEN['Arturo']]},type:'b'},
-    {n:'Jesus Murillo',r:21,role:'Pizza/Kitchen',src:function(){return [PIZZA['Jesus'],KITCHEN['Jesus']]},type:'b'},
-    {n:'Carlos Mora',r:19.25,role:'Pizza Cook',src:function(){return [PIZZA['Carlos'],KITCHEN['Carlos']]},type:'b'},
-    {n:'Nicholas Urbana',r:20,role:'Prep/Utility',src:function(){return [PREP['Nick'],KITCHEN['Nick']]},type:'b'},
-    {n:'Ever',r:17.50,role:'Kitchen/Pizza',src:function(){return [KITCHEN['Ever'],PIZZA['Ever']]},type:'b'},
-    {n:'Luis Perez',r:20,role:'Pizza Cook',src:function(){return [PIZZA['Luis']]},type:'b'},
-    {n:'Victor Cruz',r:20.50,role:'Pizza Cook',src:function(){return [PIZZA['Victor']]},type:'b'},
-    {n:'Monico Esparza',r:20,role:'Pizza Cook',src:function(){return [PIZZA['Monico']]},type:'b'},
-    {n:'Oscar Velazquez',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Oscar']]},type:'b'},
-    {n:'Luis Soto',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Soto']]},type:'b'},
-    {n:'Gonzo',r:17,role:'Pizza/Dish/Bus',src:function(){return [PIZZA['Gonzo'],DISH['Gonzo'],BUS['Gonzo']]},type:'b'},
-    {n:'Carlos Jr',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Carlos Jr']]},type:'b'},
-    {n:'Leo',r:17.50,role:'Pizza Cook',src:function(){return [PIZZA['Leo']]},type:'b'},
-    {n:'Eddie Cruz',r:19,role:'Pizza Cook',src:function(){return [PIZZA['Eddie'],PIZZA['Eddy'],KITCHEN['Eddie'],KITCHEN['Eddy']]},type:'b'},
-
-    {n:'Sylvia',r:15,role:'Prep',src:function(){return [PREP['Sylvia']]},type:'b'},
-    {n:'Jack Ruane',r:16,role:'Cashier',src:function(){return [CASHIERS['Jack']]},type:'f',role2:'cashiers'},
-    {n:'Marco Sanchez',r:16,role:'Pizza/Bus/Dish',src:function(){return [BUS['Marco'],DISH['Marco'],PIZZA['Marco']]},type:'b'},
-    {n:'Armani Finley',r:16,role:'Bus/Dish',src:function(){return [BUS['Armani'],DISH['Armani']]},type:'b'},
-    {n:'Gonzalo',r:17,role:'Pizza/Bus/Dish',src:function(){return [BUS['Gonzalo'],DISH['Gonzalo'],PIZZA['Gonzalo']]},type:'b'},
-    {n:'Eric',r:15,role:'Bus/Dish',src:function(){return [BUS['Eric'],DISH['Eric']]},type:'b'},
-    {n:'Jaxon',r:15,role:'Bus/Dish',src:function(){return [BUS['Jaxon'],DISH['Jaxon']]},type:'b'},
-    {n:'Matt',r:15,role:'Dish',src:function(){return [DISH['Matt']]},type:'b'},
-    {n:'Raul',r:15,role:'Bus/Dish',src:function(){return [BUS['Raul'],DISH['Raul']]},type:'b'},
-    {n:'Sio McAvoy',r:17,role:'Cashier/Server/Bartender',
-      src:function(){return [CASHIERS['Sio'],SERVERS['Sio'],BARTENDERS['Sio']]},type:'f',role2:'cashiers',
-      roleBreakdown:function(){return [
-        {label:'Cashier',arr:CASHIERS['Sio'],type:'f',role2:'cashiers',rate:17},
-        {label:'Server',arr:SERVERS['Sio'],type:'f',role2:'servers',rate:17},
-        {label:'Bartender',arr:BARTENDERS['Sio'],type:'f',role2:'bartenders',rate:9}
-      ];}},
-    {n:'Mike Henie',r:15,role:'Cashier',src:function(){return [CASHIERS['Mike']]},type:'f',role2:'cashiers'},
-    {n:'Brianna',r:9,role:'Server',src:function(){return [SERVERS['Brianna']]},type:'f',role2:'servers'},
-    {n:'Erika',r:9,role:'Server',src:function(){return [SERVERS['Erika']]},type:'f',role2:'servers'},
-    {n:'Elena',r:9,role:'Server',src:function(){return [SERVERS['Elena']]},type:'f',role2:'servers'},
-    {n:'Hannah Z',r:9,role:'Server/Cashier',
-      src:function(){return [SERVERS['Hannah Z'],SERVERS['Hannah Z.'],CASHIERS['Hannah Z'],CASHIERS['Hannah Z.']]},type:'f',role2:'servers',
-      roleBreakdown:function(){return [
-        {label:'Server',arr:SERVERS['Hannah Z'],type:'f',role2:'servers',rate:9},
-        {label:'Server',arr:SERVERS['Hannah Z.'],type:'f',role2:'servers',rate:9},
-        {label:'Cashier',arr:CASHIERS['Hannah Z'],type:'f',role2:'cashiers',rate:15},
-        {label:'Cashier',arr:CASHIERS['Hannah Z.'],type:'f',role2:'cashiers',rate:15}
-      ];}},
-    {n:'Abby',r:9,role:'Server/Cashier/Host',
-      src:function(){return [SERVERS['Abby'],CASHIERS['Abby'],HOSTS['Abby']]},type:'f',role2:'servers',
-      roleBreakdown:function(){return [
-        {label:'Server',arr:SERVERS['Abby'],type:'f',role2:'servers',rate:9},
-        {label:'Cashier',arr:CASHIERS['Abby'],type:'f',role2:'cashiers',rate:15},
-        {label:'Host',arr:HOSTS['Abby'],type:'f',role2:'hosts',rate:15}
-      ];}},
-    {n:'Alexis',r:9,role:'Server',src:function(){return [SERVERS['Alexis']]},type:'f',role2:'servers'},
-    {n:'Bridget',r:9,role:'Server',src:function(){return [SERVERS['Bridget']]},type:'f',role2:'servers'},
-    {n:'Claudia M',r:9,role:'Server',src:function(){return [SERVERS['Claudia'],SERVERS['Claudia M'],SERVERS['Claudia M.']]},type:'f',role2:'servers'},
-    {n:'Dorris',r:9,role:'Server/Cashier',
-      src:function(){return [SERVERS['Dorris'],CASHIERS['Dorris']]},type:'f',role2:'servers',
-      roleBreakdown:function(){return [
-        {label:'Server',arr:SERVERS['Dorris'],type:'f',role2:'servers',rate:9},
-        {label:'Cashier',arr:CASHIERS['Dorris'],type:'f',role2:'cashiers',rate:17}
-      ];}},
-    {n:'Hannah',r:9,role:'Server',src:function(){return [SERVERS['Hannah']]},type:'f',role2:'servers'},
-    {n:'Jaime',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Jaime'],BARTENDERS['Jaime']]},type:'f',role2:'servers'},
-    {n:'Kelly',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Kelly'],BARTENDERS['Kelly']]},type:'f',role2:'servers'},
-    {n:'Claudia G',r:9,role:'Server',src:function(){return [SERVERS['Claudia G'],SERVERS['Claudia G.']]},type:'f',role2:'servers'},
-    {n:'Hannah M',r:9,role:'Server',src:function(){return [SERVERS['Hannah M'],SERVERS['Hannah M.']]},type:'f',role2:'servers'},
-    {n:'Allie',r:9,role:'Server',src:function(){return [SERVERS['Allie']]},type:'f'},
-    {n:'Courtney',r:9,role:'Server',src:function(){return [SERVERS['Courtney']]},type:'f'},
-    {n:'Kamini',r:9,role:'Server',src:function(){return [SERVERS['Kamini']]},type:'f'},
-    {n:'Charlie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Charlie'],HOSTS['Charlie']]},type:'f',role2:'cashiers'},
-    {n:'Justin',r:9,role:'Server/Bartender',src:function(){return [SERVERS['Justin'],BARTENDERS['Justin']]},type:'f',role2:'servers'},
-    {n:'Julia',r:9,role:'Server',src:function(){return [SERVERS['Julia']]},type:'f',role2:'servers'},
-    {n:'Lindsay',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lindsay']]},type:'f',role2:'bartenders'},
-    {n:'Brooke',r:9,role:'Bartender',src:function(){return [BARTENDERS['Brooke']]},type:'f',role2:'bartenders'},
-    {n:'Cheeks',r:9,role:'Bartender',src:function(){return [BARTENDERS['Cheeks']]},type:'f',role2:'bartenders'},
-    {n:'Danielle',r:9,role:'Bartender',src:function(){return [BARTENDERS['Danielle']]},type:'f',role2:'bartenders'},
-    {n:'Mary',r:9,role:'Bartender',src:function(){return [BARTENDERS['Mary']]},type:'f',role2:'bartenders'},
-    {n:'Natalie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Natalie'],HOSTS['Natalie']]},type:'f',role2:'cashiers'},
-    {n:'Presley',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Presley'],HOSTS['Presley']]},type:'f',role2:'cashiers'},
-    {n:'Tia',r:15,role:'Host/Cashier',src:function(){return [HOSTS['Tia'],CASHIERS['Tia']]},type:'f',role2:'hosts'},
-    {n:'Emilie',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Emilie'],HOSTS['Emilie']]},type:'f',role2:'cashiers'},
-    {n:'Ellianna',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Ellianna'],HOSTS['Ellianna']]},type:'f',role2:'cashiers'},
-    {n:'Keegan',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Keegan'],HOSTS['Keegan']]},type:'f',role2:'cashiers'},
-    {n:'Molly',r:15,role:'Cashier/Host',src:function(){return [CASHIERS['Molly'],HOSTS['Molly']]},type:'f',role2:'cashiers'},
-    {n:'Lea',r:9,role:'Bartender',src:function(){return [BARTENDERS['Lea']]},type:'f',role2:'bartenders'},
-  ];
-  // Merge in staff added via the Private tab "Manage Roster" panel, and drop
-  // anyone removed there. Lets Ely add/remove/edit staff (hourly or salaried)
-  // without a code push.
-  if(typeof CUSTOM_ROSTER_REMOVED !== 'undefined' && CUSTOM_ROSTER_REMOVED.length) {
-    var removedNames = CUSTOM_ROSTER_REMOVED.map(function(r){return r.name;});
-    HLY = HLY.filter(function(e){ return removedNames.indexOf(e.n) === -1; });
-    SAL = SAL.filter(function(e){ return removedNames.indexOf(e.n) === -1; });
+  // Unified roster engine: every hourly person -- whether hardcoded in
+  // DEFAULT_ROSTER or added later through Manage Roster -- goes through
+  // this exact same path. ROLE_OVERRIDES (from roster_role_overrides) lets
+  // ANYONE's role list be changed from the app, no code push required.
+  // ROLE_RATE_OVERRIDES lets a specific role's pay rate be corrected the
+  // same way. This replaced two separate systems (a hand-written array for
+  // hardcoded staff, a different generic one for app-added staff) that
+  // never talked to each other -- which is why adding a role to someone
+  // hardcoded never actually changed what they got paid for.
+  var HLY = [];
+  var allRosterNames = {};
+  Object.keys(DEFAULT_ROSTER).forEach(function(n){ allRosterNames[n] = true; });
+  if(typeof CUSTOM_ROSTER !== 'undefined') {
+    CUSTOM_ROSTER.forEach(function(p){ if(!p.is_salaried) allRosterNames[p.name] = true; });
   }
-  if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
-    CUSTOM_ROSTER.forEach(function(person){
-      if(person.is_salaried) {
-        SAL.push({ n: person.name, s: person.annual_salary, role: person.role_label });
-        return;
+  var removedNamesSet = {};
+  if(typeof CUSTOM_ROSTER_REMOVED !== 'undefined') {
+    CUSTOM_ROSTER_REMOVED.forEach(function(r){ removedNamesSet[r.name] = true; });
+  }
+  var roleOverridesMap = (typeof ROLE_OVERRIDES !== 'undefined') ? ROLE_OVERRIDES : {};
+  var roleRateOverridesMap = (typeof ROLE_RATE_OVERRIDES !== 'undefined') ? ROLE_RATE_OVERRIDES : {};
+
+  Object.keys(allRosterNames).forEach(function(name){
+    if(removedNamesSet[name]) return;
+    var defaultRoles = DEFAULT_ROSTER[name]; // [{role,rate,keys}] or undefined
+    var customEntry = (typeof CUSTOM_ROSTER !== 'undefined') ? CUSTOM_ROSTER.find(function(c){ return c.name === name; }) : null;
+
+    var effectiveRoleLabels;
+    if(roleOverridesMap[name]) {
+      effectiveRoleLabels = roleOverridesMap[name];
+    } else if(defaultRoles) {
+      effectiveRoleLabels = defaultRoles.map(function(r){ return r.role; });
+    } else if(customEntry) {
+      try { effectiveRoleLabels = JSON.parse(customEntry.roles_json || '[]'); } catch(e) { effectiveRoleLabels = []; }
+    } else {
+      effectiveRoleLabels = [];
+    }
+    if(!effectiveRoleLabels.length) return;
+
+    var roleItems = effectiveRoleLabels.map(function(roleLabel){
+      var map = CUSTOM_ROLE_MAP[roleLabel];
+      if(!map) return null; // unrecognized role label -- skip safely rather than crash
+      var defaultForRole = defaultRoles && defaultRoles.find(function(r){ return r.role === roleLabel; });
+      var keys = defaultForRole ? defaultForRole.keys : [name];
+      var overrideRate = roleRateOverridesMap[name] && roleRateOverridesMap[name][roleLabel];
+      var rate = (overrideRate != null) ? overrideRate : (defaultForRole ? defaultForRole.rate : (customEntry ? customEntry.rate : 9));
+      return {label: roleLabel, arr: map.arr, type: map.type, role2: map.role2, keys: keys, rate: rate};
+    }).filter(function(x){ return !!x; });
+    if(!roleItems.length) return;
+
+    var allBOH = roleItems.every(function(x){ return x.type === 'b'; });
+    var primaryType = allBOH ? 'b' : 'f';
+    var primaryRole2 = !allBOH ? (roleItems.find(function(x){return x.type==='f';}).role2) : undefined;
+
+    var entry = {
+      n: name,
+      r: roleItems[0].rate,
+      role: roleItems.map(function(x){return x.label;}).join('/'),
+      type: primaryType,
+      src: function(){
+        var out = [];
+        roleItems.forEach(function(item){ item.keys.forEach(function(k){ out.push(SECTION_ARRAYS[item.arr][k]); }); });
+        return out;
       }
-      var roles = [];
-      try { roles = JSON.parse(person.roles_json || '[]'); } catch(e) { roles = []; }
-      var maps = roles.map(function(r){ return {label:r, map:CUSTOM_ROLE_MAP[r]}; }).filter(function(x){ return !!x.map; });
-      if(!maps.length) return; // no recognized roles, skip safely rather than crash
-
-      // Overall entry type: 'b' only if every role is BOH; otherwise 'f'.
-      // Mixed BOH+FOH people are tagged 'b' historically but each breakdown
-      // item carries its own real type, which is what actually matters.
-      var allBOH = maps.every(function(x){ return x.map.type === 'b'; });
-      var primaryType = allBOH ? 'b' : 'f';
-      var primaryRole2 = !allBOH ? (maps.find(function(x){return x.map.type==='f';}).map.role2) : undefined;
-
-      var entry = {
-        n: person.name,
-        r: person.rate,
-        role: maps.map(function(x){return x.label;}).join('/'),
-        type: primaryType,
-        src: function(){ return maps.map(function(x){ return SECTION_ARRAYS[x.map.arr][person.name]; }); }
-      };
-      if(primaryRole2) entry.role2 = primaryRole2;
-      if(maps.length > 1) {
-        entry.roleBreakdown = function(){
-          return maps.map(function(x){
-            return {label:x.label, arr:SECTION_ARRAYS[x.map.arr][person.name], type:x.map.type, role2:x.map.role2};
+    };
+    if(primaryRole2) entry.role2 = primaryRole2;
+    if(roleItems.length > 1) {
+      entry.roleBreakdown = function(){
+        var out = [];
+        roleItems.forEach(function(item){
+          item.keys.forEach(function(k){
+            out.push({label:item.label, arr:SECTION_ARRAYS[item.arr][k], type:item.type, role2:item.role2, rate:item.rate});
           });
-        };
-      }
-      HLY.push(entry);
-    });
-  }
+        });
+        return out;
+      };
+    }
+    HLY.push(entry);
+  });
+
   // Rename/rate overlay: lets a name, hourly rate, or annual salary be
   // corrected for display without changing the underlying key used to pull
   // hours from schedule data. _origName is preserved on every entry so
-  // Remove/Edit always target the stable identity, never a possibly-already-
-  // renamed display name.
+  // Remove/Edit/Add-Role always target the stable identity, never a
+  // possibly-already-renamed display name.
   HLY.forEach(function(e){ e._origName = e.n; });
   SAL.forEach(function(e){ e._origName = e.n; });
   if(typeof CUSTOM_ROSTER_RENAMES !== 'undefined' && CUSTOM_ROSTER_RENAMES.length) {
@@ -8869,15 +8909,20 @@ function renderPrivate() {
     SAL.forEach(function(e){ if(renameMap[e._origName]) e.n = renameMap[e._origName]; });
   }
   if(typeof CUSTOM_ROSTER_RATES !== 'undefined' && CUSTOM_ROSTER_RATES.length) {
-    var rateMap = {}, salaryMap = {};
+    var flatRateMap = {}, salaryMap = {};
     CUSTOM_ROSTER_RATES.forEach(function(r){
       if(r.annual_salary != null) salaryMap[r.original_name] = r.annual_salary;
-      else if(r.rate != null) rateMap[r.original_name] = r.rate;
+      else if(r.rate != null && !r.role_rates_json) flatRateMap[r.original_name] = r.rate;
     });
-    HLY.forEach(function(e){ if(rateMap[e._origName] != null) e.r = rateMap[e._origName]; });
+    // Only overrides a person's single top-level rate (e.r) -- someone
+    // with a real per-role split (roleBreakdown) should use "+Role" or the
+    // role-rates override instead, which corrects the specific role's pay,
+    // not just the summary number.
+    HLY.forEach(function(e){ if(flatRateMap[e._origName] != null) e.r = flatRateMap[e._origName]; });
     SAL.forEach(function(e){ if(salaryMap[e._origName] != null) e.s = salaryMap[e._origName]; });
   }
-  FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r, salaried:false}; })
+
+    FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r, salaried:false}; })
     .concat(SAL.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.s, salaried:true}; }));
   // Compute wh (weekly hours), trainingHrs (for display), and _straightBase
   // (actual $ owed before OT premium) day-by-day. This is the general path:
@@ -9283,6 +9328,78 @@ const SALARIED_EMPLOYEES = {'Brett':1,'Dom':1,'Ely':1,'Selena':1,'Lisa':1,'Alexi
 // any feature that needs cost math (Heat Map, the calendar's per-day cost
 // preview, etc.) reads from exactly one place — not a duplicate copy that
 // can drift out of sync with the real rate table.
+// DEFAULT_ROSTER is the fallback source of truth for anyone's roles and
+// rates when no live database override exists. This replaced a hand-written
+// per-person function for each of these 60 people -- extracted programmatically
+// from that original code so every rate and every name-key-variant (e.g.
+// Hannah Z's schedule entries sometimes read 'Hannah Z', sometimes 'Hannah Z.')
+// is preserved exactly. Anyone can now be edited from Manage Roster's "+Role"
+// button without ever needing a code change -- an override in roster_role_overrides
+// or roster_rates takes priority over what's here.
+const DEFAULT_ROSTER = {
+  'Laura Z': [{role:'Pizza',rate:19.0,keys:['Laura Z']},{role:'Kitchen',rate:19.0,keys:['Laura Z']}],
+  'Nithia Maldonado': [{role:'Kitchen',rate:17.5,keys:['Nithia Maldonado']}],
+  'Arturo Viveros': [{role:'Kitchen',rate:21.0,keys:['Arturo']},{role:'Pizza',rate:21.0,keys:['Arturo']}],
+  'Jesus Murillo': [{role:'Kitchen',rate:21.0,keys:['Jesus']},{role:'Pizza',rate:21.0,keys:['Jesus']}],
+  'Carlos Mora': [{role:'Kitchen',rate:19.25,keys:['Carlos']},{role:'Pizza',rate:19.25,keys:['Carlos']}],
+  'Nicholas Urbana': [{role:'Prep',rate:20.0,keys:['Nick']},{role:'Kitchen',rate:20.0,keys:['Nick']}],
+  'Ever': [{role:'Pizza',rate:17.5,keys:['Ever']},{role:'Kitchen',rate:17.5,keys:['Ever']}],
+  'Luis Perez': [{role:'Pizza',rate:20.0,keys:['Luis']}],
+  'Victor Cruz': [{role:'Pizza',rate:20.5,keys:['Victor']}],
+  'Monico Esparza': [{role:'Pizza',rate:20.0,keys:['Monico']}],
+  'Oscar Velazquez': [{role:'Pizza',rate:19.0,keys:['Oscar']}],
+  'Luis Soto': [{role:'Pizza',rate:19.0,keys:['Soto']}],
+  'Gonzo': [{role:'Bus',rate:17.0,keys:['Gonzo']},{role:'Pizza',rate:17.0,keys:['Gonzo']},{role:'Dish',rate:17.0,keys:['Gonzo']}],
+  'Carlos Jr': [{role:'Pizza',rate:17.5,keys:['Carlos Jr']}],
+  'Leo': [{role:'Pizza',rate:17.5,keys:['Leo']}],
+  'Eddie Cruz': [{role:'Kitchen',rate:19.0,keys:['Eddie','Eddy']},{role:'Pizza',rate:19.0,keys:['Eddie','Eddy']}],
+  'Sylvia': [{role:'Prep',rate:15.0,keys:['Sylvia']}],
+  'Jack Ruane': [{role:'Cashier',rate:16.0,keys:['Jack']}],
+  'Marco Sanchez': [{role:'Dish',rate:16.0,keys:['Marco']},{role:'Pizza',rate:16.0,keys:['Marco']},{role:'Bus',rate:16.0,keys:['Marco']}],
+  'Armani Finley': [{role:'Dish',rate:16.0,keys:['Armani']},{role:'Bus',rate:16.0,keys:['Armani']}],
+  'Gonzalo': [{role:'Dish',rate:17.0,keys:['Gonzalo']},{role:'Pizza',rate:17.0,keys:['Gonzalo']},{role:'Bus',rate:17.0,keys:['Gonzalo']}],
+  'Eric': [{role:'Dish',rate:15.0,keys:['Eric']},{role:'Bus',rate:15.0,keys:['Eric']}],
+  'Jaxon': [{role:'Dish',rate:15.0,keys:['Jaxon']},{role:'Bus',rate:15.0,keys:['Jaxon']}],
+  'Matt': [{role:'Dish',rate:15.0,keys:['Matt']}],
+  'Raul': [{role:'Dish',rate:15.0,keys:['Raul']},{role:'Bus',rate:15.0,keys:['Raul']}],
+  'Sio McAvoy': [{role:'Cashier',rate:17.0,keys:['Sio']},{role:'Server',rate:17.0,keys:['Sio']},{role:'Bartender',rate:9.0,keys:['Sio']}],
+  'Mike Henie': [{role:'Cashier',rate:15.0,keys:['Mike']}],
+  'Brianna': [{role:'Server',rate:9.0,keys:['Brianna']}],
+  'Erika': [{role:'Server',rate:9.0,keys:['Erika']}],
+  'Elena': [{role:'Server',rate:9.0,keys:['Elena']}],
+  'Hannah Z': [{role:'Server',rate:9.0,keys:['Hannah Z','Hannah Z.']},{role:'Cashier',rate:15.0,keys:['Hannah Z','Hannah Z.']}],
+  'Abby': [{role:'Server',rate:9.0,keys:['Abby']},{role:'Cashier',rate:15.0,keys:['Abby']},{role:'Host',rate:15.0,keys:['Abby']}],
+  'Alexis': [{role:'Server',rate:9.0,keys:['Alexis']}],
+  'Bridget': [{role:'Server',rate:9.0,keys:['Bridget']}],
+  'Claudia M': [{role:'Server',rate:9.0,keys:['Claudia','Claudia M','Claudia M.']}],
+  'Dorris': [{role:'Server',rate:9.0,keys:['Dorris']},{role:'Cashier',rate:17.0,keys:['Dorris']}],
+  'Hannah': [{role:'Server',rate:9.0,keys:['Hannah']}],
+  'Jaime': [{role:'Server',rate:9.0,keys:['Jaime']},{role:'Bartender',rate:9.0,keys:['Jaime']}],
+  'Kelly': [{role:'Server',rate:9.0,keys:['Kelly']},{role:'Bartender',rate:9.0,keys:['Kelly']}],
+  'Claudia G': [{role:'Server',rate:9.0,keys:['Claudia G','Claudia G.']}],
+  'Hannah M': [{role:'Server',rate:9.0,keys:['Hannah M','Hannah M.']}],
+  'Allie': [{role:'Server',rate:9.0,keys:['Allie']}],
+  'Courtney': [{role:'Server',rate:9.0,keys:['Courtney']}],
+  'Kamini': [{role:'Server',rate:9.0,keys:['Kamini']}],
+  'Charlie': [{role:'Cashier',rate:15.0,keys:['Charlie']},{role:'Host',rate:15.0,keys:['Charlie']}],
+  'Justin': [{role:'Server',rate:9.0,keys:['Justin']},{role:'Bartender',rate:9.0,keys:['Justin']}],
+  'Julia': [{role:'Server',rate:9.0,keys:['Julia']}],
+  'Lindsay': [{role:'Bartender',rate:9.0,keys:['Lindsay']}],
+  'Brooke': [{role:'Bartender',rate:9.0,keys:['Brooke']}],
+  'Cheeks': [{role:'Bartender',rate:9.0,keys:['Cheeks']}],
+  'Danielle': [{role:'Bartender',rate:9.0,keys:['Danielle']}],
+  'Mary': [{role:'Bartender',rate:9.0,keys:['Mary']}],
+  'Natalie': [{role:'Cashier',rate:15.0,keys:['Natalie']},{role:'Host',rate:15.0,keys:['Natalie']}],
+  'Presley': [{role:'Cashier',rate:15.0,keys:['Presley']},{role:'Host',rate:15.0,keys:['Presley']}],
+  'Tia': [{role:'Cashier',rate:15.0,keys:['Tia']},{role:'Host',rate:15.0,keys:['Tia']}],
+  'Emilie': [{role:'Cashier',rate:15.0,keys:['Emilie']},{role:'Host',rate:15.0,keys:['Emilie']}],
+  'Ellianna': [{role:'Cashier',rate:15.0,keys:['Ellianna']},{role:'Host',rate:15.0,keys:['Ellianna']}],
+  'Keegan': [{role:'Cashier',rate:15.0,keys:['Keegan']},{role:'Host',rate:15.0,keys:['Keegan']}],
+  'Molly': [{role:'Cashier',rate:15.0,keys:['Molly']},{role:'Host',rate:15.0,keys:['Molly']}],
+  'Lea': [{role:'Bartender',rate:9.0,keys:['Lea']}]
+};
+
+
 const RATES = {
   'Carlos':19.25,'Eddie':19,'Eddy':19,'Eddie Cruz':19,'Jesus':21,'Luis':20,'Soto':19,'Monico':20,'Oscar':19,
   'Victor':20.50,'Arturo':21,'Jose B':23,'Nick':20,'Armani':16,'Marco':16,
@@ -10144,6 +10261,7 @@ async function saveEdits() {
         foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
         driver_data: JSON.stringify(DRIVERS),
         dispatch_data: JSON.stringify(DISPATCH),
+        driver_notes_data: JSON.stringify(DRIVER_NOTES),
         event_data: JSON.stringify(WEEK_EVENTS),
         events_list_data: JSON.stringify(EVENTS_LIST),
         last_edited_by: getCurrentUser(),
@@ -10516,6 +10634,11 @@ function parseWeekData(week) {
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
     for(var dpi=0; dpi<7; dpi++) DISPATCH[dpi] = (Array.isArray(dispatchArr) && dispatchArr[dpi]) ? dispatchArr[dpi] : null;
+    Object.keys(DRIVER_NOTES).forEach(function(k){ delete DRIVER_NOTES[k]; });
+    try {
+      var loadedNotes = week.driver_notes_data ? JSON.parse(week.driver_notes_data) : {};
+      Object.assign(DRIVER_NOTES, loadedNotes);
+    } catch(e) { /* leave empty if malformed */ }
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers', 'MANAGERS');
     if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA, null, 'PIZZA');
     if(boh.KITCHEN)  boh.KITCHEN  = cleanNames(boh.KITCHEN, null, 'KITCHEN');
@@ -12246,7 +12369,7 @@ async function runCopyWeekToNext() {
   var payload = {};
   if(checked.indexOf('boh') !== -1) payload.boh_data = JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH});
   if(checked.indexOf('foh') !== -1) payload.foh_data = JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS});
-  if(checked.indexOf('drivers') !== -1) payload.driver_data = JSON.stringify(DRIVERS);
+  if(checked.indexOf('drivers') !== -1) { payload.driver_data = JSON.stringify(DRIVERS); payload.driver_notes_data = JSON.stringify(DRIVER_NOTES); }
   if(checked.indexOf('dispatch') !== -1) payload.dispatch_data = JSON.stringify(DISPATCH);
   if(checked.indexOf('events') !== -1) {
     payload.event_data = JSON.stringify(WEEK_EVENTS);
@@ -12275,6 +12398,7 @@ async function runCopyWeekToNext() {
         boh_data: payload.boh_data || emptyBOH,
         foh_data: payload.foh_data || emptyFOH,
         driver_data: payload.driver_data || JSON.stringify({}),
+        driver_notes_data: payload.driver_notes_data || JSON.stringify({}),
         dispatch_data: payload.dispatch_data || JSON.stringify({}),
         event_data: payload.event_data || JSON.stringify([null,null,null,null,null,null,null]),
         events_list_data: payload.events_list_data || emptyEventsList,
