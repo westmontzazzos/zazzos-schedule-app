@@ -8053,42 +8053,53 @@ async function openCalendarWeek(weekStartStr) {
 // focus and cursor position on every keystroke.
 // SCHEDULE_NOTES is now nested: {name: {dayIndex: noteText}} -- a note is
 // tied to one specific day's shift, not the person for the whole week.
-function toggleDayNote(name, di, isChecked) {
+// SCHEDULE_NOTES is scoped by section too: {section: {name: {dayIndex: text}}}.
+// A note made while editing Drivers can never show up under Back of House,
+// even if a name happened to collide -- section is part of the identity,
+// not just an afterthought of which view happened to be open.
+function toggleDayNote(section, name, di, isChecked) {
   if(isChecked) {
-    if(!SCHEDULE_NOTES[name]) SCHEDULE_NOTES[name] = {};
-    if(SCHEDULE_NOTES[name][di] === undefined) SCHEDULE_NOTES[name][di] = '';
-  } else if(SCHEDULE_NOTES[name]) {
-    delete SCHEDULE_NOTES[name][di];
-    if(!Object.keys(SCHEDULE_NOTES[name]).length) delete SCHEDULE_NOTES[name];
+    if(!SCHEDULE_NOTES[section]) SCHEDULE_NOTES[section] = {};
+    if(!SCHEDULE_NOTES[section][name]) SCHEDULE_NOTES[section][name] = {};
+    if(SCHEDULE_NOTES[section][name][di] === undefined) SCHEDULE_NOTES[section][name][di] = '';
+  } else if(SCHEDULE_NOTES[section] && SCHEDULE_NOTES[section][name]) {
+    delete SCHEDULE_NOTES[section][name][di];
+    if(!Object.keys(SCHEDULE_NOTES[section][name]).length) delete SCHEDULE_NOTES[section][name];
+    if(!Object.keys(SCHEDULE_NOTES[section]).length) delete SCHEDULE_NOTES[section];
   }
   renderSchedule();
 }
-function updateDayNoteText(name, di, value) {
-  if(!SCHEDULE_NOTES[name]) SCHEDULE_NOTES[name] = {};
-  SCHEDULE_NOTES[name][di] = value;
+function updateDayNoteText(section, name, di, value) {
+  if(!SCHEDULE_NOTES[section]) SCHEDULE_NOTES[section] = {};
+  if(!SCHEDULE_NOTES[section][name]) SCHEDULE_NOTES[section][name] = {};
+  SCHEDULE_NOTES[section][name][di] = value;
 }
 // Wraps a day cell's actual content (the time input in edit mode, or the
 // formatted shift text in the regular view) with a small checkbox in edit
 // mode, or the note text shown right under that day's shift in the
-// regular view. Works the same for Drivers/FOH/BOH.
-function buildDayCell(name, di, innerHtml) {
+// regular view. Works the same for Drivers/FOH/BOH, but each section only
+// ever sees its own notes.
+function buildDayCell(section, name, di, innerHtml) {
   var nameEsc = name.replace(/'/g,"\\'");
-  var personNotes = (SCHEDULE_NOTES[name] && typeof SCHEDULE_NOTES[name] === 'object' && !Array.isArray(SCHEDULE_NOTES[name])) ? SCHEDULE_NOTES[name] : null;
+  var sectionNotes = (SCHEDULE_NOTES[section] && typeof SCHEDULE_NOTES[section] === 'object') ? SCHEDULE_NOTES[section] : null;
+  var personNotes = (sectionNotes && sectionNotes[name] && typeof sectionNotes[name] === 'object' && !Array.isArray(sectionNotes[name])) ? sectionNotes[name] : null;
   var hasNote = personNotes && personNotes[di] !== undefined;
   if(window._schedEditMode) {
     return '<td>' + innerHtml
-      + '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:#888;margin-top:2px;white-space:nowrap;"><input type="checkbox" onchange="toggleDayNote(\''+nameEsc+'\', '+di+', this.checked)" '+(hasNote?'checked':'')+' style="width:11px;height:11px;"> note</label>'
+      + '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:#888;margin-top:2px;white-space:nowrap;"><input type="checkbox" onchange="toggleDayNote(\''+section+'\', \''+nameEsc+'\', '+di+', this.checked)" '+(hasNote?'checked':'')+' style="width:11px;height:11px;"> note</label>'
       + '</td>';
   }
   var noteHtml = hasNote && personNotes[di] ? '<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">'+personNotes[di]+'</div>' : '';
   return '<td>' + innerHtml + noteHtml + '</td>';
 }
-// Notes footer for whichever (name, day) pairs are checked within the
-// CURRENT view (Drivers/FOH/BOH each show their own).
-function buildNotesFooterRows(namesInView) {
+// Notes footer for whichever (name, day) pairs are checked within THIS
+// section specifically -- Drivers/FOH/BOH each only ever show their own.
+function buildNotesFooterRows(section, namesInView) {
+  var sectionNotes = SCHEDULE_NOTES[section];
+  if(!sectionNotes || typeof sectionNotes !== 'object') return '';
   var pairs = [];
   namesInView.forEach(function(name){
-    var personNotes = SCHEDULE_NOTES[name];
+    var personNotes = sectionNotes[name];
     if(!personNotes || typeof personNotes !== 'object' || Array.isArray(personNotes)) return;
     Object.keys(personNotes).forEach(function(di){ pairs.push({name:name, di:parseInt(di,10)}); });
   });
@@ -8097,10 +8108,10 @@ function buildNotesFooterRows(namesInView) {
   var out = '<tr class="sched-sec-hdr"><td colspan="8">NOTES</td></tr>';
   pairs.forEach(function(pair){
     var nameEsc2 = pair.name.replace(/'/g,"\\'");
-    var noteVal = (SCHEDULE_NOTES[pair.name][pair.di]||'').replace(/"/g,'&quot;');
+    var noteVal = (sectionNotes[pair.name][pair.di]||'').replace(/"/g,'&quot;');
     out += '<tr><td colspan="8" style="text-align:left;padding:8px;">'
       + '<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">'+pair.name+' &middot; '+dayNames[pair.di]+'</div>'
-      + '<input type="text" value="'+noteVal+'" oninput="updateDayNoteText(\''+nameEsc2+'\', '+pair.di+', this.value)" placeholder="e.g. working extra hours today, only until 6pm" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">'
+      + '<input type="text" value="'+noteVal+'" oninput="updateDayNoteText(\''+section+'\', \''+nameEsc2+'\', '+pair.di+', this.value)" placeholder="e.g. working extra hours today, only until 6pm" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">'
       + '</td></tr>';
   });
   return out;
@@ -8161,19 +8172,19 @@ function renderSchedule() {
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
             var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
-            html += buildDayCell(name, di, inputHtml);
+            html += buildDayCell('DRIVERS', name, di, inputHtml);
             return;
           }
           if(!raw){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const t=parseHour(String(raw));
           if(!t){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const d=t.isSlash?t.display:t.close?`${t.display}-C`:t.hasExplicitEnd?`${t.display}–${t.end}`:t.display;
-          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+d+'</span>');
+          html += buildDayCell('DRIVERS', name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+d+'</span>');
         });
         html+='</tr>';
       });
     if(window._schedEditMode) {
-      html += buildNotesFooterRows(Object.keys(DRIVERS));
+      html += buildNotesFooterRows('DRIVERS', Object.keys(DRIVERS));
     }
   } else if(currentSchedView==='foh') {
     var fohAllNames = [];
@@ -8186,17 +8197,17 @@ function renderSchedule() {
           if(window._schedEditMode){
             var rawVal = getShiftDisplay(l, e);
             var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
-            html += buildDayCell(name, di, inputHtml);
+            html += buildDayCell('FOH', name, di, inputHtml);
             return;
           }
           if(!e){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
-          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+formatShiftForDisplay(e, di)+'</span>');
+          html += buildDayCell('FOH', name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+formatShiftForDisplay(e, di)+'</span>');
         });
         html+='</tr>';
       });
     });
     if(window._schedEditMode) {
-      html += buildNotesFooterRows(fohAllNames);
+      html += buildNotesFooterRows('FOH', fohAllNames);
     }
   } else {
     var bohAllNames = [];
@@ -8208,18 +8219,18 @@ function renderSchedule() {
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
             var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
-            html += buildDayCell(name, di, inputHtml);
+            html += buildDayCell('BOH', name, di, inputHtml);
             return;
           }
           const p=parseBOH(raw,di);
           if(!p){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
-          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+(p.p?p.a+' – '+p.p:p.a)+'</span>');
+          html += buildDayCell('BOH', name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+(p.p?p.a+' – '+p.p:p.a)+'</span>');
         });
         html+='</tr>';
       });
     });
     if(window._schedEditMode) {
-      html += buildNotesFooterRows(bohAllNames);
+      html += buildNotesFooterRows('BOH', bohAllNames);
     }
   }
   html+='</tbody></table>';
@@ -10722,18 +10733,24 @@ function parseWeekData(week) {
     Object.keys(SCHEDULE_NOTES).forEach(function(k){ delete SCHEDULE_NOTES[k]; });
     try {
       var loadedNotes = week.schedule_notes_data ? JSON.parse(week.schedule_notes_data) : {};
-      // Old format (before notes were per-day) stored a plain string per
-      // person, e.g. SCHEDULE_NOTES['Julie'] = "some note". A string has
-      // character-index "keys" in JS, so treating it as the new per-day
-      // {dayIndex: text} shape would explode one bogus entry per letter.
-      // Anything that isn't a real object gets dropped here instead --
-      // it was written before per-day notes existed, so there's no
-      // correct day to recover it into anyway.
-      Object.keys(loadedNotes).forEach(function(name){
-        var val = loadedNotes[name];
-        if(val && typeof val === 'object' && !Array.isArray(val)) {
-          SCHEDULE_NOTES[name] = val;
-        }
+      // This has changed shape twice tonight: a plain string per person,
+      // then {name: {day: text}} with no section, now {section: {name:
+      // {day: text}}}. Anything that isn't a valid section at the top
+      // level, or isn't a real nested object all the way down, gets
+      // dropped rather than misread -- there's no day or section to
+      // correctly recover old-shaped data into anyway.
+      var VALID_NOTE_SECTIONS = {DRIVERS:1, FOH:1, BOH:1};
+      Object.keys(loadedNotes).forEach(function(section){
+        if(!VALID_NOTE_SECTIONS[section]) return;
+        var sectionVal = loadedNotes[section];
+        if(!sectionVal || typeof sectionVal !== 'object' || Array.isArray(sectionVal)) return;
+        SCHEDULE_NOTES[section] = {};
+        Object.keys(sectionVal).forEach(function(name){
+          var personVal = sectionVal[name];
+          if(personVal && typeof personVal === 'object' && !Array.isArray(personVal)) {
+            SCHEDULE_NOTES[section][name] = personVal;
+          }
+        });
       });
     } catch(e) { /* leave empty if malformed */ }
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers', 'MANAGERS');
@@ -13501,18 +13518,22 @@ function printSchedSection(range) {
   // Notes page — only added if someone actually has a note this week, so a
   // schedule with nothing flagged doesn't print a pointless blank page.
   var notePairs = [];
-  Object.keys(SCHEDULE_NOTES).forEach(function(name){
-    var personNotes = SCHEDULE_NOTES[name];
-    if(!personNotes || typeof personNotes !== 'object' || Array.isArray(personNotes)) return;
-    Object.keys(personNotes).forEach(function(di){
-      if(personNotes[di]) notePairs.push({name:name, di:parseInt(di,10), note:personNotes[di]});
+  Object.keys(SCHEDULE_NOTES).forEach(function(section){
+    var sectionNotes = SCHEDULE_NOTES[section];
+    if(!sectionNotes || typeof sectionNotes !== 'object') return;
+    Object.keys(sectionNotes).forEach(function(name){
+      var personNotes = sectionNotes[name];
+      if(!personNotes || typeof personNotes !== 'object' || Array.isArray(personNotes)) return;
+      Object.keys(personNotes).forEach(function(di){
+        if(personNotes[di]) notePairs.push({section:section, name:name, di:parseInt(di,10), note:personNotes[di]});
+      });
     });
   });
   var page3 = '';
   if(notePairs.length) {
-    var noteRows = '<tr><th>Name</th><th>Day</th><th>Note</th></tr>';
+    var noteRows = '<tr><th>Section</th><th>Name</th><th>Day</th><th>Note</th></tr>';
     notePairs.sort(function(a,b){ return a.di - b.di; }).forEach(function(pair){
-      noteRows += '<tr><td>'+pair.name+'</td><td>'+(DAYS_FULL[pair.di]||'')+' '+(FULL_DATES[pair.di]||'')+'</td><td>'+pair.note+'</td></tr>';
+      noteRows += '<tr><td>'+pair.section+'</td><td>'+pair.name+'</td><td>'+(DAYS_FULL[pair.di]||'')+' '+(FULL_DATES[pair.di]||'')+'</td><td>'+pair.note+'</td></tr>';
     });
     page3 = '<div id="print-page3" style="page-break-before:always;padding-top:8px;">'
       + '<h1>Notes This Week</h1>'
