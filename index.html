@@ -4725,8 +4725,8 @@ document.addEventListener("DOMContentLoaded",function(){
       <div id="sched-week-label" style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.08em;color:var(--black);white-space:nowrap;">Loading...</div>
       <button class="btn btn-secondary" style="padding:6px 10px;font-size:18px;line-height:1;" onclick="changeWeek(-1)">›</button>
     </div>
-    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="backToScheduleCalendar()">🗓 Calendar</button>
-    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;" onclick="toggleSchedEditMode()">✏️ Edit</button>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;white-space:nowrap;" onclick="backToScheduleCalendar()">🗓 Calendar</button>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:13px;white-space:nowrap;" onclick="toggleSchedEditMode()">✏️ Edit</button>
   </div>
   <div class="sub-nav" id="sched-sub-nav">
     <button class="sub-btn active" onclick="switchSched('drivers',this)">Drivers</button>
@@ -5384,10 +5384,11 @@ const DRIVERS = {
 // either Run Sheets or the Schedule tab. Always shown as the first line
 // under Drivers, regardless of what time it holds.
 var DISPATCH = [null,null,null,null,null,null,null];
-// Per-driver notes for the currently loaded week only (e.g. "working extra
-// hours this week, caveat: only until 6pm Thu/Fri") -- not a permanent
-// property of the person, just something worth flagging for this one week.
-var DRIVER_NOTES = {};
+// Per-person notes for the currently loaded week only (e.g. "working extra
+// hours this week, caveat: only until 6pm Thu/Fri") -- applies to anyone,
+// any section, not just Drivers. Not a permanent property of the person,
+// just something worth flagging for this one week.
+var SCHEDULE_NOTES = {};
 
 // Canonical driver roster, captured now before any week's data replaces DRIVERS.
 // Used by the upload repair pass so a known driver can never be silently dropped.
@@ -7378,7 +7379,7 @@ async function saveSchedInlineEdits() {
       foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
       driver_data: JSON.stringify(DRIVERS),
       dispatch_data: JSON.stringify(DISPATCH),
-      driver_notes_data: JSON.stringify(DRIVER_NOTES),
+      schedule_notes_data: JSON.stringify(SCHEDULE_NOTES),
       event_data: JSON.stringify(WEEK_EVENTS),
       events_list_data: JSON.stringify(EVENTS_LIST),
       last_edited_by: getCurrentUser(),
@@ -8046,17 +8047,45 @@ async function openCalendarWeek(weekStartStr) {
   renderSchedule();
 }
 
-// Checking the box next to a driver's name adds them to the Driver Notes
-// section at the bottom (re-renders so that section appears/disappears).
-// Typing in the note itself does NOT re-render -- that would blow away
-// the input's focus and cursor position on every keystroke.
+// Checking the box next to someone's name adds them to the Notes section
+// at the bottom (re-renders so that section appears/disappears). Typing in
+// the note itself does NOT re-render -- that would blow away the input's
+// focus and cursor position on every keystroke.
 function toggleDriverNote(name, isChecked) {
-  if(isChecked) { if(DRIVER_NOTES[name] === undefined) DRIVER_NOTES[name] = ''; }
-  else { delete DRIVER_NOTES[name]; }
+  if(isChecked) { if(SCHEDULE_NOTES[name] === undefined) SCHEDULE_NOTES[name] = ''; }
+  else { delete SCHEDULE_NOTES[name]; }
   renderSchedule();
 }
 function updateDriverNoteText(name, value) {
-  DRIVER_NOTES[name] = value;
+  SCHEDULE_NOTES[name] = value;
+}
+// Builds the name cell for any section's row: a checkbox in edit mode
+// (works for anyone -- Drivers, FOH, BOH, all the same), or the note text
+// shown right under their name in the regular schedule view.
+function buildNameCell(name) {
+  var nameEsc = name.replace(/'/g,"\\'");
+  var hasNote = SCHEDULE_NOTES[name] !== undefined;
+  if(window._schedEditMode) {
+    return `<td><label style="display:flex;align-items:center;gap:5px;white-space:nowrap;"><input type="checkbox" onchange="toggleDriverNote('${nameEsc}', this.checked)" ${hasNote?'checked':''}> ${name}</label></td>`;
+  }
+  return SCHEDULE_NOTES[name] ? `<td>${name}<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">${SCHEDULE_NOTES[name]}</div></td>` : `<td>${name}</td>`;
+}
+// Notes footer for whichever names are checked within the CURRENT view
+// (Drivers/FOH/BOH each show their own -- a Driver's note doesn't clutter
+// the FOH view and vice versa).
+function buildNotesFooterRows(namesInView) {
+  var noted = namesInView.filter(function(n){ return SCHEDULE_NOTES[n] !== undefined; });
+  if(!noted.length) return '';
+  var out = '<tr class="sched-sec-hdr"><td colspan="8">NOTES</td></tr>';
+  noted.forEach(function(name){
+    var nameEsc2 = name.replace(/'/g,"\\'");
+    var noteVal = (SCHEDULE_NOTES[name]||'').replace(/"/g,'&quot;');
+    out += '<tr><td colspan="8" style="text-align:left;padding:8px;">'
+      + '<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">'+name+'</div>'
+      + '<input type="text" value="'+noteVal+'" oninput="updateDriverNoteText(\''+nameEsc2+'\', this.value)" placeholder="e.g. working extra hours this week, only until 6pm Thu/Fri" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">'
+      + '</td></tr>';
+  });
+  return out;
 }
 
 function renderSchedule() {
@@ -8102,7 +8131,7 @@ function renderSchedule() {
     html+='<tr><td>Dispatch</td>';
     for(var dpi2=0; dpi2<7; dpi2++){
       if(window._schedEditMode){
-        html+=`<td><input class="sched-inline-input" data-section="DISPATCH" data-name="Dispatch" data-di="${dpi2}" value="${DISPATCH[dpi2]||''}" placeholder="Name + time" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+        html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="DISPATCH" data-name="Dispatch" data-di="${dpi2}" value="${DISPATCH[dpi2]||''}" placeholder="Name + time" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
       } else {
         html+=`<td class="sched-jump-cell" data-name="Dispatch" data-di="${dpi2}">${DISPATCH[dpi2]||''}</td>`;
       }
@@ -8110,15 +8139,10 @@ function renderSchedule() {
     html+='</tr>';
     schedSort(Object.entries(DRIVERS),'drv')
       .forEach(([name,days])=>{
-        var nameEsc = name.replace(/'/g,"\\'");
-        var hasNote = DRIVER_NOTES[name] !== undefined;
-        var nameCell = window._schedEditMode
-          ? `<td><label style="display:flex;align-items:center;gap:5px;white-space:nowrap;"><input type="checkbox" onchange="toggleDriverNote('${nameEsc}', this.checked)" ${hasNote?'checked':''}> ${name}</label></td>`
-          : (DRIVER_NOTES[name] ? `<td>${name}<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">${DRIVER_NOTES[name]}</div></td>` : `<td>${name}</td>`);
-        html+=`<tr>${nameCell}`;
+        html+=`<tr>${buildNameCell(name)}`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           if(!raw){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
@@ -8130,28 +8154,19 @@ function renderSchedule() {
         html+='</tr>';
       });
     if(window._schedEditMode) {
-      var notedDriverNames = Object.keys(DRIVER_NOTES);
-      if(notedDriverNames.length) {
-        html += `<tr class="sched-sec-hdr"><td colspan="8">DRIVER NOTES</td></tr>`;
-        notedDriverNames.forEach(function(name){
-          var nameEsc2 = name.replace(/'/g,"\\'");
-          var noteVal = (DRIVER_NOTES[name]||'').replace(/"/g,'&quot;');
-          html += `<tr><td colspan="8" style="text-align:left;padding:8px;">`
-            + `<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">${name}</div>`
-            + `<input type="text" value="${noteVal}" oninput="updateDriverNoteText('${nameEsc2}', this.value)" placeholder="e.g. working extra hours this week, only until 6pm Thu/Fri" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">`
-            + `</td></tr>`;
-        });
-      }
+      html += buildNotesFooterRows(Object.keys(DRIVERS));
     }
   } else if(currentSchedView==='foh') {
+    var fohAllNames = [];
     [{l:'SERVERS',d:SERVERS},{l:'BARTENDERS',d:BARTENDERS},{l:'CASHIERS',d:CASHIERS},{l:'HOSTS',d:HOSTS}].forEach(({l,d})=>{
       html+=`<tr class="sched-sec-hdr"><td colspan="8">${l}</td></tr>`;
       schedSort(Object.entries(d),'foh').forEach(([name,days])=>{
-        html+=`<tr><td>${name}</td>`;
+        fohAllNames.push(name);
+        html+=`<tr>${buildNameCell(name)}`;
         days.forEach((e,di)=>{
           if(window._schedEditMode){
             var rawVal = getShiftDisplay(l, e);
-            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           if(!e){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
@@ -8160,14 +8175,19 @@ function renderSchedule() {
         html+='</tr>';
       });
     });
+    if(window._schedEditMode) {
+      html += buildNotesFooterRows(fohAllNames);
+    }
   } else {
+    var bohAllNames = [];
     [{l:'MANAGERS',d:MANAGERS},{l:'PIZZA',d:PIZZA},{l:'KITCHEN',d:KITCHEN},{l:'PREP',d:PREP},{l:'BUS',d:BUS},{l:'DISH',d:DISH}].forEach(({l,d})=>{
       html+=`<tr class="sched-sec-hdr"><td colspan="8">${l}</td></tr>`;
       schedSort(Object.entries(d),'boh').forEach(([name,days])=>{
-        html+=`<tr><td>${name}</td>`;
+        bohAllNames.push(name);
+        html+=`<tr>${buildNameCell(name)}`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
             return;
           }
           const p=parseBOH(raw,di);
@@ -8455,11 +8475,29 @@ function openAddRoleModal(origName) {
   } else {
     currentRoles = [];
   }
+  // Figure out the current rate for each role that already has one, so
+  // nothing new ever falls back to a guessed number. Drivers are excluded
+  // from rate entirely -- they're never paid through this system.
+  var existingRateOverrides = ROLE_RATE_OVERRIDES[origName] || {};
+  var defaultRatesForRole = {};
+  if(DEFAULT_ROSTER[origName]) {
+    DEFAULT_ROSTER[origName].forEach(function(r){ defaultRatesForRole[r.role] = r.rate; });
+  }
   _addRoleTarget = {origName: origName, customEntry: customEntry};
   document.getElementById('add-role-name').textContent = origName;
   document.getElementById('add-role-checkboxes').innerHTML = VALID_ROLES_LIST.map(function(r){
-    var checked = currentRoles.indexOf(r) !== -1 ? 'checked' : '';
-    return '<label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;"><input type="checkbox" class="add-role-cb" value="'+r+'" '+checked+'> '+r+'</label>';
+    var checked = currentRoles.indexOf(r) !== -1;
+    var isDriver = (r === 'Driver');
+    var currentRate = existingRateOverrides[r] != null ? existingRateOverrides[r]
+      : defaultRatesForRole[r] != null ? defaultRatesForRole[r]
+      : (customEntry && currentRoles.length === 1 && currentRoles[0] === r) ? customEntry.rate
+      : null;
+    var rateInputHtml = isDriver ? '' :
+      '<input type="number" step="0.01" class="add-role-rate" data-role="'+r+'" value="'+(currentRate!=null?currentRate:'')+'" placeholder="$/hr" style="width:70px;margin-left:auto;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;'+(checked?'':'display:none;')+'">';
+    return '<label style="display:flex;align-items:center;gap:5px;border:1px solid #ddd;border-radius:8px;padding:6px 10px;font-size:13px;">'
+      + '<input type="checkbox" class="add-role-cb" value="'+r+'" '+(checked?'checked':'')+' onchange="var rInput=this.parentElement.querySelector(\'.add-role-rate\'); if(rInput) rInput.style.display = this.checked ? \'inline-block\' : \'none\';"> '+r
+      + rateInputHtml
+      + '</label>';
   }).join('');
   document.getElementById('add-role-modal').style.display = 'flex';
 }
@@ -8469,25 +8507,48 @@ function saveAddRole() {
   var checked = Array.from(document.querySelectorAll('.add-role-cb:checked')).map(function(c){ return c.value; });
   if(!checked.length) { alert('Select at least one role.'); return; }
 
-  var request;
+  // Every checked role except Driver needs a real rate -- never guessed,
+  // never silently defaulted. This is what actually determines someone's
+  // pay; a missing rate here is a payroll error waiting to happen.
+  var roleRates = {};
+  var missingRate = null;
+  checked.forEach(function(role){
+    if(role === 'Driver') return; // never paid through this system
+    var input = document.querySelector('.add-role-rate[data-role="'+role+'"]');
+    var val = input ? parseFloat(input.value) : NaN;
+    if(!val || val <= 0) { missingRate = role; return; }
+    roleRates[role] = val;
+  });
+  if(missingRate) { alert('Enter a valid hourly rate for ' + missingRate + '.'); return; }
+
+  var requests = [];
   if(_addRoleTarget.customEntry) {
     // App-added person: their roles live directly on their roster_additions row.
-    request = fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.customEntry.id, {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.customEntry.id, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
       body: JSON.stringify({roles_json: JSON.stringify(checked)})
-    });
+    }));
   } else {
     // Hardcoded person: write an override that takes priority over their
     // code-defined default roles, without ever touching the code itself.
-    request = fetch(SUPABASE_URL + '/rest/v1/roster_role_overrides?on_conflict=original_name', {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_role_overrides?on_conflict=original_name', {
       method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
       body: JSON.stringify([{original_name: _addRoleTarget.origName, roles_json: JSON.stringify(checked), updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
-    });
+    }));
   }
-  request.then(function(r){
-    if(!r.ok) throw new Error('HTTP ' + r.status);
+  // Rate overrides apply the same way regardless of hardcoded vs app-added
+  // -- one real rate per role, always explicit.
+  if(Object.keys(roleRates).length) {
+    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_rates?on_conflict=original_name', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body: JSON.stringify([{original_name: _addRoleTarget.origName, role_rates_json: JSON.stringify(roleRates), updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
+    }));
+  }
+  Promise.all(requests).then(function(responses){
+    if(responses.some(function(r){ return !r.ok; })) throw new Error('One or more updates failed');
     document.getElementById('add-role-modal').style.display = 'none';
     _addRoleTarget = null;
     loadCustomRosterThenRender();
@@ -10150,7 +10211,7 @@ async function openEditor(di, focusName) {
   html += '<div class="edit-section-hdr">EVENT</div>';
   html += '<div class="edit-row">';
   html += '<div class="edit-name">Event</div>';
-  html += '<div style="text-align:center"><input class="edit-input" id="edit-event-field" type="text" value="'+currentEvent+'" placeholder="e.g. Trivia"><div class="edit-label">leave blank if none</div></div>';
+  html += '<div style="text-align:center"><input class="edit-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="edit-event-field" type="text" value="'+currentEvent+'" placeholder="e.g. Trivia"><div class="edit-label">leave blank if none</div></div>';
   html += '</div>';
 
   var idx = 0;
@@ -10161,7 +10222,7 @@ async function openEditor(di, focusName) {
       editorData.push({section: 'DISPATCH', name: 'Dispatch', type: 'drv', idx: idx});
       html += '<div class="edit-row">';
       html += '<div class="edit-name">Dispatch</div>';
-      html += '<div style="text-align:center"><input class="edit-input" id="edit-'+idx+'" type="text" value="'+dispatchVal+'" placeholder="Name + time, e.g. Selena 9am-2pm"><div class="edit-label">who\'s dispatching + time</div></div>';
+      html += '<div style="text-align:center"><input class="edit-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="edit-'+idx+'" type="text" value="'+dispatchVal+'" placeholder="Name + time, e.g. Selena 9am-2pm"><div class="edit-label">who\'s dispatching + time</div></div>';
       html += '</div>';
       idx++;
     }
@@ -10172,7 +10233,7 @@ async function openEditor(di, focusName) {
       editorData.push({section: sec.label, name: name, type: sec.type, idx: idx});
       html += '<div class="edit-row">';
       html += '<div class="edit-name">' + name + '</div>';
-      html += '<div style="text-align:center"><input class="edit-input" id="edit-'+idx+'" type="text" value="'+val+'" placeholder="off"><div class="edit-label">time or blank</div></div>';
+      html += '<div style="text-align:center"><input class="edit-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" id="edit-'+idx+'" type="text" value="'+val+'" placeholder="off"><div class="edit-label">time or blank</div></div>';
       html += '</div>';
       idx++;
     });
@@ -10261,7 +10322,7 @@ async function saveEdits() {
         foh_data: JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS}),
         driver_data: JSON.stringify(DRIVERS),
         dispatch_data: JSON.stringify(DISPATCH),
-        driver_notes_data: JSON.stringify(DRIVER_NOTES),
+        schedule_notes_data: JSON.stringify(SCHEDULE_NOTES),
         event_data: JSON.stringify(WEEK_EVENTS),
         events_list_data: JSON.stringify(EVENTS_LIST),
         last_edited_by: getCurrentUser(),
@@ -10634,10 +10695,10 @@ function parseWeekData(week) {
     var drv = week.driver_data ? JSON.parse(week.driver_data) : {};
     var dispatchArr = week.dispatch_data ? JSON.parse(week.dispatch_data) : [null,null,null,null,null,null,null];
     for(var dpi=0; dpi<7; dpi++) DISPATCH[dpi] = (Array.isArray(dispatchArr) && dispatchArr[dpi]) ? dispatchArr[dpi] : null;
-    Object.keys(DRIVER_NOTES).forEach(function(k){ delete DRIVER_NOTES[k]; });
+    Object.keys(SCHEDULE_NOTES).forEach(function(k){ delete SCHEDULE_NOTES[k]; });
     try {
-      var loadedNotes = week.driver_notes_data ? JSON.parse(week.driver_notes_data) : {};
-      Object.assign(DRIVER_NOTES, loadedNotes);
+      var loadedNotes = week.schedule_notes_data ? JSON.parse(week.schedule_notes_data) : {};
+      Object.assign(SCHEDULE_NOTES, loadedNotes);
     } catch(e) { /* leave empty if malformed */ }
     if(boh.MANAGERS) boh.MANAGERS = cleanNames(boh.MANAGERS, 'managers', 'MANAGERS');
     if(boh.PIZZA)    boh.PIZZA    = cleanNames(boh.PIZZA, null, 'PIZZA');
@@ -12369,7 +12430,7 @@ async function runCopyWeekToNext() {
   var payload = {};
   if(checked.indexOf('boh') !== -1) payload.boh_data = JSON.stringify({MANAGERS:MANAGERS,PIZZA:PIZZA,KITCHEN:KITCHEN,PREP:PREP,BUS:BUS,DISH:DISH});
   if(checked.indexOf('foh') !== -1) payload.foh_data = JSON.stringify({SERVERS:SERVERS,BARTENDERS:BARTENDERS,CASHIERS:CASHIERS,HOSTS:HOSTS});
-  if(checked.indexOf('drivers') !== -1) { payload.driver_data = JSON.stringify(DRIVERS); payload.driver_notes_data = JSON.stringify(DRIVER_NOTES); }
+  if(checked.indexOf('drivers') !== -1) { payload.driver_data = JSON.stringify(DRIVERS); payload.schedule_notes_data = JSON.stringify(SCHEDULE_NOTES); }
   if(checked.indexOf('dispatch') !== -1) payload.dispatch_data = JSON.stringify(DISPATCH);
   if(checked.indexOf('events') !== -1) {
     payload.event_data = JSON.stringify(WEEK_EVENTS);
@@ -12398,7 +12459,7 @@ async function runCopyWeekToNext() {
         boh_data: payload.boh_data || emptyBOH,
         foh_data: payload.foh_data || emptyFOH,
         driver_data: payload.driver_data || JSON.stringify({}),
-        driver_notes_data: payload.driver_notes_data || JSON.stringify({}),
+        schedule_notes_data: payload.schedule_notes_data || JSON.stringify({}),
         dispatch_data: payload.dispatch_data || JSON.stringify({}),
         event_data: payload.event_data || JSON.stringify([null,null,null,null,null,null,null]),
         events_list_data: payload.events_list_data || emptyEventsList,
@@ -13398,6 +13459,21 @@ function printSchedSection(range) {
     page2 = '<div id="print-page2" style="page-break-before:always;padding-top:8px;">'
       + '<h1>Events This Week</h1>'
       + '<table><tbody>'+evRows+'</tbody></table>'
+      + '</div>';
+  }
+
+  // Notes page — only added if someone actually has a note this week, so a
+  // schedule with nothing flagged doesn't print a pointless blank page.
+  var notedNames = Object.keys(SCHEDULE_NOTES).filter(function(n){ return SCHEDULE_NOTES[n]; });
+  var page3 = '';
+  if(notedNames.length) {
+    var noteRows = '<tr><th>Name</th><th>Note</th></tr>';
+    notedNames.forEach(function(name){
+      noteRows += '<tr><td>'+name+'</td><td>'+SCHEDULE_NOTES[name]+'</td></tr>';
+    });
+    page3 = '<div id="print-page3" style="page-break-before:always;padding-top:8px;">'
+      + '<h1>Notes This Week</h1>'
+      + '<table><tbody>'+noteRows+'</tbody></table>'
       + '</div>';
   }
 
