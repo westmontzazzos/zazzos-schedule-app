@@ -10333,6 +10333,15 @@ async function saveEdits() {
   if(eventField) {
     var newEvent = eventField.value.trim();
     WEEK_EVENTS[editorDay] = newEvent || null;
+    // EVENTS_LIST is what the print page's "any events this week" check
+    // actually reads -- WEEK_EVENTS is only a derived quick-label for the
+    // header. Without this, an event typed here shows in the header but
+    // is invisible to print, since print never looks at WEEK_EVENTS at all.
+    if(newEvent) {
+      EVENTS_LIST[editorDay] = [{name: newEvent, time: '', servers: ''}];
+    } else {
+      EVENTS_LIST[editorDay] = [];
+    }
   }
 
   editorData.forEach(function(item) {
