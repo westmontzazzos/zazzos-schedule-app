@@ -8051,38 +8051,54 @@ async function openCalendarWeek(weekStartStr) {
 // at the bottom (re-renders so that section appears/disappears). Typing in
 // the note itself does NOT re-render -- that would blow away the input's
 // focus and cursor position on every keystroke.
-function toggleDriverNote(name, isChecked) {
-  if(isChecked) { if(SCHEDULE_NOTES[name] === undefined) SCHEDULE_NOTES[name] = ''; }
-  else { delete SCHEDULE_NOTES[name]; }
+// SCHEDULE_NOTES is now nested: {name: {dayIndex: noteText}} -- a note is
+// tied to one specific day's shift, not the person for the whole week.
+function toggleDayNote(name, di, isChecked) {
+  if(isChecked) {
+    if(!SCHEDULE_NOTES[name]) SCHEDULE_NOTES[name] = {};
+    if(SCHEDULE_NOTES[name][di] === undefined) SCHEDULE_NOTES[name][di] = '';
+  } else if(SCHEDULE_NOTES[name]) {
+    delete SCHEDULE_NOTES[name][di];
+    if(!Object.keys(SCHEDULE_NOTES[name]).length) delete SCHEDULE_NOTES[name];
+  }
   renderSchedule();
 }
-function updateDriverNoteText(name, value) {
-  SCHEDULE_NOTES[name] = value;
+function updateDayNoteText(name, di, value) {
+  if(!SCHEDULE_NOTES[name]) SCHEDULE_NOTES[name] = {};
+  SCHEDULE_NOTES[name][di] = value;
 }
-// Builds the name cell for any section's row: a checkbox in edit mode
-// (works for anyone -- Drivers, FOH, BOH, all the same), or the note text
-// shown right under their name in the regular schedule view.
-function buildNameCell(name) {
+// Wraps a day cell's actual content (the time input in edit mode, or the
+// formatted shift text in the regular view) with a small checkbox in edit
+// mode, or the note text shown right under that day's shift in the
+// regular view. Works the same for Drivers/FOH/BOH.
+function buildDayCell(name, di, innerHtml) {
   var nameEsc = name.replace(/'/g,"\\'");
-  var hasNote = SCHEDULE_NOTES[name] !== undefined;
+  var hasNote = SCHEDULE_NOTES[name] && SCHEDULE_NOTES[name][di] !== undefined;
   if(window._schedEditMode) {
-    return `<td><label style="display:flex;align-items:center;gap:5px;white-space:nowrap;"><input type="checkbox" onchange="toggleDriverNote('${nameEsc}', this.checked)" ${hasNote?'checked':''}> ${name}</label></td>`;
+    return '<td>' + innerHtml
+      + '<label style="display:flex;align-items:center;gap:3px;font-size:9px;color:#888;margin-top:2px;white-space:nowrap;"><input type="checkbox" onchange="toggleDayNote(\''+nameEsc+'\', '+di+', this.checked)" '+(hasNote?'checked':'')+' style="width:11px;height:11px;"> note</label>'
+      + '</td>';
   }
-  return SCHEDULE_NOTES[name] ? `<td>${name}<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">${SCHEDULE_NOTES[name]}</div></td>` : `<td>${name}</td>`;
+  var noteHtml = hasNote && SCHEDULE_NOTES[name][di] ? '<div style="font-size:9px;color:var(--red);font-weight:600;margin-top:2px;line-height:1.3;">'+SCHEDULE_NOTES[name][di]+'</div>' : '';
+  return '<td>' + innerHtml + noteHtml + '</td>';
 }
-// Notes footer for whichever names are checked within the CURRENT view
-// (Drivers/FOH/BOH each show their own -- a Driver's note doesn't clutter
-// the FOH view and vice versa).
+// Notes footer for whichever (name, day) pairs are checked within the
+// CURRENT view (Drivers/FOH/BOH each show their own).
 function buildNotesFooterRows(namesInView) {
-  var noted = namesInView.filter(function(n){ return SCHEDULE_NOTES[n] !== undefined; });
-  if(!noted.length) return '';
+  var pairs = [];
+  namesInView.forEach(function(name){
+    if(!SCHEDULE_NOTES[name]) return;
+    Object.keys(SCHEDULE_NOTES[name]).forEach(function(di){ pairs.push({name:name, di:parseInt(di,10)}); });
+  });
+  if(!pairs.length) return '';
+  var dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   var out = '<tr class="sched-sec-hdr"><td colspan="8">NOTES</td></tr>';
-  noted.forEach(function(name){
-    var nameEsc2 = name.replace(/'/g,"\\'");
-    var noteVal = (SCHEDULE_NOTES[name]||'').replace(/"/g,'&quot;');
+  pairs.forEach(function(pair){
+    var nameEsc2 = pair.name.replace(/'/g,"\\'");
+    var noteVal = (SCHEDULE_NOTES[pair.name][pair.di]||'').replace(/"/g,'&quot;');
     out += '<tr><td colspan="8" style="text-align:left;padding:8px;">'
-      + '<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">'+name+'</div>'
-      + '<input type="text" value="'+noteVal+'" oninput="updateDriverNoteText(\''+nameEsc2+'\', this.value)" placeholder="e.g. working extra hours this week, only until 6pm Thu/Fri" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">'
+      + '<div style="font-size:11px;font-weight:700;color:#666;margin-bottom:4px;">'+pair.name+' &middot; '+dayNames[pair.di]+'</div>'
+      + '<input type="text" value="'+noteVal+'" oninput="updateDayNoteText(\''+nameEsc2+'\', '+pair.di+', this.value)" placeholder="e.g. working extra hours today, only until 6pm" style="width:100%;font-size:12px;padding:7px 9px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;">'
       + '</td></tr>';
   });
   return out;
@@ -8139,17 +8155,18 @@ function renderSchedule() {
     html+='</tr>';
     schedSort(Object.entries(DRIVERS),'drv')
       .forEach(([name,days])=>{
-        html+=`<tr>${buildNameCell(name)}`;
+        html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="DRIVERS" data-name="${name}" data-di="${di}" value="${getShiftDisplay('DRIVERS', raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
+            html += buildDayCell(name, di, inputHtml);
             return;
           }
           if(!raw){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const t=parseHour(String(raw));
           if(!t){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
           const d=t.isSlash?t.display:t.close?`${t.display}-C`:t.hasExplicitEnd?`${t.display}–${t.end}`:t.display;
-          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${d}</td>`;
+          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+d+'</span>');
         });
         html+='</tr>';
       });
@@ -8162,15 +8179,16 @@ function renderSchedule() {
       html+=`<tr class="sched-sec-hdr"><td colspan="8">${l}</td></tr>`;
       schedSort(Object.entries(d),'foh').forEach(([name,days])=>{
         fohAllNames.push(name);
-        html+=`<tr>${buildNameCell(name)}`;
+        html+=`<tr><td>${name}</td>`;
         days.forEach((e,di)=>{
           if(window._schedEditMode){
             var rawVal = getShiftDisplay(l, e);
-            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${rawVal}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
+            html += buildDayCell(name, di, inputHtml);
             return;
           }
           if(!e){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
-          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${formatShiftForDisplay(e, di)}</td>`;
+          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+formatShiftForDisplay(e, di)+'</span>');
         });
         html+='</tr>';
       });
@@ -8184,19 +8202,23 @@ function renderSchedule() {
       html+=`<tr class="sched-sec-hdr"><td colspan="8">${l}</td></tr>`;
       schedSort(Object.entries(d),'boh').forEach(([name,days])=>{
         bohAllNames.push(name);
-        html+=`<tr>${buildNameCell(name)}`;
+        html+=`<tr><td>${name}</td>`;
         days.forEach((raw,di)=>{
           if(window._schedEditMode){
-            html+=`<td><input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;"></td>`;
+            var inputHtml = `<input class="sched-inline-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-section="${l}" data-name="${name}" data-di="${di}" value="${getShiftDisplay(l, raw)}" onkeydown="scheduleCellKeyNav(event)" style="width:70px;font-size:11px;padding:2px 4px;border:1px solid #ddd;border-radius:4px;">`;
+            html += buildDayCell(name, di, inputHtml);
             return;
           }
           const p=parseBOH(raw,di);
           if(!p){html+='<td class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'"></td>';return;}
-          html+=`<td class="sched-jump-cell" data-name="${name}" data-di="${di}">${p.p?p.a+' – '+p.p:p.a}</td>`;
+          html += buildDayCell(name, di, '<span class="sched-jump-cell" data-name="'+name+'" data-di="'+di+'">'+(p.p?p.a+' – '+p.p:p.a)+'</span>');
         });
         html+='</tr>';
       });
     });
+    if(window._schedEditMode) {
+      html += buildNotesFooterRows(bohAllNames);
+    }
   }
   html+='</tbody></table>';
   el.innerHTML=html;
@@ -13464,12 +13486,17 @@ function printSchedSection(range) {
 
   // Notes page — only added if someone actually has a note this week, so a
   // schedule with nothing flagged doesn't print a pointless blank page.
-  var notedNames = Object.keys(SCHEDULE_NOTES).filter(function(n){ return SCHEDULE_NOTES[n]; });
+  var notePairs = [];
+  Object.keys(SCHEDULE_NOTES).forEach(function(name){
+    Object.keys(SCHEDULE_NOTES[name]).forEach(function(di){
+      if(SCHEDULE_NOTES[name][di]) notePairs.push({name:name, di:parseInt(di,10), note:SCHEDULE_NOTES[name][di]});
+    });
+  });
   var page3 = '';
-  if(notedNames.length) {
-    var noteRows = '<tr><th>Name</th><th>Note</th></tr>';
-    notedNames.forEach(function(name){
-      noteRows += '<tr><td>'+name+'</td><td>'+SCHEDULE_NOTES[name]+'</td></tr>';
+  if(notePairs.length) {
+    var noteRows = '<tr><th>Name</th><th>Day</th><th>Note</th></tr>';
+    notePairs.sort(function(a,b){ return a.di - b.di; }).forEach(function(pair){
+      noteRows += '<tr><td>'+pair.name+'</td><td>'+(DAYS_FULL[pair.di]||'')+' '+(FULL_DATES[pair.di]||'')+'</td><td>'+pair.note+'</td></tr>';
     });
     page3 = '<div id="print-page3" style="page-break-before:always;padding-top:8px;">'
       + '<h1>Notes This Week</h1>'
@@ -13486,6 +13513,7 @@ function printSchedSection(range) {
     + '<table><thead>'+header+'</thead><tbody>'+rows+'</tbody></table>'
     + '</div>'
     + page2
+    + page3
     + '<\/body><\/html>';
 
   var iframe = document.createElement('iframe');
