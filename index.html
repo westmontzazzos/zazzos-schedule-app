@@ -9129,75 +9129,103 @@ function renderPrivate() {
 
     FULL_ROSTER_NAMES = HLY.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.r, salaried:false}; })
     .concat(SAL.map(function(e){ return {n: e.n, role: e.role, origName: e._origName, rate: e.s, salaried:true}; }));
-  // Compute wh (weekly hours), trainingHrs (for display), and _straightBase
-  // (actual $ owed before OT premium) day-by-day. This is the general path:
-  // it correctly handles people whose different roles pay different rates
-  // (e.g. Sio McAvoy: $17/hr as Cashier/Server, $9/hr as Bartender) AND
-  // training-marked days (always $15/hr), together, for anyone. A
-  // roleBreakdown item can carry its own `rate`; if it doesn't, it falls
-  // back to the person's base rate `e.r`. This reduces to the exact original
-  // single-flat-rate formula when there's no rate variation and no training,
-  // so nobody else's pay changes even fractionally.
-  HLY.forEach(function(e){
+  // Chronological OT allocation: walk each person's week in day order (and,
+  // within a day, by actual shift start time across roles), accumulating
+  // hours. Once the running total crosses 40, everything from that point on
+  // is OT -- paid at 1.5x whatever THAT specific shift's rate is, not a
+  // blended average. A shift that straddles the 40-hour mark gets split:
+  // the portion before 40 is regular pay, the portion after is OT. This
+  // matches how OT actually happens in real life (you don't know your
+  // "weighted average rate" mid-shift -- you know whether you've hit 40
+  // hours yet, and what you're doing right now).
+  function startHourB(arr,di){
+    if(!arr||!arr[di])return null;
+    var tf=extractTrainingFlag(arr[di]);
+    var s=String(tf.clean).trim().toLowerCase().replace(/\s+/g,'');
+    if(!s||s==='x'||s==='darien'||['kitchen','pizza','dish','bus','prep','serve','bar','host'].includes(s))return null;
+    var cm=s.match(/^(.+)-c(?:l(?:ose)?)?$/);
+    if(cm) return toH(cm[1].trim());
+    var rm=s.match(/^([\d:]+(?:am|pm)?)\s*-\s*([\d:]+(?:am|pm)?)$/i);
+    if(rm) return toH(rm[1]);
+    return toH(s);
+  }
+  function startHourF(arr,di){
+    if(!arr||!arr[di])return null;
+    var e=arr[di]; if(!e||!e[0])return null;
+    return toH(extractTrainingFlag(e[0]).clean);
+  }
+  function buildDaySegments(e, di) {
+    var segs = [];
     if(e.roleBreakdown) {
-      var items = e.roleBreakdown();
-      e.wh = 0; e.trainingHrs = 0; e._straightBase = 0;
-      items.forEach(function(it){
+      e.roleBreakdown().forEach(function(it){
         var typ = it.type || e.type;
+        var h = typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2);
+        if(!h) return;
+        var isTrain = typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
         var itemRate = (it.rate != null) ? it.rate : e.r;
-        for(var di=0; di<7; di++){
-          var h = typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2);
-          if(!h) continue;
-          var isTrain = typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
-          var rate = isTrain ? TRAINING_RATE : itemRate;
-          e.wh += h;
-          e._straightBase += h*rate;
-          if(isTrain) e.trainingHrs += h;
-        }
+        var startH = typ==='b' ? startHourB(it.arr,di) : startHourF(it.arr,di);
+        segs.push({hours:h, rate: isTrain ? TRAINING_RATE : itemRate, isTrain: isTrain, startH: startH==null?0:startH});
       });
-      e.dh = function(di){
+    } else {
+      e.src().forEach(function(a){
+        var h = e.type==='b' ? dayHrsB(a,di) : dayHrsF(a,di,e.role2);
+        if(!h) return;
+        var isTrain = e.type==='b' ? dayIsTrainingB(a,di) : dayIsTrainingF(a,di);
+        var startH = e.type==='b' ? startHourB(a,di) : startHourF(a,di);
+        segs.push({hours:h, rate: isTrain ? TRAINING_RATE : e.r, isTrain: isTrain, startH: startH==null?0:startH});
+      });
+    }
+    segs.sort(function(a,b){ return a.startH - b.startH; });
+    return segs;
+  }
+  HLY.forEach(function(e){
+    var cum = 0, regPay = 0, otPay = 0, trainingHrs = 0;
+    for(var di=0; di<7; di++){
+      buildDaySegments(e, di).forEach(function(seg){
+        var before = cum, after = cum + seg.hours;
+        var regPortion, otPortion;
+        if(after <= 40) { regPortion = seg.hours; otPortion = 0; }
+        else if(before >= 40) { regPortion = 0; otPortion = seg.hours; }
+        else { regPortion = 40 - before; otPortion = seg.hours - regPortion; }
+        regPay += regPortion*seg.rate;
+        otPay += otPortion*seg.rate*1.5;
+        cum = after;
+        if(seg.isTrain) trainingHrs += seg.hours;
+      });
+    }
+    e.wh = cum;
+    e._regPay = regPay;
+    e._otPay = otPay;
+    e.trainingHrs = trainingHrs;
+    e.dh = function(di){
+      if(e.roleBreakdown) {
         return e.roleBreakdown().reduce(function(t,it){
           var typ = it.type || e.type;
           return t + (typ==='b' ? dayHrsB(it.arr,di) : dayHrsF(it.arr,di,it.role2));
         }, 0);
-      };
-      e.dTrain = function(di){
+      }
+      return e.src().reduce(function(t,a){return t+(e.type==='b'?dayHrsB(a,di):dayHrsF(a,di,e.role2));},0);
+    };
+    e.dTrain = function(di){
+      if(e.roleBreakdown) {
         return e.roleBreakdown().some(function(it){
           var typ = it.type || e.type;
           return typ==='b' ? dayIsTrainingB(it.arr,di) : dayIsTrainingF(it.arr,di);
         });
-      };
-    } else {
-      var arrs = e.src();
-      e.wh = 0; e.trainingHrs = 0; e._straightBase = 0;
-      arrs.forEach(function(a){
-        for(var di=0; di<7; di++){
-          var h = e.type==='b' ? dayHrsB(a,di) : dayHrsF(a,di,e.role2);
-          if(!h) continue;
-          var isTrain = e.type==='b' ? dayIsTrainingB(a,di) : dayIsTrainingF(a,di);
-          var rate = isTrain ? TRAINING_RATE : e.r;
-          e.wh += h;
-          e._straightBase += h*rate;
-          if(isTrain) e.trainingHrs += h;
-        }
-      });
-      e.dh = function(di){ return e.src().reduce(function(t,a){return t+(e.type==='b'?dayHrsB(a,di):dayHrsF(a,di,e.role2));},0); };
-      e.dTrain = function(di){ return e.src().some(function(a){return e.type==='b'?dayIsTrainingB(a,di):dayIsTrainingF(a,di);}); };
-    }
+      }
+      return e.src().some(function(a){return e.type==='b'?dayIsTrainingB(a,di):dayIsTrainingF(a,di);});
+    };
   });
 
-  // OT premium uses the FLSA "weighted average" method: straight-time pay for
-  // all hours at whichever rate actually applied (already summed above as
-  // _straightBase), then a 0.5x premium on hours over 40 at the resulting
-  // weighted-average rate.
+  // Regular pay and OT pay were already computed chronologically above
+  // (each segment split and rated correctly at the moment it crossed 40
+  // hours), so this just packages the result -- no further rate math here.
   function wageFor(e) {
     var wh = e.wh || 0;
-    var straightBase = e._straightBase || 0;
-    var avgRate = wh > 0 ? straightBase/wh : e.r;
     var rH = Math.min(wh,40), oH = Math.max(0,wh-40);
-    var oP = oH*avgRate*0.5;
-    var wg = straightBase + oP;
-    var rP = wg - oP;
+    var rP = e._regPay || 0, oP = e._otPay || 0;
+    var wg = rP + oP;
+    var avgRate = wh > 0 ? wg/wh : e.r;
     return {rH:rH, oH:oH, wg:wg, rP:rP, oP:oP, avgRate:avgRate, trainHrs:e.trainingHrs||0};
   }
 
