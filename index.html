@@ -4795,6 +4795,25 @@ document.addEventListener("DOMContentLoaded",function(){
 </div>
 
 <!-- MANAGE ROSTER MODAL -->
+<div id="edit-aliases-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;overflow:hidden;">
+    <div style="background:var(--red);padding:14px 16px;">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:0.08em;color:#fff;">Aliases for <span id="edit-aliases-name"></span></div>
+    </div>
+    <div style="padding:16px;">
+      <div style="font-size:11px;color:#888;margin-bottom:10px;">Nicknames or misspellings that should match to this person on schedules.</div>
+      <div id="edit-aliases-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="edit-aliases-input" placeholder="Type a nickname..." style="flex:1;border:1px solid #ddd;border-radius:8px;padding:10px;font-size:14px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addOneAlias();}">
+        <button class="btn btn-primary" style="flex:0 0 auto;padding:10px 16px;" onclick="addOneAlias()">Add</button>
+      </div>
+    </div>
+    <div style="padding:0 16px 16px;">
+      <button class="btn btn-secondary" style="width:100%;" onclick="finishEditAliases()">Finish</button>
+    </div>
+  </div>
+</div>
+
 <div id="add-role-modal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:14px;width:90%;max-width:400px;overflow:hidden;">
     <div style="background:var(--red);padding:14px 16px;">
@@ -8387,6 +8406,12 @@ function loadCustomRosterThenRender() {
     CUSTOM_ROSTER_RENAMES = results[2] || [];
     CUSTOM_ROSTER_RATES = results[3] || [];
     CUSTOM_ALIASES_LIST = results[4] || [];
+    // CUSTOM_ALIASES_LIST and NAME_ALIASES were populated by two separate
+    // fetches -- this one only ever updated the display list, never the
+    // actual lookup map the alias merge below reads from. That's why a
+    // saved alias could look correct in the panel while never actually
+    // taking effect on real schedule data.
+    CUSTOM_ALIASES_LIST.forEach(function(row){ NAME_ALIASES[row.alias.toLowerCase()] = row.canonical_name; });
     ROLE_OVERRIDES = {};
     (results[5] || []).forEach(function(row){
       try { ROLE_OVERRIDES[row.original_name] = JSON.parse(row.roles_json || '[]'); } catch(e) {}
@@ -8397,6 +8422,7 @@ function loadCustomRosterThenRender() {
         try { ROLE_RATE_OVERRIDES[row.original_name] = JSON.parse(row.role_rates_json); } catch(e) {}
       }
     });
+    applyNameAliasesToSections();
     seedCustomRosterIntoSections();
     if(document.getElementById('private-content').style.display !== 'none') renderPrivate();
     if(document.getElementById('manage-roster-modal').style.display !== 'none') renderManageRosterLists();
@@ -8411,6 +8437,34 @@ function loadCustomRosterThenRender() {
 // exactly like a hardcoded employee would. Safe to call repeatedly; it
 // never overwrites an existing row (e.g. one already loaded from a saved
 // week), only fills in a gap.
+// Aliases previously only applied at upload time -- if a name was already
+// saved under its unaliased spelling from a past upload, adding the alias
+// later did nothing for that data. It stayed permanently invisible under a
+// disconnected key, missing from that person's actual pay, not just from
+// the "unmatched" warning. This runs every time schedule data loads, so an
+// alias takes effect immediately for whatever's already saved.
+function applyNameAliasesToSections() {
+  [DRIVERS, MANAGERS, PIZZA, KITCHEN, PREP, BUS, DISH, SERVERS, BARTENDERS, CASHIERS, HOSTS].forEach(function(sectionObj){
+    Object.keys(sectionObj).forEach(function(key){
+      var canonical = NAME_ALIASES[key.toLowerCase()];
+      if(!canonical || canonical === key) return; // no alias, or already canonical
+      if(!sectionObj[canonical]) {
+        sectionObj[canonical] = sectionObj[key];
+        delete sectionObj[key];
+        return;
+      }
+      var aliasArr = sectionObj[key];
+      var canonicalArr = sectionObj[canonical];
+      for(var di = 0; di < 7; di++) {
+        var hasCanonical = canonicalArr[di] !== null && canonicalArr[di] !== undefined && canonicalArr[di] !== '';
+        var hasAlias = aliasArr[di] !== null && aliasArr[di] !== undefined && aliasArr[di] !== '';
+        if(!hasCanonical && hasAlias) canonicalArr[di] = aliasArr[di];
+      }
+      delete sectionObj[key];
+    });
+  });
+}
+
 function seedCustomRosterIntoSections() {
   if(typeof CUSTOM_ROSTER !== 'undefined' && CUSTOM_ROSTER.length) {
     CUSTOM_ROSTER.forEach(function(person){
@@ -8475,6 +8529,7 @@ function loadCustomRosterEarly() {
     headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
   }).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){
     CUSTOM_ROSTER = rows || [];
+    applyNameAliasesToSections();
     seedCustomRosterIntoSections();
     if(typeof renderSchedule === 'function' && document.getElementById('tab-schedule') && document.getElementById('tab-schedule').style.display !== 'none') {
       renderSchedule();
@@ -8487,6 +8542,9 @@ function loadCustomAliasesIntoMap() {
     headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
   }).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){
     (rows||[]).forEach(function(row){ NAME_ALIASES[row.alias.toLowerCase()] = row.canonical_name; });
+    applyNameAliasesToSections();
+    if(document.getElementById('private-content') && document.getElementById('private-content').style.display !== 'none') renderPrivate();
+    if(typeof renderSchedule === 'function' && document.getElementById('tab-schedule') && document.getElementById('tab-schedule').style.display !== 'none') renderSchedule();
   }).catch(function(){ /* non-fatal -- uploads still work with the built-in alias list */ });
 }
 
@@ -8609,9 +8667,9 @@ function renderManageRosterLists() {
       return '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f2f2f2;">'
         + '<div><div style="font-weight:600;">'+e.n+'</div><div style="font-size:11px;color:#999;">'+e.role+' &middot; '+(e.salaried ? '$'+Number(e.rate).toLocaleString()+'/yr' : '$'+Number(e.rate).toFixed(2)+'/hr')+(isCustom?' &middot; added via app':'')+akaText+'</div></div>'
         + '<div style="display:flex;gap:6px;">'
-        + '<button onclick="openAddRoleModal(\''+origEsc+'\')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">+ Role</button>'
-        + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✎ Edit</button>'
-        + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">✕ Remove</button>'
+        + '<button onclick="openAddRoleModal(\''+origEsc+'\')" style="background:#f0fff4;border:1px solid #b7e4c7;color:#1a7a3c;border-radius:6px;padding:5px 0;font-size:12px;cursor:pointer;flex:0 0 74px;width:74px;text-align:center;box-sizing:border-box;">+ Role</button>'
+        + '<button onclick="editRosterEmployee(\''+origEsc+'\')" style="background:#f0f4ff;border:1px solid #c2d1f3;color:#1e4fa3;border-radius:6px;padding:5px 0;font-size:12px;cursor:pointer;flex:0 0 74px;width:74px;text-align:center;box-sizing:border-box;">✎ Edit</button>'
+        + '<button onclick="removeRosterEmployee(\''+origEsc+'\')" style="background:#fff0f0;border:1px solid #f3c2c9;color:#c8102e;border-radius:6px;padding:5px 0;font-size:12px;cursor:pointer;flex:0 0 74px;width:74px;text-align:center;box-sizing:border-box;">✕ Remove</button>'
         + '</div></div>';
     }).join('');
   }
@@ -8759,10 +8817,6 @@ function editRosterEmployee(origName) {
   // Typing role names into a text prompt is exactly the kind of thing a
   // typo slips through; a checkbox can't be mistyped.
 
-  var existingAliasStr = existingAliases.map(function(a){return a.alias;}).join(', ');
-  var newAliasStr = prompt('Also known as on schedules (comma-separated, e.g. "Chuck, C"). Leave as-is to keep, clear to remove all:', existingAliasStr);
-  var newAliasList = newAliasStr === null ? null : newAliasStr.split(',').map(function(s){return s.trim().toLowerCase();}).filter(function(s){return s.length>0;});
-
   var requests = [];
   if(newName !== origName || nameOverride) {
     requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_renames?on_conflict=original_name', {
@@ -8781,29 +8835,81 @@ function editRosterEmployee(origName) {
       body: JSON.stringify([rateBody])
     }));
   }
-  if(newAliasList !== null) {
-    var existingLower = existingAliases.map(function(a){return a.alias.toLowerCase();});
-    var toAdd = newAliasList.filter(function(a){ return existingLower.indexOf(a) === -1; });
-    var toRemove = existingAliases.filter(function(a){ return newAliasList.indexOf(a.alias.toLowerCase()) === -1; });
-    toAdd.forEach(function(alias){
-      requests.push(fetch(SUPABASE_URL + '/rest/v1/name_aliases?on_conflict=alias', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-        body: JSON.stringify([{alias: alias, canonical_name: origName, added_by: getCurrentUser(), added_at: new Date().toISOString()}])
-      }).then(function(r){ if(r.ok) NAME_ALIASES[alias] = origName; return r; }));
-    });
-    toRemove.forEach(function(a){
-      requests.push(fetch(SUPABASE_URL + '/rest/v1/name_aliases?id=eq.' + a.id, {
-        method: 'DELETE',
-        headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
-      }).then(function(r){ if(r.ok) delete NAME_ALIASES[a.alias.toLowerCase()]; return r; }));
-    });
+
+  function proceedToAliases() {
+    openEditAliasesModal(origName, newName);
   }
-  if(!requests.length) return; // nothing actually changed
+  if(!requests.length) { proceedToAliases(); return; }
   Promise.all(requests).then(function(responses){
     if(responses.some(function(r){return !r.ok;})) throw new Error('One or more updates failed');
-    loadCustomRosterThenRender();
+    proceedToAliases();
   }).catch(function(e){ alert('Failed to save changes: ' + e.message); });
+}
+
+var _editAliasesTarget = null;
+function openEditAliasesModal(origName, displayName) {
+  _editAliasesTarget = origName;
+  document.getElementById('edit-aliases-name').textContent = displayName;
+  document.getElementById('edit-aliases-input').value = '';
+  renderEditAliasesList();
+  document.getElementById('edit-aliases-modal').style.display = 'flex';
+}
+
+function renderEditAliasesList() {
+  var list = CUSTOM_ALIASES_LIST.filter(function(a){ return a.canonical_name === _editAliasesTarget; });
+  var container = document.getElementById('edit-aliases-list');
+  if(!list.length) {
+    container.innerHTML = '<div style="color:#aaa;font-size:12px;">No aliases yet.</div>';
+    return;
+  }
+  container.innerHTML = list.map(function(a){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#f7f7f5;border-radius:8px;padding:8px 10px;">'
+      + '<span style="font-size:13px;">' + a.alias + '</span>'
+      + '<button onclick="removeOneAlias(' + a.id + ')" style="background:none;border:none;color:#c8102e;font-size:16px;cursor:pointer;padding:0 4px;">✕</button>'
+      + '</div>';
+  }).join('');
+}
+
+function addOneAlias() {
+  var input = document.getElementById('edit-aliases-input');
+  var val = input.value.trim().toLowerCase();
+  if(!val) return;
+  var existing = CUSTOM_ALIASES_LIST.filter(function(a){ return a.canonical_name === _editAliasesTarget; });
+  if(existing.some(function(a){ return a.alias.toLowerCase() === val; })) {
+    alert('"' + val + '" is already an alias for this person.');
+    return;
+  }
+  fetch(SUPABASE_URL + '/rest/v1/name_aliases?on_conflict=alias', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body: JSON.stringify([{alias: val, canonical_name: _editAliasesTarget, added_by: getCurrentUser(), added_at: new Date().toISOString()}])
+  }).then(function(r){
+    if(!r.ok) throw new Error('Save failed');
+    NAME_ALIASES[val] = _editAliasesTarget;
+    CUSTOM_ALIASES_LIST.push({id: 'pending-' + Date.now(), alias: val, canonical_name: _editAliasesTarget});
+    input.value = '';
+    renderEditAliasesList();
+  }).catch(function(e){ alert('Failed to add alias: ' + e.message); });
+}
+
+function removeOneAlias(id) {
+  var entry = CUSTOM_ALIASES_LIST.find(function(a){ return a.id === id; });
+  if(!entry) return;
+  fetch(SUPABASE_URL + '/rest/v1/name_aliases?id=eq.' + id, {
+    method: 'DELETE',
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){
+    if(!r.ok) throw new Error('Failed');
+    delete NAME_ALIASES[entry.alias.toLowerCase()];
+    CUSTOM_ALIASES_LIST = CUSTOM_ALIASES_LIST.filter(function(a){ return a.id !== id; });
+    renderEditAliasesList();
+  }).catch(function(e){ alert('Failed to remove: ' + e.message); });
+}
+
+function finishEditAliases() {
+  document.getElementById('edit-aliases-modal').style.display = 'none';
+  _editAliasesTarget = null;
+  loadCustomRosterThenRender();
 }
 
 var LAST_PAYROLL = null;
@@ -10802,6 +10908,7 @@ function parseWeekData(week) {
     // Manage Roster panel needs to be re-seeded as an empty row in their
     // section(s) EVERY time a week loads, or they'd have no row to type a
     // shift into on the Schedule tab / Run Sheets.
+    applyNameAliasesToSections();
     seedCustomRosterIntoSections();
   } catch(e) {
     console.log('parseWeekData error:', e.message);
