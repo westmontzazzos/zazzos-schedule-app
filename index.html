@@ -5476,7 +5476,7 @@ const DRIVER_ALIASES = { 'jeff z': 'Jeff Zeggebeen', 'jeff zeggeben': 'Jeff Zegg
 // this is the one place that needs updating, not scattered per-upload logic.
 const NAME_ALIASES = {
   'alex': 'Alexis A', 'alex a': 'Alexis A',
-  'nithia': 'Nithia', 'nithia maldonado': 'Nithia', 'lithia': 'Nithia',
+  'nithia': 'Nithia Maldonado', 'nithia maldonado': 'Nithia Maldonado', 'lithia': 'Nithia Maldonado',
   'nick': 'Nick', 'nicholas': 'Nick', 'nicholas urbana': 'Nick',
   'sio': 'Sio', 'sio mcavoy': 'Sio',
   'laura': 'Laura Z', 'laura z': 'Laura Z',
@@ -12291,7 +12291,7 @@ async function readScheduleImage(dataUrl, type) {
           }
         });
         // Normalize short names to full names
-        var kitchenAliases = {'nithia': 'Nithia', 'lithia': 'Nithia', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
+        var kitchenAliases = {'nithia': 'Nithia Maldonado', 'lithia': 'Nithia Maldonado', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
         Object.keys(sched.KITCHEN).forEach(function(name){
           var alias = kitchenAliases[name.toLowerCase()];
           if(alias && alias !== name) {
