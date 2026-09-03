@@ -5323,7 +5323,7 @@ function syncWeekEventsFromList() {
 // decimal shorthand ("10.3" -> :30), and bare hours ("4", "11").
 // Mirrors fmtBOH's am/pm auto-detect (7-11 = AM, else PM) so drivers parse
 // the same time formats the Back of House parser already understands.
-function fmtDrv(numStr, ampm) {
+function fmtDrv(numStr, ampm, isEnd) {
   if(numStr == null) return '';
   let h, mn = 0;
   if(numStr.indexOf(':') >= 0) {
@@ -5338,7 +5338,7 @@ function fmtDrv(numStr, ampm) {
   } else {
     h = parseInt(numStr, 10);
   }
-  let ap = ampm ? ampm.toLowerCase() : (h >= 7 && h <= 11 ? 'am' : 'pm');
+  let ap = ampm ? ampm.toLowerCase() : (isEnd ? 'pm' : (h >= 7 && h <= 11 ? 'am' : 'pm'));
   let h24 = h;
   if(ap === 'pm' && h !== 12) h24 = h + 12;
   if(ap === 'am' && h === 12) h24 = 0;
@@ -5368,7 +5368,7 @@ function parseHour(raw) {
   }
   // explicit end: "9:00am-4:00", "10am-2"
   if(m = s.match(new RegExp('^' + T + '[-]' + T + '$'))) {
-    return {display: fmtDrv(m[1], m[2]), end: fmtDrv(m[3], m[4]), isSlash: false, close: false, hasExplicitEnd: true};
+    return {display: fmtDrv(m[1], m[2]), end: fmtDrv(m[3], m[4], true), isSlash: false, close: false, hasExplicitEnd: true};
   }
   // plain time: "4pm", "5:30pm", "10.3am", "11"
   if(m = s.match(new RegExp('^' + T + '$'))) {
@@ -5601,17 +5601,17 @@ function parseBOH(raw, di) {
   const closeM = s.match(/^(.+)-c[l]?$/);
   if(closeM) { const a=fmtBOH(closeM[1].trim()); return a ? {a:a, p:'C'} : null; }
   const rangeM = s.match(/^([\d:]+(?:am|pm)?)\s*[-–]\s*([\d:]+(?:am|pm)?)$/i);
-  if(rangeM) { const a=fmtBOH(rangeM[1]); return a ? {a:a, p:fmtBOH(rangeM[2])} : null; }
+  if(rangeM) { const a=fmtBOH(rangeM[1]); return a ? {a:a, p:fmtBOH(rangeM[2], true)} : null; }
   const a=fmtBOH(s);
   return a ? {a:a, p:''} : null;
 }
 
-function fmtBOH(t) {
+function fmtBOH(t, isEnd) {
   if(!t) return '';
   const m = t.match(/^(\d+)(?::(\d+))?(am|pm)?$/i);
   if(!m) return '';  // not a time value (e.g. "dairy","driver","x") → reject
   let h=parseInt(m[1]), mn=parseInt(m[2]||0);
-  const ap = m[3] ? m[3].toLowerCase() : (h>=7&&h<=11?'am':'pm');
+  const ap = m[3] ? m[3].toLowerCase() : (isEnd ? 'pm' : (h>=7&&h<=11?'am':'pm'));
   if(ap==='pm'&&h!==12) h+=12;
   if(ap==='am'&&h===12) h=0;
   const dh=h>12?h-12:(h===0?12:h);
@@ -5709,13 +5709,21 @@ const KNOWN_FOH = {
   HOSTS: filterByRole(Object.keys(HOSTS), 'Hosts')
 };
 
-function fmtFOH(t, di, isClose) {
+function fmtFOH(t, di, isClose, isEnd) {
   if(!t) return '';
   if(isClose) return 'C';
   const m = t.match(/^(\d+)(?::(\d+))?(am|pm)?$/i);
   if(!m) return '';  // not a time value (e.g. "PHONES","PARTY") → reject
   let h=parseInt(m[1]), mn=parseInt(m[2]||0);
-  const ap = m[3] ? m[3].toLowerCase() : (h>=7&&h<=11?'am':'pm');
+  // Start times: 7-11 with no explicit am/pm almost always mean a morning
+  // opener (7AM-11AM), so that range defaults to AM. End times are a
+  // different question entirely -- a shift ending at "7" through "11"
+  // with nothing else specified is virtually always an evening close
+  // (7PM-11PM), not 7AM the next calendar moment. Using the start-time
+  // default for end times was flipping this to AM on every single shift
+  // that didn't have an explicit "pm" typed, silently, every time the
+  // schedule rendered -- not a one-time glitch.
+  const ap = m[3] ? m[3].toLowerCase() : (isEnd ? 'pm' : (h>=7&&h<=11?'am':'pm'));
   if(ap==='pm'&&h!==12) h+=12;
   if(ap==='am'&&h===12) h=0;
   const dh = h>12?h-12:(h===0?12:h);
@@ -5733,9 +5741,9 @@ function fmtFOH(t, di, isClose) {
 function formatShiftForDisplay(entry, di) {
   if(!entry || !Array.isArray(entry)) return '';
   var start = entry[0], end = entry[1];
-  var am = fmtFOH(start, di, false);
+  var am = fmtFOH(start, di, false, false);
   if(!am) return '';
-  var pm = end === 'C' ? 'C' : (end ? fmtFOH(end, di, false) : '');
+  var pm = end === 'C' ? 'C' : (end ? fmtFOH(end, di, false, true) : '');
   return pm ? am + ' – ' + pm : am;
 }
 
@@ -5744,8 +5752,8 @@ function getFOHSection(sectionData, di) {
   Object.entries(sectionData).forEach(([name,days])=>{
     const e=days[di]; if(!e || !Array.isArray(e)) return;
     const start=e[0], end=e[1];
-    const am=fmtFOH(start,di,false);
-    const pm=end==='C'?'C':(end?fmtFOH(end,di,false):'');
+    const am=fmtFOH(start,di,false,false);
+    const pm=end==='C'?'C':(end?fmtFOH(end,di,false,true):'');
     if(am) result.push({n:name,a:am,p:pm});
   });
   result.sort((a,b)=>{
@@ -7911,7 +7919,7 @@ function computeWeekDailyLaborCost(bohObj, fohObj, drvObj) {
         if(!e || !Array.isArray(e)) continue;
         var st = hitlistHour(e[0], di);
         if(st === null) continue;
-        var en = e[1] === 'C' ? ((di===4||di===5) ? 23.25 : 22.25) : (e[1] ? hitlistHour(e[1], di) : null);
+        var en = e[1] === 'C' ? ((di===4||di===5) ? 23.25 : 22.25) : (e[1] ? hitlistHour(e[1], di, true) : null);
         if(en === null) continue;
         var hrs = en - st;
         if(hrs > 0) daily[di] += hrs * rate;
@@ -8925,13 +8933,13 @@ function renderPrivate() {
     return (parts[0]||'').slice(0,3) + ' ' + (parts[1]||'').replace(',','');
   });
 
-  function toH(t){
+  function toH(t, isEnd){
     if(!t)return null;
     var s=String(t).trim();
     var m=s.match(/^(\d+)(?::(\d+))?(am|pm)?$/i);
     if(!m)return null;
     var h=parseInt(m[1]),mn=parseInt(m[2]||0);
-    var ap=m[3]?m[3].toLowerCase():(h>=7&&h<=11?'am':'pm');
+    var ap=m[3]?m[3].toLowerCase():(isEnd?'pm':(h>=7&&h<=11?'am':'pm'));
     if(ap==='pm'&&h!==12)h+=12;
     if(ap==='am'&&h===12)h=0;
     return h+mn/60;
@@ -8960,7 +8968,7 @@ function renderPrivate() {
     var st=null,en=null;
     var cm=s.match(/^(.+)-c(?:l(?:ose)?)?$/);
     if(cm){st=toH(cm[1].trim());en=(di===4||di===5)?23.25:22.25;}
-    else{var rm=s.match(/^([\d:]+(?:am|pm)?)\s*-\s*([\d:]+(?:am|pm)?)$/i);if(rm){st=toH(rm[1]);en=toH(rm[2]);}else{st=toH(s);if(st!==null)en=20;}}
+    else{var rm=s.match(/^([\d:]+(?:am|pm)?)\s*-\s*([\d:]+(?:am|pm)?)$/i);if(rm){st=toH(rm[1]);en=toH(rm[2], true);}else{st=toH(s);if(st!==null)en=20;}}
     if(st!==null&&en!==null&&en>st){var h=en-st;if(h>8)h-=0.5;return Math.max(0,h);}
     return 0;
   }
@@ -8986,18 +8994,18 @@ function renderPrivate() {
       if(isClose)      en = isFriSat ? 22.25 : 21.25;
       else if(!hasEnd) { if(isAM) en = isFriSat ? 23.25 : 22.25; // flagged AM — use close for payroll
                          else     en = isFriSat ? 20.5  : 19.5; }
-      else             en = toH(end);
+      else             en = toH(end, true);
     } else if(r==='cashier'||r==='cashiers'||r==='host'||r==='hosts') {
       if(isClose)      en = isFriSat ? 21.0 : 19.0;
       else if(!hasEnd) en = isFriSat ? 20.0 : 19.0;
-      else             en = toH(end);
+      else             en = toH(end, true);
     } else if(r==='bartender'||r==='bartenders') {
       if(!hasEnd)      en = isFriSat ? 23.25 : 22.25; // flag but still count hours
-      else             en = toH(end);
+      else             en = toH(end, true);
     } else {
       if(isClose)      en = isFriSat ? 23.25 : 22.25;
       else if(!hasEnd) en = 20;
-      else             en = toH(end);
+      else             en = toH(end, true);
     }
     if(st!==null&&en!==null&&en>st){var h=en-st;if(h>8)h-=0.5;return Math.max(0,h);}
     return 0;
@@ -9410,7 +9418,7 @@ function renderPrivate() {
 
 // Convert a time token (e.g. "10", "11:30", "5pm", "C") to a decimal 24h hour.
 // di is the day index so close time can be day-aware (Fri/Sat later close).
-function hitlistHour(t, di) {
+function hitlistHour(t, di, isEnd) {
   if(t === null || t === undefined) return null;
   var s = String(t).trim().toLowerCase();
   if(s === '') return null;
@@ -9433,7 +9441,7 @@ function hitlistHour(t, di) {
     var frac = parseFloat('0.' + m[2]);
     mn = (Math.abs(frac-0.3)<0.001 || Math.abs(frac-0.5)<0.001) ? 30 : Math.round(frac*60);
   }
-  var ap = m[3] ? m[3] : (h>=7 && h<=11 ? 'am' : 'pm');
+  var ap = m[3] ? m[3] : (isEnd ? 'pm' : (h>=7 && h<=11 ? 'am' : 'pm'));
   if(ap === 'pm' && h !== 12) h += 12;
   if(ap === 'am' && h === 12) h = 0;
   return h + mn/60;
@@ -9456,7 +9464,7 @@ function parseBOHHours(raw, di) {
     var rangeM = s.match(/^([\d:]+(?:am|pm)?)\s*[-–]\s*([\d:]+(?:am|pm)?)$/i);
     if(rangeM) {
       st = hitlistHour(rangeM[1], di);
-      en = hitlistHour(rangeM[2], di);
+      en = hitlistHour(rangeM[2], di, true);
     } else {
       // Single start time with no end → default to 8pm.
       st = hitlistHour(s, di);
@@ -9513,7 +9521,7 @@ function parseFOHHours(entry, di, role) {
         en = isFriSat ? 20.5 : 19.5; // 8:30 PM | 7:30 PM
       }
     } else {
-      en = hitlistHour(end, di);
+      en = hitlistHour(end, di, true);
     }
 
   } else if(r === 'cashiers' || r === 'cashier' || r === 'hosts' || r === 'host') {
@@ -9522,7 +9530,7 @@ function parseFOHHours(entry, di, role) {
     } else if(!hasEnd) {
       en = isFriSat ? 20.0 : 19.0; // 8:00 PM | 7:00 PM
     } else {
-      en = hitlistHour(end, di);
+      en = hitlistHour(end, di, true);
     }
 
   } else if(r === 'bartenders' || r === 'bartender') {
@@ -9531,7 +9539,7 @@ function parseFOHHours(entry, di, role) {
       flagMsg = 'Bartender missing end time';
       en = isFriSat ? 23.25 : 22.25; // placeholder for labor calc
     } else {
-      en = hitlistHour(end, di);
+      en = hitlistHour(end, di, true);
     }
 
   } else {
@@ -9541,7 +9549,7 @@ function parseFOHHours(entry, di, role) {
     } else if(!hasEnd) {
       en = isFriSat ? 23.25 : 22.25;
     } else {
-      en = hitlistHour(end, di);
+      en = hitlistHour(end, di, true);
     }
   }
 
@@ -11358,7 +11366,7 @@ function checkScheduleErrors() {
           var enH = parseInt(enRaw, 10);
           if(enH < 12) enRaw = enH + 'pm';
         }
-        en = hitlistHour(enRaw, di);
+        en = hitlistHour(enRaw, di, true);
       }
       else   { st = hitlistHour(s, di); en = null; }
     }
@@ -11565,7 +11573,7 @@ function checkScheduleErrors() {
           if(fohEntryIsCloser(entry)) return true;
           var endVal = Array.isArray(entry) ? entry[1] : null;
           if(!endVal) return false;
-          var enH = hitlistHour(endVal, di);
+          var enH = hitlistHour(endVal, di, true);
           return enH !== null && enH >= 16;
         });
         if(!hasCoverageTo4)
@@ -11580,7 +11588,7 @@ function checkScheduleErrors() {
       var endVal = Array.isArray(entry) ? entry[1] : (String(entry).split(/[-–]/)[1]||null);
       var stH = hitlistHour(startVal, di); if(stH===null) return false;
       var hasClose = endVal && String(endVal).trim().toLowerCase().match(/^c[l]?$|^close$/);
-      var enH = hasClose ? 23 : (endVal ? hitlistHour(endVal, di) : 20);
+      var enH = hasClose ? 23 : (endVal ? hitlistHour(endVal, di, true) : 20);
       if(enH===null) enH = 20;
       return stH < 20 && enH > 16; // overlaps 4-8PM window
     }).length;
@@ -11617,7 +11625,7 @@ function checkScheduleErrors() {
         if(!e || !e[0]) return;
         var st = hitlistHour(e[0], di);
         if(st === null) return;
-        var en = e[1] ? hitlistHour(e[1], di) : null;
+        var en = e[1] ? hitlistHour(e[1], di, true) : null;
         var workingThroughWindow = (st >= 15.5) || (en !== null && en >= 15.5);
         if(workingThroughWindow) pmServerCount++;
       });
