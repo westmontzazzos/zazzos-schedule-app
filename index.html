@@ -5818,6 +5818,7 @@ function showTab(tab, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   window.scrollTo(0,0);
+  if(tab==='runsheets') renderRunSheet(currentDay);
   if(tab==='schedule') { if(_schedShowingCalendar) renderScheduleCalendar(); else renderSchedule(); }
   if(tab==='hitlist') renderHitList();
   if(tab==='drawer') renderDrawerTab();
@@ -7187,7 +7188,11 @@ function renderRunSheet(di) {
   const busdish  = [...getBOHSection(BUS, di), ...getBOHSection(DISH, di)];
 
   function sec(title, data, max) {
-    const rows = data.slice(0,max);
+    // No cap -- a hardcoded max here previously silently cut off anyone
+    // past a fixed number of rows (Pizza's cap of 9 vs. 13 possible pizza
+    // cooks on the roster, for example). Show everyone actually scheduled,
+    // always, regardless of how many people that section can grow to.
+    const rows = data;
     let tbody = rows.length === 0
       ? '<tr><td colspan="3" style="color:#A8A49E;font-style:italic;padding:8px 10px;font-size:11px;">None scheduled</td></tr>'
       : rows.map(d=>`<tr class="${d.p==='C'?'closer':''}"><td class="rs-name" data-name="${(d.n||'').replace(/"/g,'&quot;')}">${d.n||''}</td><td class="mono">${d.a||''}</td><td class="mono">${d.p||''}</td></tr>`).join('');
@@ -7210,14 +7215,14 @@ function renderRunSheet(di) {
       <div id="rs-staff-count" style="text-align:right;font-size:11px;color:#A8A49E;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;"></div>
     </div>
     <div class="rs-grid">
-      ${sec('Managers',      managers, 4)}
-      ${sec('Pizza',         pizza, 9)}
-      ${sec('Kitchen',       kitchen, 5)}
-      ${sec('Prep / Utility',prep, 3)}
-      ${sec('Bus / Dish',    busdish, 4)}
-      ${sec('Host',          hosts, 3)}
-      ${sec('Servers',       servers, 11)}
-      ${sec('Bartenders',    bars, 3)}
+      ${sec('Managers',      managers)}
+      ${sec('Pizza',         pizza)}
+      ${sec('Kitchen',       kitchen)}
+      ${sec('Prep / Utility',prep)}
+      ${sec('Bus / Dish',    busdish)}
+      ${sec('Host',          hosts)}
+      ${sec('Servers',       servers)}
+      ${sec('Bartenders',    bars)}
       ${sec('Cashiers',      cashiers, 5)}
       ${sec('Drivers',       drivers, 10)}
     </div>
