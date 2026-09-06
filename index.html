@@ -5818,7 +5818,6 @@ function showTab(tab, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   window.scrollTo(0,0);
-  if(tab==='runsheets') renderRunSheet(currentDay);
   if(tab==='schedule') { if(_schedShowingCalendar) renderScheduleCalendar(); else renderSchedule(); }
   if(tab==='hitlist') renderHitList();
   if(tab==='drawer') renderDrawerTab();
@@ -7188,11 +7187,7 @@ function renderRunSheet(di) {
   const busdish  = [...getBOHSection(BUS, di), ...getBOHSection(DISH, di)];
 
   function sec(title, data, max) {
-    // No cap -- a hardcoded max here previously silently cut off anyone
-    // past a fixed number of rows (Pizza's cap of 9 vs. 13 possible pizza
-    // cooks on the roster, for example). Show everyone actually scheduled,
-    // always, regardless of how many people that section can grow to.
-    const rows = data;
+    const rows = data.slice(0,max);
     let tbody = rows.length === 0
       ? '<tr><td colspan="3" style="color:#A8A49E;font-style:italic;padding:8px 10px;font-size:11px;">None scheduled</td></tr>'
       : rows.map(d=>`<tr class="${d.p==='C'?'closer':''}"><td class="rs-name" data-name="${(d.n||'').replace(/"/g,'&quot;')}">${d.n||''}</td><td class="mono">${d.a||''}</td><td class="mono">${d.p||''}</td></tr>`).join('');
@@ -7215,14 +7210,14 @@ function renderRunSheet(di) {
       <div id="rs-staff-count" style="text-align:right;font-size:11px;color:#A8A49E;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;"></div>
     </div>
     <div class="rs-grid">
-      ${sec('Managers',      managers)}
-      ${sec('Pizza',         pizza)}
-      ${sec('Kitchen',       kitchen)}
-      ${sec('Prep / Utility',prep)}
-      ${sec('Bus / Dish',    busdish)}
-      ${sec('Host',          hosts)}
-      ${sec('Servers',       servers)}
-      ${sec('Bartenders',    bars)}
+      ${sec('Managers',      managers, 4)}
+      ${sec('Pizza',         pizza, 9)}
+      ${sec('Kitchen',       kitchen, 5)}
+      ${sec('Prep / Utility',prep, 3)}
+      ${sec('Bus / Dish',    busdish, 4)}
+      ${sec('Host',          hosts, 3)}
+      ${sec('Servers',       servers, 11)}
+      ${sec('Bartenders',    bars, 3)}
       ${sec('Cashiers',      cashiers, 5)}
       ${sec('Drivers',       drivers, 10)}
     </div>
@@ -8609,7 +8604,7 @@ function openAddRoleModal(origName) {
   document.getElementById('add-role-modal').style.display = 'flex';
 }
 
-function saveAddRole() {
+async function saveAddRole() {
   if(!_addRoleTarget) return;
   var checked = Array.from(document.querySelectorAll('.add-role-cb:checked')).map(function(c){ return c.value; });
   if(!checked.length) { alert('Select at least one role.'); return; }
@@ -8628,38 +8623,64 @@ function saveAddRole() {
   });
   if(missingRate) { alert('Enter a valid hourly rate for ' + missingRate + '.'); return; }
 
-  var requests = [];
-  if(_addRoleTarget.customEntry) {
-    // App-added person: their roles live directly on their roster_additions row.
-    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.customEntry.id, {
-      method: 'PATCH',
+  // Checks whether a row already exists for this name, then either PATCHes
+  // it or POSTs a new one -- doesn't rely on the table having any specific
+  // unique constraint or upsert support, since that's not something this
+  // code can verify or control. Whatever's actually in the roster table
+  // right now is what gets worked with, as-is.
+  async function upsertByName(table, name, fields) {
+    var existing = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?original_name=eq.' + encodeURIComponent(name) + '&select=id', {
+      headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+    }).then(function(r){ return r.ok ? r.json() : []; }).catch(function(){ return []; });
+
+    if(existing.length) {
+      return fetch(SUPABASE_URL + '/rest/v1/' + table + '?id=eq.' + existing[0].id, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify(fields)
+      });
+    }
+    return fetch(SUPABASE_URL + '/rest/v1/' + table, {
+      method: 'POST',
       headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
-      body: JSON.stringify({roles_json: JSON.stringify(checked)})
-    }));
-  } else {
-    // Hardcoded person: write an override that takes priority over their
-    // code-defined default roles, without ever touching the code itself.
-    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_role_overrides?on_conflict=original_name', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body: JSON.stringify([{original_name: _addRoleTarget.origName, roles_json: JSON.stringify(checked), updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
-    }));
+      body: JSON.stringify([Object.assign({original_name: name}, fields)])
+    });
   }
-  // Rate overrides apply the same way regardless of hardcoded vs app-added
-  // -- one real rate per role, always explicit.
-  if(Object.keys(roleRates).length) {
-    requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_rates?on_conflict=original_name', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body: JSON.stringify([{original_name: _addRoleTarget.origName, role_rates_json: JSON.stringify(roleRates), updated_by: getCurrentUser(), updated_at: new Date().toISOString()}])
-    }));
-  }
-  Promise.all(requests).then(function(responses){
-    if(responses.some(function(r){ return !r.ok; })) throw new Error('One or more updates failed');
+
+  try {
+    var requests = [];
+    if(_addRoleTarget.customEntry) {
+      // App-added person: their roles live directly on their roster_additions row.
+      requests.push(fetch(SUPABASE_URL + '/rest/v1/roster_additions?id=eq.' + _addRoleTarget.customEntry.id, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+        body: JSON.stringify({roles_json: JSON.stringify(checked)})
+      }));
+    } else {
+      // Hardcoded person: write an override that takes priority over their
+      // code-defined default roles, without ever touching the code itself.
+      requests.push(upsertByName('roster_role_overrides', _addRoleTarget.origName, {
+        roles_json: JSON.stringify(checked), updated_by: getCurrentUser(), updated_at: new Date().toISOString()
+      }));
+    }
+    // Rate overrides apply the same way regardless of hardcoded vs app-added
+    // -- one real rate per role, always explicit.
+    if(Object.keys(roleRates).length) {
+      requests.push(upsertByName('roster_rates', _addRoleTarget.origName, {
+        role_rates_json: JSON.stringify(roleRates), updated_by: getCurrentUser(), updated_at: new Date().toISOString()
+      }));
+    }
+    var responses = await Promise.all(requests);
+    if(responses.some(function(r){ return !r.ok; })) {
+      var failedBodies = await Promise.all(responses.filter(function(r){return !r.ok;}).map(function(r){ return r.text().catch(function(){return '(no body)';}); }));
+      throw new Error(failedBodies.join(' | '));
+    }
     document.getElementById('add-role-modal').style.display = 'none';
     _addRoleTarget = null;
     loadCustomRosterThenRender();
-  }).catch(function(e){ alert('Failed to save roles: ' + e.message); });
+  } catch(e) {
+    alert('Failed to save roles: ' + e.message);
+  }
 }
 
 function renderManageRosterLists() {
