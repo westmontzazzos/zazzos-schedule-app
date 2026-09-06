@@ -8664,10 +8664,14 @@ async function saveAddRole() {
       }));
     }
     // Rate overrides apply the same way regardless of hardcoded vs app-added
-    // -- one real rate per role, always explicit.
+    // -- one real rate per role, always explicit. "rate" is a required
+    // (not-null) column on this table from before per-role rates existed;
+    // it's harmless to fill it with one of the real role rates here since
+    // the read side already ignores "rate" whenever role_rates_json is
+    // present -- this just satisfies the column, it's never actually used.
     if(Object.keys(roleRates).length) {
       requests.push(upsertByName('roster_rates', _addRoleTarget.origName, {
-        role_rates_json: JSON.stringify(roleRates), updated_by: getCurrentUser(), updated_at: new Date().toISOString()
+        rate: Object.values(roleRates)[0], role_rates_json: JSON.stringify(roleRates), updated_by: getCurrentUser(), updated_at: new Date().toISOString()
       }));
     }
     var responses = await Promise.all(requests);
