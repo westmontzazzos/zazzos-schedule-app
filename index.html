@@ -758,6 +758,25 @@ body {
   .report-title { font-size: 36px; }
 }
 
+.TO-Accordion{background:var(--white);border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);margin-bottom:12px;overflow:hidden;}
+.TO-Accordion-head{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.TO-Accordion-head-title{font-family:'Bebas Neue',system-ui,sans-serif;font-size:15px;letter-spacing:0.06em;}
+.TO-Accordion-chevron{font-size:12px;color:var(--gray-400);}
+.TO-Accordion-body{padding:0 16px 16px;border-top:1px solid var(--gray-100);}
+.TO-entry{border-bottom:1px solid var(--gray-100);padding:10px 0;font-size:13px;display:flex;justify-content:space-between;align-items:flex-start;}
+.TO-entry-name{font-weight:700;}
+.TO-entry-meta{color:var(--gray-600);font-size:12px;margin-top:2px;}
+.TO-date-input{width:100%;padding:10px;border:2px solid var(--gray-200);border-radius:8px;font-size:14px;margin-bottom:12px;box-sizing:border-box;}
+.TO-shift-options{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+.TO-shift-opt{border:2px solid var(--gray-200);border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.TO-shift-opt.selected{border-color:var(--red);background:#FBEAE8;color:var(--red);font-weight:700;}
+.TO-label{font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--gray-400);margin:16px 0 8px;}
+.TO-chip{display:inline-block;border:2px solid var(--red);border-radius:20px;padding:8px 14px;font-size:13px;color:var(--red);font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.TO-name-match{border-bottom:1px solid var(--gray-100);padding:10px 0;font-size:13px;cursor:pointer;}
+.TO-send-btn{width:100%;padding:13px;margin-top:12px;background:var(--red);color:#fff;border:none;border-radius:10px;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.1em;cursor:pointer;}
+.TO-status{font-size:12px;color:var(--gray-600);text-align:center;margin-top:10px;min-height:16px;}
+.TO-delete-link{font-size:12px;color:var(--red);text-decoration:underline;cursor:pointer;margin-top:2px;white-space:nowrap;}
+
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -4684,6 +4703,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="nav-btn" onclick="showTab('private',this)">Private</button>
     <button class="nav-btn" onclick="showTab('hitlist',this)">Heat Map</button>
     <button class="nav-btn" onclick="showTab('drawer',this)">💰 Drawer Count</button>
+    <button class="nav-btn" onclick="showTab('timeoff',this)">Time Off</button>
     <button class="nav-btn" id="update-nav-btn" onclick="showTab('update',this)">⬆ Update</button>
   </div>
 </nav>
@@ -4757,6 +4777,30 @@ document.addEventListener("DOMContentLoaded",function(){
         <a href="#" onclick="switchUser();document.getElementById('sched-log-user-display').textContent=getCurrentUser();return false;" style="font-size:11px;color:#999;text-decoration:underline;margin-left:10px;">Switch User</a>
       </div>
       <div id="override-log-body">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- TIME OFF -->
+<div id="tab-timeoff" class="main" style="display:none">
+  <div class="report-header">
+    <div class="report-title">TIME OFF</div>
+    <div class="report-sub">Requests for time off, by person</div>
+  </div>
+  <div style="padding:0 16px 24px;">
+    <div class="TO-Accordion">
+      <div class="TO-Accordion-head" onclick="toggleTimeOffSection('review')">
+        <div class="TO-Accordion-head-title">REVIEW TIME OFF REQUESTS</div>
+        <div class="TO-Accordion-chevron" id="timeoff-review-chevron">▼</div>
+      </div>
+      <div class="TO-Accordion-body" id="timeoff-review-body" style="display:none;"></div>
+    </div>
+    <div class="TO-Accordion">
+      <div class="TO-Accordion-head" onclick="toggleTimeOffSection('add')">
+        <div class="TO-Accordion-head-title">ADD A TIME OFF REQUEST</div>
+        <div class="TO-Accordion-chevron" id="timeoff-add-chevron">▼</div>
+      </div>
+      <div class="TO-Accordion-body TO-form" id="timeoff-add-body" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -5810,14 +5854,147 @@ var _schedShowingCalendar = true;
 var _calMonthOffset = 0;
 let currentDay = 0;
 
+// ===== TIME OFF REQUESTS =====
+// Ported from the shared reference app's actual time_off_requests table --
+// same table, same columns, distinguished by location so this app only
+// ever sees its own requests.
+var _timeOffList = null;
+var _timeOffName = null;
+var _timeOffDate = '';
+var _timeOffShift = null;
+var _timeOffSearch = '';
+
+function initTimeOffTab() {
+  loadCustomRosterThenRender(); // ensures FULL_ROSTER_NAMES is populated
+  loadTimeOffList();
+  renderTimeOffAdd();
+}
+
+function toggleTimeOffSection(which) {
+  var reviewBody = document.getElementById('timeoff-review-body');
+  var addBody = document.getElementById('timeoff-add-body');
+  var reviewChev = document.getElementById('timeoff-review-chevron');
+  var addChev = document.getElementById('timeoff-add-chevron');
+  if(which === 'review') {
+    var opening = reviewBody.style.display === 'none';
+    reviewBody.style.display = opening ? 'block' : 'none';
+    reviewChev.textContent = opening ? '▲' : '▼';
+  } else {
+    var opening2 = addBody.style.display === 'none';
+    addBody.style.display = opening2 ? 'block' : 'none';
+    addChev.textContent = opening2 ? '▲' : '▼';
+  }
+}
+
+function loadTimeOffList() {
+  document.getElementById('timeoff-review-body').innerHTML = '<div style="font-size:13px;color:var(--gray-600);padding:10px 0;">Loading…</div>';
+  fetch(SUPABASE_URL + '/rest/v1/time_off_requests?location=eq.westmont&select=id,name,request_date,shift_type&order=request_date', {
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY}
+  }).then(function(r){ return r.ok ? r.json() : []; }).then(function(rows){
+    _timeOffList = Array.isArray(rows) ? rows : [];
+    renderTimeOffReview();
+  }).catch(function(){ _timeOffList = []; renderTimeOffReview(); });
+}
+
+var TIME_OFF_SHIFT_LABEL = {full:'Full Day', morning:'Half Day — Morning', night:'Half Day — Night'};
+
+function renderTimeOffReview() {
+  var el = document.getElementById('timeoff-review-body');
+  if(_timeOffList === null) { el.innerHTML = '<div style="font-size:13px;color:var(--gray-600);padding:10px 0;">Loading…</div>'; return; }
+  if(!_timeOffList.length) { el.innerHTML = '<div style="font-size:13px;color:var(--gray-600);padding:10px 0;">No time off requested.</div>'; return; }
+  el.innerHTML = _timeOffList.map(function(r){
+    return '<div class="TO-entry"><div><div class="TO-entry-name">'+r.name+'</div>'
+      + '<div class="TO-entry-meta">'+r.request_date+' — '+(TIME_OFF_SHIFT_LABEL[r.shift_type]||r.shift_type)+'</div></div>'
+      + '<div class="TO-delete-link" onclick="deleteTimeOffRequest('+r.id+', this)">Delete</div></div>';
+  }).join('');
+}
+
+function deleteTimeOffRequest(id, el) {
+  el.textContent = 'Deleting…';
+  fetch(SUPABASE_URL + '/rest/v1/time_off_requests?id=eq.' + id, {
+    method: 'DELETE',
+    headers: {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'}
+  }).then(function(r){
+    if(!r.ok) throw new Error();
+    loadTimeOffList();
+  }).catch(function(){ el.textContent = 'Delete'; alert('Could not delete -- try again.'); });
+}
+
+function timeOffSearchInput(val) {
+  _timeOffSearch = val;
+  renderTimeOffAdd();
+}
+function timeOffPickName(name) {
+  _timeOffName = name;
+  _timeOffSearch = '';
+  renderTimeOffAdd();
+}
+function timeOffClearName() {
+  _timeOffName = null;
+  renderTimeOffAdd();
+}
+function timeOffSetDate(val) {
+  _timeOffDate = val;
+}
+function timeOffPickShift(shift) {
+  _timeOffShift = shift;
+  renderTimeOffAdd();
+}
+
+function renderTimeOffAdd() {
+  var el = document.getElementById('timeoff-add-body');
+  var allNames = (typeof FULL_ROSTER_NAMES !== 'undefined' ? FULL_ROSTER_NAMES : []).map(function(p){ return p.n; });
+  var matches = _timeOffSearch.trim()
+    ? allNames.filter(function(n){ return n.toLowerCase().includes(_timeOffSearch.trim().toLowerCase()); }).slice(0,8)
+    : [];
+
+  var nameHtml = _timeOffName
+    ? '<div class="TO-chip" onclick="timeOffClearName()">'+_timeOffName+' ✕</div>'
+    : '<input type="text" class="TO-date-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Type a name…" value="'+_timeOffSearch.replace(/"/g,'&quot;')+'" oninput="timeOffSearchInput(this.value)">'
+      + (matches.length ? '<div>' + matches.map(function(n){ return '<div class="TO-name-match" onclick="timeOffPickName(\''+n.replace(/'/g,"\\'")+'\')">'+n+'</div>'; }).join('') + '</div>' : '');
+
+  var shiftHtml = ['full','morning','night'].map(function(s){
+    return '<div class="TO-shift-opt'+(_timeOffShift===s?' selected':'')+'" onclick="timeOffPickShift(\''+s+'\')">'+TIME_OFF_SHIFT_LABEL[s]+'</div>';
+  }).join('');
+
+  el.innerHTML = '<div class="TO-label">Who</div>' + nameHtml
+    + '<div class="TO-label">Date</div><input type="date" class="TO-date-input" value="'+_timeOffDate+'" onchange="timeOffSetDate(this.value)">'
+    + '<div class="TO-label">Which shift</div><div class="TO-shift-options">'+shiftHtml+'</div>'
+    + '<button class="TO-send-btn" onclick="submitTimeOffRequest()">SAVE REQUEST</button>'
+    + '<div class="TO-status" id="timeoff-status"></div>';
+}
+
+function submitTimeOffRequest() {
+  var status = document.getElementById('timeoff-status');
+  if(!_timeOffName) { status.textContent = 'Pick who this is for.'; return; }
+  if(!_timeOffDate) { status.textContent = 'Pick a date.'; return; }
+  if(!_timeOffShift) { status.textContent = 'Pick full day, morning, or night.'; return; }
+  status.textContent = 'Saving…';
+  fetch(SUPABASE_URL + '/rest/v1/time_off_requests', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'return=minimal'},
+    body: JSON.stringify([{location:'westmont', name:_timeOffName, request_date:_timeOffDate, shift_type:_timeOffShift}])
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(body){ throw new Error(r.status + ': ' + (body || '(no response body)')); });
+    _timeOffName = null; _timeOffDate = ''; _timeOffShift = null;
+    renderTimeOffAdd();
+    document.getElementById('timeoff-status').textContent = 'Saved.';
+    loadTimeOffList();
+  }).catch(function(e){
+    document.getElementById('timeoff-status').textContent = "Couldn't save — " + e.message;
+  });
+}
+
 function showTab(tab, btn) {
   currentTab = tab;
-  ['runsheets','schedule','private','hitlist','update','rules','drawer'].forEach(t => {
+  ['runsheets','schedule','private','hitlist','update','rules','drawer','timeoff'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===tab ? 'block' : 'none';
   });
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   if(btn) btn.classList.add('active');
   window.scrollTo(0,0);
+  if(tab==='timeoff') initTimeOffTab();
+  if(tab==='runsheets') renderRunSheet(currentDay);
   if(tab==='schedule') { if(_schedShowingCalendar) renderScheduleCalendar(); else renderSchedule(); }
   if(tab==='hitlist') renderHitList();
   if(tab==='drawer') renderDrawerTab();
@@ -7187,7 +7364,11 @@ function renderRunSheet(di) {
   const busdish  = [...getBOHSection(BUS, di), ...getBOHSection(DISH, di)];
 
   function sec(title, data, max) {
-    const rows = data.slice(0,max);
+    // No cap -- a hardcoded max here previously silently cut off anyone
+    // past a fixed number of rows (Pizza's cap of 9 vs. 13 possible pizza
+    // cooks on the roster, for example). Show everyone actually scheduled,
+    // always, regardless of how many people that section can grow to.
+    const rows = data;
     let tbody = rows.length === 0
       ? '<tr><td colspan="3" style="color:#A8A49E;font-style:italic;padding:8px 10px;font-size:11px;">None scheduled</td></tr>'
       : rows.map(d=>`<tr class="${d.p==='C'?'closer':''}"><td class="rs-name" data-name="${(d.n||'').replace(/"/g,'&quot;')}">${d.n||''}</td><td class="mono">${d.a||''}</td><td class="mono">${d.p||''}</td></tr>`).join('');
@@ -7210,16 +7391,16 @@ function renderRunSheet(di) {
       <div id="rs-staff-count" style="text-align:right;font-size:11px;color:#A8A49E;font-weight:500;letter-spacing:0.05em;text-transform:uppercase;"></div>
     </div>
     <div class="rs-grid">
-      ${sec('Managers',      managers, 4)}
-      ${sec('Pizza',         pizza, 9)}
-      ${sec('Kitchen',       kitchen, 5)}
-      ${sec('Prep / Utility',prep, 3)}
-      ${sec('Bus / Dish',    busdish, 4)}
-      ${sec('Host',          hosts, 3)}
-      ${sec('Servers',       servers, 11)}
-      ${sec('Bartenders',    bars, 3)}
-      ${sec('Cashiers',      cashiers, 5)}
-      ${sec('Drivers',       drivers, 10)}
+      ${sec('Managers',      managers)}
+      ${sec('Pizza',         pizza)}
+      ${sec('Kitchen',       kitchen)}
+      ${sec('Prep / Utility',prep)}
+      ${sec('Bus / Dish',    busdish)}
+      ${sec('Host',          hosts)}
+      ${sec('Servers',       servers)}
+      ${sec('Bartenders',    bars)}
+      ${sec('Cashiers',      cashiers)}
+      ${sec('Drivers',       drivers)}
     </div>
     <div class="action-row no-print">
       <button class="btn btn-secondary" onclick="openEditor(${di})">✏️ Edit</button>
