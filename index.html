@@ -4764,7 +4764,7 @@ document.addEventListener("DOMContentLoaded",function(){
     <button class="sub-btn" onclick="openSaveTemplateModal()">💾 Save as Template</button>
     <button class="sub-btn" onclick="openLoadTemplateModal()">📥 Load Template</button>
     <button class="sub-btn" onclick="openSendMessageModal()">✉️ Send Message</button>
-    <button class="sub-btn" onclick="showOverrideLog(this)" style="margin-left:auto;">📋 Schedule Log</button>
+    <button class="sub-btn" onclick="gatedShowOverrideLog(this)" style="margin-left:auto;">📋 Schedule Log</button>
     <button class="sub-btn" onclick="showDomsNotes()" style="margin-left:6px;">📝 Dom's Notes</button>
   </div>
   <div class="sched-wrap" id="schedule-content"></div>
@@ -5308,6 +5308,14 @@ function askPin(message) {
 function pinModalResolve(value) {
   document.getElementById('pin-modal').classList.remove('open');
   if (_pinResolve) { var r = _pinResolve; _pinResolve = null; r(value); }
+}
+
+// PIN-gate the Schedule Log -- requires 9608 every time it's opened.
+async function gatedShowOverrideLog(btn) {
+  var pin = await askPin('Enter PIN to open Schedule Log');
+  if(pin === null) return;
+  if(String(pin).trim() !== '9608') { alert('Incorrect PIN.'); return; }
+  showOverrideLog(btn);
 }
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
