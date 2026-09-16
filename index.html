@@ -5533,7 +5533,7 @@ const DRIVER_ALIASES = { 'jeff z': 'Jeff Z', 'jeff zeggeben': 'Jeff Z', 'jeff ze
 // this is the one place that needs updating, not scattered per-upload logic.
 const NAME_ALIASES = {
   'alex': 'Alexis A', 'alex a': 'Alexis A',
-  'nithia': 'Nithia Maldonado', 'nithia maldonado': 'Nithia Maldonado', 'lithia': 'Nithia Maldonado',
+  'nithia': 'Nithia', 'nithia maldonado': 'Nithia', 'lithia': 'Nithia',
   'nick': 'Nick', 'nicholas': 'Nick', 'nicholas urbana': 'Nick',
   'sio': 'Sio', 'sio mcavoy': 'Sio',
   'laura': 'Laura Z', 'laura z': 'Laura Z',
@@ -11212,8 +11212,10 @@ function parseWeekData(week) {
     Object.keys(PIZZA).forEach(k => delete PIZZA[k]);       if(boh.PIZZA)    Object.assign(PIZZA, boh.PIZZA);
     Object.keys(KITCHEN).forEach(k => delete KITCHEN[k]);   if(boh.KITCHEN)  Object.assign(KITCHEN, boh.KITCHEN);
     // Nick is allowed in Kitchen and Prep - no deletion
-    // Normalize Nithia → Nithia Maldonado after Supabase load
-    if(KITCHEN['Nithia'] && !KITCHEN['Nithia Maldonado']) { KITCHEN['Nithia Maldonado'] = KITCHEN['Nithia']; delete KITCHEN['Nithia']; }
+    // Enforce the short display form -- flip the OLD direction (this used
+    // to convert 'Nithia' back to 'Nithia Maldonado', silently undoing the
+    // no-full-last-names fix every time schedule data loaded from Supabase).
+    if(KITCHEN['Nithia Maldonado'] && !KITCHEN['Nithia']) { KITCHEN['Nithia'] = KITCHEN['Nithia Maldonado']; delete KITCHEN['Nithia Maldonado']; }
     Object.keys(PREP).forEach(k => delete PREP[k]);         if(boh.PREP)     Object.assign(PREP, boh.PREP);
     Object.keys(BUS).forEach(k => delete BUS[k]);           if(boh.BUS)      Object.assign(BUS, boh.BUS);
     Object.keys(DISH).forEach(k => delete DISH[k]);         if(boh.DISH)     Object.assign(DISH, boh.DISH);
@@ -12586,7 +12588,7 @@ async function readScheduleImage(dataUrl, type) {
           }
         });
         // Normalize short names to full names
-        var kitchenAliases = {'nithia': 'Nithia Maldonado', 'lithia': 'Nithia Maldonado', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
+        var kitchenAliases = {'nithia': 'Nithia', 'lithia': 'Nithia', 'nicholas': 'Nick', 'nicholas urbana': 'Nick', 'laura': 'Laura Z'};
         Object.keys(sched.KITCHEN).forEach(function(name){
           var alias = kitchenAliases[name.toLowerCase()];
           if(alias && alias !== name) {
